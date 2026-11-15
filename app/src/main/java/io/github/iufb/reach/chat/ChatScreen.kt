@@ -161,7 +161,7 @@ private fun MessageList(
     val items = buildItems(state, isGroup = chat.kind == ChatKind.Group)
     val listState = rememberLazyListState()
     ScrollToUnreadOnce(listState, items)
-    FollowNewMessages(listState, state.messages)
+    FollowNewMessages(listState, state)
     PagingEffects(listState, state, onLoadOlder, onLoadNewer)
     // reverseLayout: индекс 0 — самое новое сообщение, внизу экрана
     LazyColumn(
@@ -213,13 +213,18 @@ private const val UNREAD_TOP_FRACTION = 0.85f
  * если читает историю выше — не мешаем.
  */
 @Composable
-private fun FollowNewMessages(listState: LazyListState, messages: List<Message>) {
+private fun FollowNewMessages(listState: LazyListState, state: ChatHistory.State) {
+    val messages = state.messages
     val newestId = messages.firstOrNull()?.id
     var previousNewestId by remember { mutableStateOf(newestId) }
+    var previousReachedNewest by remember { mutableStateOf(state.reachedNewest) }
     LaunchedEffect(newestId) {
         val previous = previousNewestId
+        // Новые снизу при недогруженном конце — это страница loadNewer, а не живое сообщение: не крутим
+        val live = previousReachedNewest
         previousNewestId = newestId
-        if (previous == null || newestId == null || newestId <= previous) return@LaunchedEffect
+        previousReachedNewest = state.reachedNewest
+        if (!live || previous == null || newestId == null || newestId <= previous) return@LaunchedEffect
         // Лента держит позицию по ключу видимого элемента, поэтому сейчас индекс сдвинут на число новых
         val added = messages.indexOfFirst { it.id <= previous }.takeIf { it >= 0 } ?: messages.size
         if (listState.firstVisibleItemIndex <= added) listState.animateScrollToItem(0)
