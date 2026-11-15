@@ -45,6 +45,10 @@ class AuthRepository @Inject constructor(
         td.send(TdApi.CheckAuthenticationCode(code))
     }
 
+    suspend fun checkPassword(password: String) {
+        td.send(TdApi.CheckAuthenticationPassword(password))
+    }
+
     suspend fun resendCode() {
         td.send(TdApi.ResendAuthenticationCode(TdApi.ResendCodeReasonUserRequest()))
     }

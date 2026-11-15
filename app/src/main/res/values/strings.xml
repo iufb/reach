@@ -18,6 +18,12 @@
     <string name="auth_resend_call">Позвонить с кодом</string>
     <string name="auth_resend_in">Повторно можно через %1$d:%2$02d</string>
     <string name="auth_change_phone">Изменить номер</string>
+    <string name="auth_password_title">Облачный пароль</string>
+    <string name="auth_password_subtitle">На аккаунте включена двухэтапная проверка. Введите облачный пароль.</string>
+    <string name="auth_password_label">Пароль</string>
+    <string name="auth_password_hint">Подсказка: %1$s</string>
+    <string name="auth_password_show">Показать</string>
+    <string name="auth_password_hide">Скрыть</string>
     <string name="auth_unsupported_title">Этот шаг входа пока не поддерживается</string>
     <string name="auth_unsupported_subtitle">Telegram запросил шаг «%1$s». Войдите на другом клиенте, чтобы его пройти.</string>
 
@@ -25,6 +31,7 @@
     <string name="auth_error_phone_banned">Этот номер заблокирован в Telegram</string>
     <string name="auth_error_invalid_code">Неверный код</string>
     <string name="auth_error_code_expired">Срок действия кода истёк, запросите новый</string>
+    <string name="auth_error_invalid_password">Неверный пароль</string>
     <string name="auth_error_flood_wait">Слишком много попыток. Повторите через %1$s</string>
     <string name="auth_error_unknown">Ошибка: %1$s</string>
 

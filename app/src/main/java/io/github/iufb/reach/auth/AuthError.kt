@@ -8,6 +8,7 @@ sealed interface AuthError {
     data object PhoneNumberBanned : AuthError
     data object InvalidCode : AuthError
     data object CodeExpired : AuthError
+    data object InvalidPassword : AuthError
     data class FloodWait(val seconds: Int) : AuthError
     data class Unknown(val message: String) : AuthError
 }
@@ -20,6 +21,7 @@ internal fun Throwable.toAuthError(): AuthError {
         "PHONE_NUMBER_BANNED" in message -> AuthError.PhoneNumberBanned
         "PHONE_CODE_INVALID" in message || "PHONE_CODE_EMPTY" in message -> AuthError.InvalidCode
         "PHONE_CODE_EXPIRED" in message -> AuthError.CodeExpired
+        "PASSWORD_HASH_INVALID" in message -> AuthError.InvalidPassword
         else -> AuthError.Unknown(message)
     }
 }

@@ -33,6 +33,8 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
@@ -128,6 +130,50 @@ private fun ResendButton(info: AuthState.WaitCode, onResend: () -> Unit) {
 }
 
 @Composable
+fun PasswordScreen(onChangePhoneNumber: () -> Unit, viewModel: PasswordViewModel = hiltViewModel()) {
+    val hint by viewModel.hint.collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    PasswordContent(
+        hint, state, viewModel::onPasswordChange, viewModel::onTogglePasswordVisible, viewModel::submit, onChangePhoneNumber,
+    )
+}
+
+@Composable
+private fun PasswordContent(
+    hint: String,
+    state: PasswordUiState,
+    onPasswordChange: (String) -> Unit,
+    onTogglePasswordVisible: () -> Unit,
+    onSubmit: () -> Unit,
+    onChangePhoneNumber: () -> Unit,
+) {
+    AuthLayout(
+        title = stringResource(R.string.auth_password_title),
+        subtitle = stringResource(R.string.auth_password_subtitle),
+    ) {
+        AuthField(
+            value = state.password,
+            onValueChange = onPasswordChange,
+            label = stringResource(R.string.auth_password_label),
+            keyboardType = KeyboardType.Password,
+            enabled = !state.submitting,
+            error = state.error,
+            onDone = onSubmit,
+            visualTransformation = if (state.passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            trailing = {
+                TextButton(onClick = onTogglePasswordVisible) {
+                    Text(stringResource(if (state.passwordVisible) R.string.auth_password_hide else R.string.auth_password_show))
+                }
+            },
+            // Подсказка видна, пока нет ошибки: ошибка занимает ту же строку под полем
+            supporting = hint.takeIf { it.isNotBlank() }?.let { stringResource(R.string.auth_password_hint, it) },
+        )
+        SubmitButton(enabled = state.canSubmit, submitting = state.submitting, onClick = onSubmit)
+        TextButton(onClick = onChangePhoneNumber) { Text(stringResource(R.string.auth_change_phone)) }
+    }
+}
+
+@Composable
 fun UnsupportedAuthScreen(step: String) {
     AuthLayout(
         title = stringResource(R.string.auth_unsupported_title),
@@ -169,6 +215,9 @@ private fun AuthField(
     enabled: Boolean,
     error: AuthError?,
     onDone: () -> Unit,
+    visualTransformation: VisualTransformation = VisualTransformation.None,
+    trailing: (@Composable () -> Unit)? = null,
+    supporting: String? = null,
 ) {
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
@@ -180,7 +229,13 @@ private fun AuthField(
         singleLine = true,
         enabled = enabled,
         isError = error != null,
-        supportingText = error?.let { { Text(errorText(it)) } },
+        supportingText = when {
+            error != null -> { { Text(errorText(error)) } }
+            supporting != null -> { { Text(supporting) } }
+            else -> null
+        },
+        visualTransformation = visualTransformation,
+        trailingIcon = trailing,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { onDone() }),
     )
@@ -210,6 +265,7 @@ private fun errorText(error: AuthError): String = when (error) {
     AuthError.PhoneNumberBanned -> stringResource(R.string.auth_error_phone_banned)
     AuthError.InvalidCode -> stringResource(R.string.auth_error_invalid_code)
     AuthError.CodeExpired -> stringResource(R.string.auth_error_code_expired)
+    AuthError.InvalidPassword -> stringResource(R.string.auth_error_invalid_password)
     is AuthError.FloodWait -> floodWaitText(error.seconds)
     is AuthError.Unknown -> stringResource(R.string.auth_error_unknown, error.message)
 }
@@ -255,6 +311,18 @@ private fun CodePreview() {
             info = AuthState.WaitCode("15550001234", CodeDelivery.TelegramMessage(5), CodeDelivery.Sms(5), 42),
             state = CodeUiState(code = "12", error = AuthError.InvalidCode),
             onCodeChange = {}, onSubmit = {}, onResend = {}, onChangePhoneNumber = {},
+        )
+    }
+}
+
+@Preview
+@Composable
+private fun PasswordPreview() {
+    ReachTheme {
+        PasswordContent(
+            hint = "кличка кота",
+            state = PasswordUiState(password = "secret"),
+            onPasswordChange = {}, onTogglePasswordVisible = {}, onSubmit = {}, onChangePhoneNumber = {},
         )
     }
 }
