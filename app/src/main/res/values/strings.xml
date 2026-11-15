@@ -63,6 +63,7 @@
     <string name="chats_title">Чаты</string>
     <string name="chats_empty">Чатов пока нет</string>
     <string name="chat_deleted_account">Удалённый аккаунт</string>
+    <string name="chat_pinned">Закреплён</string>
     <string name="chat_preview_you">Вы: %1$s</string>
 
     <!-- Типы содержимого сообщений -->

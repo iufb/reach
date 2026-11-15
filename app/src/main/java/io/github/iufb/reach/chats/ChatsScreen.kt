@@ -1,6 +1,12 @@
 package io.github.iufb.reach.chats
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -51,12 +57,13 @@ fun ChatsScreen(onChatClick: (Long) -> Unit, viewModel: ChatsViewModel = hiltVie
     val chats by viewModel.chats.collectAsStateWithLifecycle()
     val allLoaded by viewModel.allLoaded.collectAsStateWithLifecycle()
     val loggingOut by viewModel.loggingOut.collectAsStateWithLifecycle()
-    ChatsContent(chats, allLoaded, loggingOut, onChatClick, viewModel::loadMore, viewModel::logOut)
+    ChatsContent(viewModel.list, chats, allLoaded, loggingOut, onChatClick, viewModel::loadMore, viewModel::logOut)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatsContent(
+    list: ChatListType,
     chats: List<Chat>?,
     allLoaded: Boolean,
     loggingOut: Boolean,
@@ -87,7 +94,7 @@ private fun ChatsContent(
                     textAlign = TextAlign.Center,
                 )
             }
-            else -> ChatList(chats, allLoaded, onChatClick, onLoadMore, modifier)
+            else -> ChatList(list, chats, allLoaded, onChatClick, onLoadMore, modifier)
         }
     }
     if (confirmLogOut) {
@@ -103,6 +110,7 @@ private fun ChatsContent(
 
 @Composable
 private fun ChatList(
+    list: ChatListType,
     chats: List<Chat>,
     allLoaded: Boolean,
     onChatClick: (Long) -> Unit,
@@ -113,7 +121,7 @@ private fun ChatList(
     LoadMoreEffect(listState, enabled = !allLoaded, onLoadMore)
     LazyColumn(state = listState, modifier = modifier) {
         items(chats, key = { it.id }) { chat ->
-            ChatRow(chat, onClick = { onChatClick(chat.id) })
+            ChatRow(chat, isPinned = chat.positions[list]?.isPinned == true, onClick = { onChatClick(chat.id) })
         }
         if (!allLoaded) {
             item(key = "loading") {
@@ -143,7 +151,7 @@ private fun LoadMoreEffect(listState: LazyListState, enabled: Boolean, onLoadMor
 }
 
 @Composable
-private fun ChatRow(chat: Chat, onClick: () -> Unit) {
+private fun ChatRow(chat: Chat, isPinned: Boolean, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -170,16 +178,54 @@ private fun ChatRow(chat: Chat, onClick: () -> Unit) {
                     )
                 }
             }
-            Text(
-                chat.lastMessage?.let { previewText(it) }.orEmpty(),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    chat.lastMessage?.let { previewText(it) }.orEmpty(),
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                // Счётчик важнее значка закрепа: если есть непрочитанные, показываем его
+                when {
+                    chat.unreadCount > 0 -> {
+                        Spacer(Modifier.width(8.dp))
+                        UnreadBadge(chat.unreadCount)
+                    }
+                    isPinned -> {
+                        Spacer(Modifier.width(8.dp))
+                        Icon(
+                            painterResource(R.drawable.ic_pin),
+                            contentDescription = stringResource(R.string.chat_pinned),
+                            modifier = Modifier.size(16.dp).rotate(45f),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
+            }
         }
     }
 }
+
+@Composable
+private fun UnreadBadge(count: Int) {
+    Box(
+        modifier = Modifier
+            .defaultMinSize(minWidth = 22.dp, minHeight = 22.dp)
+            .background(MaterialTheme.colorScheme.primary, CircleShape)
+            .padding(horizontal = 6.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            if (count > MAX_BADGE) "$MAX_BADGE+" else count.toString(),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onPrimary,
+        )
+    }
+}
+
+private const val MAX_BADGE = 999
 
 @Composable
 private fun previewText(message: LastMessage): String {
@@ -230,9 +276,10 @@ private fun LogOutDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
 private fun ChatsPreview() {
     val now = (System.currentTimeMillis() / 1000).toInt()
     val chats = listOf(
+        Chat(4, ChatKind.Private, "Избранное", null, mapOf(ChatListType.Main to ChatPosition(10, isPinned = true)), 0),
         Chat(1, ChatKind.Private, "Аня", LastMessage(1, now, false, MessagePreview.Text("Привет! 👋")), emptyMap(), 2),
         Chat(2, ChatKind.Group, "Семья", LastMessage(2, now - 86_400, true, MessagePreview.Media(MediaKind.Photo, "Море")), emptyMap(), 0),
         Chat(3, ChatKind.Channel, "Новости", LastMessage(3, now - 30 * 86_400, false, MessagePreview.Media(MediaKind.Poll, "Что дальше?")), emptyMap(), 0),
     )
-    ReachTheme { ChatsContent(chats, allLoaded = false, loggingOut = false, onChatClick = {}, onLoadMore = {}, onLogOut = {}) }
+    ReachTheme { ChatsContent(ChatListType.Main, chats, allLoaded = false, loggingOut = false, onChatClick = {}, onLoadMore = {}, onLogOut = {}) }
 }
