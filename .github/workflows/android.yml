@@ -1,14 +1,15 @@
 name: Android
 
 # Все сборки APK — только здесь (docs/adr/0001-ci-only-builds.md).
-# Подпись фиксированным keystore и артефакты — в #12.
+# Секреты: APP_ID, APP_HASH (ADR-0003), DEBUG_KEYSTORE_BASE64 — фиксированный debug-keystore.
+# В PR из форков секретов нет: сборка всё равно проходит.
 
 on:
   push:
   pull_request:
 
 concurrency:
-  group: android-${{ github.ref }}
+  group: android-${{ github.ref }}-${{ github.event_name }}
   cancel-in-progress: true
 
 jobs:
@@ -21,8 +22,26 @@ jobs:
           distribution: temurin
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
+
+      - name: Restore debug keystore
+        env:
+          DEBUG_KEYSTORE_BASE64: ${{ secrets.DEBUG_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$DEBUG_KEYSTORE_BASE64" ]; then
+            echo "$DEBUG_KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/debug.keystore"
+            echo "DEBUG_KEYSTORE_PATH=$RUNNER_TEMP/debug.keystore" >> "$GITHUB_ENV"
+          else
+            echo "::warning::DEBUG_KEYSTORE_BASE64 не задан — APK подписан случайным ключом и не встанет поверх установленного"
+          fi
+
       - run: ./gradlew assembleDebug
         env:
-          # Пусто для PR из форков — сборка всё равно проходит (ADR-0003)
           APP_ID: ${{ secrets.APP_ID }}
           APP_HASH: ${{ secrets.APP_HASH }}
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: reach-debug
+          path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+          if-no-files-found: error

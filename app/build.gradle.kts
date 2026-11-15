@@ -13,6 +13,10 @@ val tdApiId: Int = providers.environmentVariable("APP_ID").orNull?.trim()
     ?: 0
 val tdApiHash: String = providers.environmentVariable("APP_HASH").orNull?.trim().orEmpty()
 
+// Фиксированный debug-keystore из GitHub Secrets (ADR-0001): CI кладёт его в DEBUG_KEYSTORE_PATH.
+// Без него AGP подписывает случайным ключом раннера, и APK не встанет поверх установленного.
+val debugKeystorePath: String? = providers.environmentVariable("DEBUG_KEYSTORE_PATH").orNull?.takeIf { it.isNotBlank() }
+
 android {
     namespace = "io.github.iufb.reach"
     compileSdk = 37
@@ -26,6 +30,17 @@ android {
 
         buildConfigField("int", "TD_API_ID", tdApiId.toString())
         buildConfigField("String", "TD_API_HASH", "\"$tdApiHash\"")
+    }
+
+    signingConfigs {
+        getByName("debug") {
+            if (debugKeystorePath != null) {
+                storeFile = file(debugKeystorePath)
+                storePassword = "android"
+                keyAlias = "androiddebugkey"
+                keyPassword = "android"
+            }
+        }
     }
 
     buildFeatures {
