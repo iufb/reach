@@ -108,6 +108,14 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
                     val views = update.interactionInfo?.viewCount ?: 0
                     edit(update.messageId) { copy(viewCount = views) }
                 }
+                // Отправка завершилась: временный id меняется на постоянный
+                is TdApi.UpdateMessageSendSucceeded -> if (update.message.chatId == chatId) {
+                    replace(update.oldMessageId, update.message.toModel())
+                }
+                is TdApi.UpdateMessageSendFailed -> if (update.message.chatId == chatId) {
+                    Log.w(TAG, "send failed: ${update.error.code} ${update.error.message}")
+                    replace(update.oldMessageId, update.message.toModel())
+                }
                 // fromCache = выгружено из кэша TDLib, а не удалено — такие оставляем
                 is TdApi.UpdateDeleteMessages -> if (update.chatId == chatId && update.isPermanent) {
                     val ids = update.messageIds.toSet()
@@ -115,6 +123,22 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
                 }
             }
         }
+    }
+
+    /**
+     * Отправляет текст. Сообщение сразу появляется со статусом «отправляется» (через `UpdateNewMessage`),
+     * дальше статус меняют `UpdateMessageSendSucceeded` / `UpdateMessageSendFailed`.
+     * Если открыт кусок из середины истории — сначала переходим к концу, иначе своё сообщение не увидеть.
+     */
+    suspend fun sendText(text: String) {
+        if (!_state.value.reachedNewest) open(lastReadInboxId = null)
+        val content = TdApi.InputMessageText(TdApi.FormattedText(text, emptyArray()), null, true)
+        val pending = td.send(TdApi.SendMessage(chatId, null, null, null, null, content))
+        _state.update { it.merge(listOf(pending.toModel())) }
+    }
+
+    private fun replace(oldId: Long, message: Message) {
+        _state.update { s -> s.copy(messages = s.messages.filterNot { it.id == oldId || it.id == message.id }).merge(listOf(message)) }
     }
 
     private inline fun edit(messageId: Long, crossinline change: Message.() -> Message) {

@@ -71,6 +71,12 @@
     <string name="chat_kind_private">личный чат</string>
     <string name="chat_kind_group">группа</string>
     <string name="chat_kind_channel">канал</string>
+    <string name="chat_input_placeholder">Сообщение</string>
+    <string name="chat_send">Отправить</string>
+    <string name="chat_send_error">Не отправлено: %1$s</string>
+    <string name="chat_status_sending">Отправляется</string>
+    <string name="chat_status_sent">Отправлено</string>
+    <string name="chat_status_failed">Ошибка отправки</string>
     <string name="chat_unread_divider">Непрочитанные сообщения</string>
     <plurals name="views">
         <item quantity="one">%d просмотр</item>
