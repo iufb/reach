@@ -59,6 +59,25 @@
     <string name="logout_confirm_title">Выйти из аккаунта?</string>
     <string name="logout_confirm_text">Сессия на этом устройстве будет завершена, локальный кэш удалён.</string>
 
-    <!-- Основной граф (до #19) -->
-    <string name="chats_placeholder">Вы вошли. Список чатов появится в #19.</string>
+    <!-- Список чатов -->
+    <string name="chats_title">Чаты</string>
+    <string name="chats_empty">Чатов пока нет</string>
+    <string name="chat_deleted_account">Удалённый аккаунт</string>
+    <string name="chat_preview_you">Вы: %1$s</string>
+
+    <!-- Типы содержимого сообщений -->
+    <string name="media_photo">Фото</string>
+    <string name="media_video">Видео</string>
+    <string name="media_document">Файл</string>
+    <string name="media_audio">Аудио</string>
+    <string name="media_voice_note">Голосовое сообщение</string>
+    <string name="media_video_note">Видеосообщение</string>
+    <string name="media_animation">GIF</string>
+    <string name="media_sticker">Стикер</string>
+    <string name="media_poll">Опрос</string>
+    <string name="media_location">Геопозиция</string>
+    <string name="media_contact">Контакт</string>
+    <string name="media_call">Звонок</string>
+    <string name="media_service">Служебное сообщение</string>
+    <string name="media_other">Сообщение</string>
 </resources>

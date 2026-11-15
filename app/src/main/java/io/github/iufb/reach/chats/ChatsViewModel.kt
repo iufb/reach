@@ -6,18 +6,41 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.iufb.reach.auth.AuthRepository
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 @HiltViewModel
-class ChatsViewModel @Inject constructor(private val auth: AuthRepository) : ViewModel() {
+class ChatsViewModel @Inject constructor(
+    private val auth: AuthRepository,
+    private val chatsRepository: ChatsRepository,
+) : ViewModel() {
+
+    private val list: ChatListType = ChatListType.Main
+
+    /** `null` — список ещё ни разу не пришёл. */
+    val chats: StateFlow<List<Chat>?> = chatsRepository.chatList(list)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
+
+    val allLoaded: StateFlow<Boolean> = chatsRepository.allLoaded(list)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), false)
 
     private val _loggingOut = MutableStateFlow(false)
 
     /** Выход запрошен: ждём, пока TDLib закроет сессию и навигация уведёт на экран входа. */
     val loggingOut: StateFlow<Boolean> = _loggingOut.asStateFlow()
+
+    init {
+        loadMore()
+    }
+
+    /** Список докрутили до конца — просим следующую порцию. */
+    fun loadMore() {
+        viewModelScope.launch { chatsRepository.loadMore(list) }
+    }
 
     fun logOut() {
         if (_loggingOut.value) return
@@ -32,5 +55,6 @@ class ChatsViewModel @Inject constructor(private val auth: AuthRepository) : Vie
 
     private companion object {
         const val TAG = "ChatsViewModel"
+        const val STOP_TIMEOUT_MS = 5_000L
     }
 }

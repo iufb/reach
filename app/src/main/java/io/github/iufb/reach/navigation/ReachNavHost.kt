@@ -70,7 +70,7 @@ fun ReachNavHost(authState: AuthState) {
             composable<UnsupportedAuthRoute> { UnsupportedAuthScreen(it.toRoute<UnsupportedAuthRoute>().step) }
         }
         navigation<MainGraph>(startDestination = ChatsRoute) {
-            composable<ChatsRoute> { ChatsScreen() }
+            composable<ChatsRoute> { ChatsScreen(onChatClick = {}) } // экран чата — #22
         }
     }
     LaunchedEffect(authState) { navController.syncWith(authState) }
