@@ -73,7 +73,7 @@ jobs:
 
       - name: Cache Android SDK and OpenSSL
         id: cache
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: |
             build/SDK
@@ -91,7 +91,7 @@ jobs:
       - name: Build TDLib
         run: td/example/android/build-tdlib.sh SDK "$ANDROID_NDK_VERSION" openssl c++_static Java '' "$ABIS"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: tdlib
           path: build/td/example/android/tdlib/tdlib.zip
@@ -103,7 +103,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: tdlib
       - env:
