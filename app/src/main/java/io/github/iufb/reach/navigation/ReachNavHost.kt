@@ -21,6 +21,7 @@ import io.github.iufb.reach.auth.LoadingScreen
 import io.github.iufb.reach.auth.PasswordScreen
 import io.github.iufb.reach.auth.PhoneScreen
 import io.github.iufb.reach.auth.UnsupportedAuthScreen
+import io.github.iufb.reach.chat.ChatScreen
 import io.github.iufb.reach.chats.ChatsScreen
 import kotlinx.serialization.Serializable
 
@@ -32,6 +33,7 @@ import kotlinx.serialization.Serializable
 
 @Serializable data object MainGraph
 @Serializable data object ChatsRoute
+@Serializable data class ChatRoute(val chatId: Long)
 
 /**
  * Два графа: вход и основной. Какой экран показан, решает [AuthState]:
@@ -70,7 +72,8 @@ fun ReachNavHost(authState: AuthState) {
             composable<UnsupportedAuthRoute> { UnsupportedAuthScreen(it.toRoute<UnsupportedAuthRoute>().step) }
         }
         navigation<MainGraph>(startDestination = ChatsRoute) {
-            composable<ChatsRoute> { ChatsScreen(onChatClick = {}) } // экран чата — #22
+            composable<ChatsRoute> { ChatsScreen(onChatClick = { navController.navigate(ChatRoute(it)) }) }
+            composable<ChatRoute> { ChatScreen(onBack = { navController.popBackStack() }) }
         }
     }
     LaunchedEffect(authState) { navController.syncWith(authState) }

@@ -48,6 +48,8 @@ data class Chat(
     val lastMessage: LastMessage?,
     val positions: Map<ChatListType, ChatPosition>,
     val unreadCount: Int,
+    /** Последнее прочитанное входящее: с него открывается чат. */
+    val lastReadInboxMessageId: Long,
     /** Маленькая аватарка; `null` — фото нет, рисуем инициалы. */
     val photo: TdFile?,
     /** Встроенный цвет Telegram (0..6) для плейсхолдера аватарки. */
@@ -61,6 +63,7 @@ internal fun TdApi.Chat.toModel() = Chat(
     lastMessage = lastMessage?.toLastMessage(),
     positions = positions.toPositionMap(),
     unreadCount = unreadCount,
+    lastReadInboxMessageId = lastReadInboxMessageId,
     photo = photo?.small?.toTdFile(),
     accentColorId = accentColorId,
 )
