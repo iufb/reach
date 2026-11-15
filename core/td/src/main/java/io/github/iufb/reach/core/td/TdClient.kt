@@ -2,12 +2,9 @@ package io.github.iufb.reach.core.td
 
 import android.os.Build
 import android.util.Log
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
-import kotlinx.coroutines.flow.filter
-import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.suspendCancellableCoroutine
 import org.drinkless.tdlib.Client
 import org.drinkless.tdlib.TdApi
@@ -26,18 +23,13 @@ import kotlin.coroutines.resumeWithException
  * - `setTdlibParameters` отправляется здесь же, это инфраструктура, а не логика авторизации.
  * - После `AuthorizationStateClosed` (выход из аккаунта) нативный клиент пересоздаётся: старый
  *   больше не принимает запросы, а новый начинает с `WaitTdlibParameters` → экран входа.
- *   Репозитории, которые копят состояние из апдейтов, сбрасывают его по [sessionClosed].
+ *   Репозитории, которые копят состояние из апдейтов, сбрасывают его, увидев в [updates] `AuthorizationStateClosed`.
  */
 @Singleton
 class TdClient @Inject constructor(private val config: TdConfig) {
 
     private val _updates = MutableSharedFlow<TdApi.Object>(extraBufferCapacity = UPDATE_BUFFER)
     val updates: SharedFlow<TdApi.Object> = _updates.asSharedFlow()
-
-    /** Сессия закрыта (выход из аккаунта): всё, что накоплено из апдейтов, больше не актуально. */
-    val sessionClosed: Flow<Unit> = updates
-        .filter { it is TdApi.UpdateAuthorizationState && it.authorizationState is TdApi.AuthorizationStateClosed }
-        .map { }
 
     @Volatile
     private var client: Client
