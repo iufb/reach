@@ -19,7 +19,7 @@ class ChatsViewModel @Inject constructor(
     private val chatsRepository: ChatsRepository,
 ) : ViewModel() {
 
-    private val list: ChatListType = ChatListType.Main
+    val list: ChatListType = ChatListType.Main
 
     /** `null` — список ещё ни разу не пришёл. */
     val chats: StateFlow<List<Chat>?> = chatsRepository.chatList(list)
