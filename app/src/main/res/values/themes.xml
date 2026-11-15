@@ -1,0 +1,4 @@
+<resources>
+    <!-- Только окно до старта Compose; сама тема — в ui/theme/Theme.kt -->
+    <style name="Theme.Reach" parent="android:Theme.Material.NoActionBar" />
+</resources>
