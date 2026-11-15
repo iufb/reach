@@ -279,10 +279,10 @@ private fun LogOutDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
 private fun ChatsPreview() {
     val now = (System.currentTimeMillis() / 1000).toInt()
     val chats = listOf(
-        Chat(4, ChatKind.Private, "Избранное", null, mapOf(ChatListType.Main to ChatPosition(10, isPinned = true)), 0, null, 0),
-        Chat(1, ChatKind.Private, "Аня", LastMessage(1, now, false, MessagePreview.Text("Привет! 👋")), emptyMap(), 2, null, 1),
-        Chat(2, ChatKind.Group, "Семья", LastMessage(2, now - 86_400, true, MessagePreview.Media(MediaKind.Photo, "Море")), emptyMap(), 0, null, 0),
-        Chat(3, ChatKind.Channel, "Новости", LastMessage(3, now - 30 * 86_400, false, MessagePreview.Media(MediaKind.Poll, "Что дальше?")), emptyMap(), 0, null, 0),
+        Chat(4, ChatKind.Private, "Избранное", null, mapOf(ChatListType.Main to ChatPosition(10, isPinned = true)), 0, 0, null, 0),
+        Chat(1, ChatKind.Private, "Аня", LastMessage(1, now, false, MessagePreview.Text("Привет! 👋")), emptyMap(), 2, 0, null, 1),
+        Chat(2, ChatKind.Group, "Семья", LastMessage(2, now - 86_400, true, MessagePreview.Media(MediaKind.Photo, "Море")), emptyMap(), 0, 0, null, 0),
+        Chat(3, ChatKind.Channel, "Новости", LastMessage(3, now - 30 * 86_400, false, MessagePreview.Media(MediaKind.Poll, "Что дальше?")), emptyMap(), 0, 0, null, 0),
     )
     ReachTheme { ChatsContent(ChatListType.Main, chats, allLoaded = false, loggingOut = false, onChatClick = {}, onLoadMore = {}, onLogOut = {}) }
 }

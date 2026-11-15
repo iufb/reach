@@ -13,6 +13,7 @@ import io.github.iufb.reach.core.td.TdClient
 import io.github.iufb.reach.core.td.TdLibInfo
 import io.github.iufb.reach.files.FilesRepository
 import io.github.iufb.reach.files.TdFileFetcher
+import io.github.iufb.reach.users.UsersRepository
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -23,6 +24,8 @@ class ReachApp : Application(), SingletonImageLoader.Factory {
 
     // Репозитории, собирающие состояние из апдейтов, должны подписаться до того, как они пойдут
     @Inject lateinit var chatsRepository: ChatsRepository
+
+    @Inject lateinit var usersRepository: UsersRepository
 
     @Inject lateinit var filesRepository: FilesRepository
 

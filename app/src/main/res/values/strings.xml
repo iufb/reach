@@ -66,6 +66,19 @@
     <string name="chat_pinned">Закреплён</string>
     <string name="chat_preview_you">Вы: %1$s</string>
 
+    <!-- Экран чата -->
+    <string name="back">Назад</string>
+    <string name="chat_kind_private">личный чат</string>
+    <string name="chat_kind_group">группа</string>
+    <string name="chat_kind_channel">канал</string>
+    <string name="chat_unread_divider">Непрочитанные сообщения</string>
+    <plurals name="views">
+        <item quantity="one">%d просмотр</item>
+        <item quantity="few">%d просмотра</item>
+        <item quantity="many">%d просмотров</item>
+        <item quantity="other">%d просмотра</item>
+    </plurals>
+
     <!-- Типы содержимого сообщений -->
     <string name="media_photo">Фото</string>
     <string name="media_video">Видео</string>
