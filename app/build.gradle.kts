@@ -59,6 +59,7 @@ dependencies {
     implementation(libs.androidx.lifecycle.viewmodel.compose)
     implementation(libs.androidx.navigation.compose)
     implementation(libs.kotlinx.serialization.core)
+    implementation(libs.coil.compose)
     implementation(libs.androidx.emoji2.bundled)
 
     implementation(platform(libs.compose.bom))

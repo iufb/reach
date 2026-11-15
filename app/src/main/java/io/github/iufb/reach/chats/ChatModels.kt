@@ -1,5 +1,7 @@
 package io.github.iufb.reach.chats
 
+import io.github.iufb.reach.files.TdFile
+import io.github.iufb.reach.files.toTdFile
 import org.drinkless.tdlib.TdApi
 
 /**
@@ -46,6 +48,10 @@ data class Chat(
     val lastMessage: LastMessage?,
     val positions: Map<ChatListType, ChatPosition>,
     val unreadCount: Int,
+    /** Маленькая аватарка; `null` — фото нет, рисуем инициалы. */
+    val photo: TdFile?,
+    /** Встроенный цвет Telegram (0..6) для плейсхолдера аватарки. */
+    val accentColorId: Int,
 )
 
 internal fun TdApi.Chat.toModel() = Chat(
@@ -55,6 +61,8 @@ internal fun TdApi.Chat.toModel() = Chat(
     lastMessage = lastMessage?.toLastMessage(),
     positions = positions.toPositionMap(),
     unreadCount = unreadCount,
+    photo = photo?.small?.toTdFile(),
+    accentColorId = accentColorId,
 )
 
 private fun TdApi.ChatType.toKind(): ChatKind = when (this) {
