@@ -9,6 +9,7 @@ import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import dagger.hilt.android.HiltAndroidApp
 import io.github.iufb.reach.chats.ChatsRepository
+import io.github.iufb.reach.chats.GroupsRepository
 import io.github.iufb.reach.core.td.TdClient
 import io.github.iufb.reach.core.td.TdLibInfo
 import io.github.iufb.reach.files.FilesRepository
@@ -26,6 +27,8 @@ class ReachApp : Application(), SingletonImageLoader.Factory {
     @Inject lateinit var chatsRepository: ChatsRepository
 
     @Inject lateinit var usersRepository: UsersRepository
+
+    @Inject lateinit var groupsRepository: GroupsRepository
 
     @Inject lateinit var filesRepository: FilesRepository
 

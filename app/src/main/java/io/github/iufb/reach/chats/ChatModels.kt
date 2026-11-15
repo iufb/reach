@@ -44,6 +44,8 @@ data class LastMessage(
 data class Chat(
     val id: Long,
     val kind: ChatKind,
+    /** Группа или канал за чатом; `null` у личных чатов. */
+    val group: GroupRef?,
     val title: String,
     val lastMessage: LastMessage?,
     val positions: Map<ChatListType, ChatPosition>,
@@ -54,11 +56,18 @@ data class Chat(
     val photo: TdFile?,
     /** Встроенный цвет Telegram (0..6) для плейсхолдера аватарки. */
     val accentColorId: Int,
+    /** Общее разрешение участникам писать текст (`ChatPermissions.canSendBasicMessages`). */
+    val canSendBasicMessages: Boolean,
 )
 
 internal fun TdApi.Chat.toModel() = Chat(
     id = id,
     kind = type.toKind(),
+    group = when (val t = type) {
+        is TdApi.ChatTypeBasicGroup -> GroupRef.Basic(t.basicGroupId)
+        is TdApi.ChatTypeSupergroup -> GroupRef.Super(t.supergroupId)
+        else -> null
+    },
     title = title,
     lastMessage = lastMessage?.toLastMessage(),
     positions = positions.toPositionMap(),
@@ -66,6 +75,7 @@ internal fun TdApi.Chat.toModel() = Chat(
     lastReadInboxMessageId = lastReadInboxMessageId,
     photo = photo?.small?.toTdFile(),
     accentColorId = accentColorId,
+    canSendBasicMessages = permissions.canSendBasicMessages,
 )
 
 private fun TdApi.ChatType.toKind(): ChatKind = when (this) {

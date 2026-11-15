@@ -1,6 +1,14 @@
 package io.github.iufb.reach.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Surface
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -50,6 +58,7 @@ import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.Chat
 import io.github.iufb.reach.chats.ChatKind
 import io.github.iufb.reach.chats.ContentKind
+import io.github.iufb.reach.chats.GroupRef
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.ServiceKind
 import io.github.iufb.reach.chats.contentKindText
@@ -67,7 +76,13 @@ fun ChatScreen(onBack: () -> Unit, viewModel: ChatViewModel = hiltViewModel()) {
     val chat by viewModel.chat.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val senders by viewModel.senders.collectAsStateWithLifecycle()
-    ChatContent(chat, state, senders, onBack, viewModel::loadOlder, viewModel::loadNewer)
+    val canWrite by viewModel.canWrite.collectAsStateWithLifecycle()
+    val draft by viewModel.draft.collectAsStateWithLifecycle()
+    val sendError by viewModel.sendError.collectAsStateWithLifecycle()
+    ChatContent(
+        chat, state, senders, onBack, viewModel::loadOlder, viewModel::loadNewer,
+        composer = if (canWrite) ComposerState(draft, sendError, viewModel::onDraftChange, viewModel::send) else null,
+    )
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -79,8 +94,11 @@ private fun ChatContent(
     onBack: () -> Unit,
     onLoadOlder: () -> Unit,
     onLoadNewer: () -> Unit,
+    composer: ComposerState?,
 ) {
     Scaffold(
+        modifier = Modifier.imePadding(),
+        bottomBar = { if (composer != null && chat != null) Composer(composer) },
         topBar = {
             TopAppBar(
                 navigationIcon = {
@@ -97,6 +115,42 @@ private fun ChatContent(
             Box(modifier, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         } else {
             MessageList(chat, state, senders, onLoadOlder, onLoadNewer, modifier)
+        }
+    }
+}
+
+/** Поле ввода; `null` в [ChatContent] — писать нельзя, поле скрыто. */
+private class ComposerState(
+    val draft: String,
+    val error: String?,
+    val onDraftChange: (String) -> Unit,
+    val onSend: () -> Unit,
+)
+
+@Composable
+private fun Composer(state: ComposerState) {
+    Surface(tonalElevation = 2.dp) {
+        Row(
+            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            OutlinedTextField(
+                value = state.draft,
+                onValueChange = state.onDraftChange,
+                modifier = Modifier.weight(1f),
+                placeholder = { Text(stringResource(R.string.chat_input_placeholder)) },
+                isError = state.error != null,
+                supportingText = state.error?.let { { Text(stringResource(R.string.chat_send_error, it)) } },
+                maxLines = 6,
+                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+            )
+            IconButton(onClick = state.onSend, enabled = state.draft.isNotBlank()) {
+                Icon(
+                    painterResource(R.drawable.ic_send),
+                    contentDescription = stringResource(R.string.chat_send),
+                    tint = if (state.draft.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
         }
     }
 }
@@ -227,7 +281,8 @@ private fun FollowNewMessages(listState: LazyListState, state: ChatHistory.State
         if (!live || previous == null || newestId == null || newestId <= previous) return@LaunchedEffect
         // Лента держит позицию по ключу видимого элемента, поэтому сейчас индекс сдвинут на число новых
         val added = messages.indexOfFirst { it.id <= previous }.takeIf { it >= 0 } ?: messages.size
-        if (listState.firstVisibleItemIndex <= added) listState.animateScrollToItem(0)
+        // Своё сообщение показываем всегда, чужое — только если пользователь был внизу
+        if (messages.first().isOutgoing || listState.firstVisibleItemIndex <= added) listState.animateScrollToItem(0)
     }
 }
 
@@ -282,14 +337,38 @@ private fun MessageBubble(message: Message, sender: SenderInfo?) {
                 )
             }
             MessageContent(message.content)
-            Text(
-                formatMessageTime(message.date),
+            Row(
                 modifier = Modifier.align(Alignment.End),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    formatMessageTime(message.date),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                if (outgoing) SendingStatus(message.sendingState)
+            }
         }
     }
+}
+
+/** Отправляется — часы, ошибка — «!», отправлено — галочка. */
+@Composable
+private fun SendingStatus(state: SendingState?) {
+    val (symbol, description, color) = when (state) {
+        SendingState.Pending -> Triple("◷", R.string.chat_status_sending, MaterialTheme.colorScheme.onSurfaceVariant)
+        SendingState.Failed -> Triple("!", R.string.chat_status_failed, MaterialTheme.colorScheme.error)
+        null -> Triple("✓", R.string.chat_status_sent, MaterialTheme.colorScheme.primary)
+    }
+    val label = stringResource(description)
+    Text(
+        symbol,
+        modifier = Modifier.semantics { contentDescription = label },
+        style = MaterialTheme.typography.labelSmall,
+        fontWeight = FontWeight.Bold,
+        color = color,
+    )
 }
 
 /** Пост канала: карточка на всю ширину, подпись автора и просмотры внизу. */
@@ -395,10 +474,10 @@ private fun formatMessageTime(unixSeconds: Int): String =
 @Composable
 private fun ChatPreview() {
     val now = (System.currentTimeMillis() / 1000).toInt()
-    val chat = Chat(1, ChatKind.Group, "Семья", null, emptyMap(), 1, 2, null, 3)
+    val chat = Chat(1, ChatKind.Group, GroupRef.Basic(1), "Семья", null, emptyMap(), 1, 2, null, 3, true)
     val messages = listOf(
         Message(3, Sender.User(2), now, false, MessageBody.Text("И вам 🙂"), "", 0),
-        Message(2, Sender.User(1), now - 60, true, MessageBody.Text("Всем привет!"), "", 0),
+        Message(2, Sender.User(1), now - 60, true, MessageBody.Text("Всем привет!"), "", 0, SendingState.Pending),
         Message(1, Sender.User(3), now - 120, false, MessageBody.Unsupported(ContentKind.Photo, "Море"), "", 0),
     )
     val senders = mapOf<Sender, SenderInfo>(
@@ -410,6 +489,7 @@ private fun ChatPreview() {
             chat,
             ChatHistory.State(messages, reachedOldest = true, reachedNewest = true, firstUnreadId = 3, opened = true),
             senders, onBack = {}, onLoadOlder = {}, onLoadNewer = {},
+            composer = ComposerState("Как дела?", null, {}, {}),
         )
     }
 }
