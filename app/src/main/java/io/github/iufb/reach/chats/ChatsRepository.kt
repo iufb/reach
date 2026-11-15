@@ -4,6 +4,7 @@ import android.util.Log
 import io.github.iufb.reach.core.td.TdClient
 import io.github.iufb.reach.core.td.TdException
 import io.github.iufb.reach.di.ApplicationScope
+import io.github.iufb.reach.files.toTdFile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.Dispatchers
@@ -90,6 +91,8 @@ class ChatsRepository @Inject constructor(
             is TdApi.UpdateChatDraftMessage -> edit(update.chatId) {
                 copy(positions = update.positions.fold(positions) { acc, p -> acc.with(p) })
             }
+            is TdApi.UpdateChatPhoto -> edit(update.chatId) { copy(photo = update.photo?.small?.toTdFile()) }
+            is TdApi.UpdateChatAccentColors -> edit(update.chatId) { copy(accentColorId = update.accentColorId) }
             is TdApi.UpdateChatReadInbox -> edit(update.chatId) { copy(unreadCount = update.unreadCount) }
             is TdApi.UpdateAuthorizationState -> if (update.authorizationState is TdApi.AuthorizationStateClosed) {
                 // Выход из аккаунта: чужие чаты новому входу не нужны

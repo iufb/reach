@@ -13,6 +13,7 @@ navigation = "2.10.2"
 hilt-androidx = "1.4.0"
 serialization = "1.13.0"
 emoji2 = "1.7.0"
+coil = "3.6.3"
 
 [libraries]
 kotlinx-coroutines-android = { module = "org.jetbrains.kotlinx:kotlinx-coroutines-android", version.ref = "coroutines" }
@@ -32,6 +33,7 @@ androidx-navigation-compose = { module = "androidx.navigation:navigation-compose
 androidx-lifecycle-viewmodel-compose = { module = "androidx.lifecycle:lifecycle-viewmodel-compose", version.ref = "lifecycle" }
 kotlinx-serialization-core = { module = "org.jetbrains.kotlinx:kotlinx-serialization-core", version.ref = "serialization" }
 androidx-emoji2-bundled = { module = "androidx.emoji2:emoji2-bundled", version.ref = "emoji2" }
+coil-compose = { module = "io.coil-kt.coil3:coil-compose", version.ref = "coil" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
