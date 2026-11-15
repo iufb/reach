@@ -3,6 +3,8 @@ import java.util.zip.ZipInputStream
 
 plugins {
     alias(libs.plugins.android.library)
+    alias(libs.plugins.ksp)
+    alias(libs.plugins.hilt)
 }
 
 android {
@@ -17,6 +19,9 @@ android {
 dependencies {
     // TdApi.java использует @IntDef / @Nullable
     implementation(libs.androidx.annotation)
+    api(libs.kotlinx.coroutines.android)
+    implementation(libs.hilt.android)
+    ksp(libs.hilt.compiler)
 }
 
 /**
