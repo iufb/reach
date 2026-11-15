@@ -53,6 +53,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.Chat
@@ -79,8 +80,13 @@ fun ChatScreen(onBack: () -> Unit, viewModel: ChatViewModel = hiltViewModel()) {
     val canWrite by viewModel.canWrite.collectAsStateWithLifecycle()
     val draft by viewModel.draft.collectAsStateWithLifecycle()
     val sendError by viewModel.sendError.collectAsStateWithLifecycle()
+    LifecycleResumeEffect(viewModel) {
+        viewModel.onResume()
+        onPauseOrDispose { viewModel.onPause() }
+    }
     ChatContent(
         chat, state, senders, onBack, viewModel::loadOlder, viewModel::loadNewer,
+        onVisibleMessagesChange = viewModel::onVisibleMessagesChange,
         composer = if (canWrite) ComposerState(draft, sendError, viewModel::onDraftChange, viewModel::send) else null,
     )
 }
@@ -94,6 +100,7 @@ private fun ChatContent(
     onBack: () -> Unit,
     onLoadOlder: () -> Unit,
     onLoadNewer: () -> Unit,
+    onVisibleMessagesChange: (List<Long>) -> Unit,
     composer: ComposerState?,
 ) {
     Scaffold(
@@ -114,7 +121,7 @@ private fun ChatContent(
         if (!state.opened || chat == null) {
             Box(modifier, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         } else {
-            MessageList(chat, state, senders, onLoadOlder, onLoadNewer, modifier)
+            MessageList(chat, state, senders, onLoadOlder, onLoadNewer, onVisibleMessagesChange, modifier)
         }
     }
 }
@@ -209,6 +216,7 @@ private fun MessageList(
     senders: Map<Sender, SenderInfo>,
     onLoadOlder: () -> Unit,
     onLoadNewer: () -> Unit,
+    onVisibleMessagesChange: (List<Long>) -> Unit,
     modifier: Modifier,
 ) {
     val isChannel = chat.kind == ChatKind.Channel
@@ -216,6 +224,13 @@ private fun MessageList(
     val listState = rememberLazyListState()
     ScrollToUnreadOnce(listState, items)
     FollowNewMessages(listState, state)
+    val visibleChanged by rememberUpdatedState(onVisibleMessagesChange)
+    LaunchedEffect(listState) {
+        // Ключи сообщений — их id (Long); разделитель и загрузчик отсеиваются
+        snapshotFlow { listState.layoutInfo.visibleItemsInfo.mapNotNull { it.key as? Long } }
+            .distinctUntilChanged()
+            .collect { visibleChanged(it) }
+    }
     PagingEffects(listState, state, onLoadOlder, onLoadNewer)
     // reverseLayout: индекс 0 — самое новое сообщение, внизу экрана
     LazyColumn(
@@ -488,7 +503,7 @@ private fun ChatPreview() {
         ChatContent(
             chat,
             ChatHistory.State(messages, reachedOldest = true, reachedNewest = true, firstUnreadId = 3, opened = true),
-            senders, onBack = {}, onLoadOlder = {}, onLoadNewer = {},
+            senders, onBack = {}, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
             composer = ComposerState("Как дела?", null, {}, {}),
         )
     }

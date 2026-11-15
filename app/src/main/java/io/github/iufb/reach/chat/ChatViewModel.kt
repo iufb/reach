@@ -13,7 +13,14 @@ import io.github.iufb.reach.chats.canWrite
 import io.github.iufb.reach.core.td.TdClient
 import io.github.iufb.reach.navigation.ChatRoute
 import io.github.iufb.reach.users.UsersRepository
+import io.github.iufb.reach.di.ApplicationScope
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
+import org.drinkless.tdlib.TdApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.asStateFlow
@@ -32,7 +39,8 @@ data class SenderInfo(val name: String, val photo: io.github.iufb.reach.files.Td
 @HiltViewModel
 class ChatViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
-    td: TdClient,
+    private val td: TdClient,
+    @ApplicationScope private val appScope: CoroutineScope,
     chats: ChatsRepository,
     users: UsersRepository,
     groups: GroupsRepository,
@@ -69,10 +77,56 @@ class ChatViewModel @Inject constructor(
     init {
         // UNDISPATCHED: подписка на апдейты раньше, чем уйдёт первый getChatHistory
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { history.followUpdates() }
+        viewModelScope.launch { reportViewedMessages() }
         viewModelScope.launch {
             val opened = chat.mapNotNull { it }.first()
             history.open(opened.lastReadInboxMessageId.takeIf { opened.unreadCount > 0 })
         }
+    }
+
+    private val resumed = MutableStateFlow(false)
+    private val visibleMessageIds = MutableStateFlow<List<Long>>(emptyList())
+
+    /**
+     * Экран на виду: `openChat` (TDLib шлёт апдейты чата и считает просмотры), на паузе — `closeChat`.
+     * Запросы идут в scope приложения: `closeChat` должен уйти, даже когда ViewModel уже уничтожается.
+     */
+    fun onResume() {
+        resumed.value = true
+        appScope.launch { runCatching { td.send(TdApi.OpenChat(chatId)) }.onFailure { Log.e(TAG, "openChat failed", it) } }
+    }
+
+    fun onPause() {
+        if (!resumed.value) return
+        resumed.value = false
+        appScope.launch { runCatching { td.send(TdApi.CloseChat(chatId)) }.onFailure { Log.e(TAG, "closeChat failed", it) } }
+    }
+
+    /** Какие сообщения сейчас на экране — их отмечаем прочитанными. */
+    fun onVisibleMessagesChange(ids: List<Long>) {
+        visibleMessageIds.value = ids
+    }
+
+    override fun onCleared() {
+        onPause()
+    }
+
+    @OptIn(FlowPreview::class)
+    private suspend fun reportViewedMessages() {
+        combine(resumed, visibleMessageIds, history.state) { resumed, ids, state ->
+            if (!resumed) return@combine emptyList()
+            // Временные id ещё отправляющихся сообщений TDLib не нужны
+            val sent = state.messages.filter { it.sendingState == null }.mapTo(HashSet()) { it.id }
+            ids.filter { it in sent }
+        }
+            .filter { it.isNotEmpty() }
+            .distinctUntilChanged()
+            .debounce(VIEW_DEBOUNCE_MS)
+            .collect { ids ->
+                runCatching {
+                    td.send(TdApi.ViewMessages(chatId, ids.toLongArray(), TdApi.MessageSourceChatHistory(), false))
+                }.onFailure { Log.e(TAG, "viewMessages failed", it) }
+            }
     }
 
     fun onDraftChange(value: String) {
@@ -104,5 +158,6 @@ class ChatViewModel @Inject constructor(
     private companion object {
         const val TAG = "ChatViewModel"
         const val STOP_TIMEOUT_MS = 5_000L
+        const val VIEW_DEBOUNCE_MS = 300L
     }
 }
