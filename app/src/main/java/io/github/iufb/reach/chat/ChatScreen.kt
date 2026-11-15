@@ -48,8 +48,11 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.Chat
 import io.github.iufb.reach.chats.ChatKind
-import io.github.iufb.reach.chats.MessagePreview
-import io.github.iufb.reach.chats.mediaKindText
+import io.github.iufb.reach.chats.ContentKind
+import io.github.iufb.reach.chats.MessageBody
+import io.github.iufb.reach.chats.ServiceKind
+import io.github.iufb.reach.chats.contentKindText
+import io.github.iufb.reach.chats.serviceKindText
 import io.github.iufb.reach.ui.components.Avatar
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -137,7 +140,8 @@ private fun buildItems(state: ChatHistory.State, isGroup: Boolean): List<Item> =
     messages.forEachIndexed { i, message ->
         val older = messages.getOrNull(i + 1)
         // В группе имя автора — над первым сообщением серии
-        val showSender = isGroup && !message.isOutgoing && older?.sender != message.sender
+        val showSender = isGroup && !message.isOutgoing &&
+            (older?.sender != message.sender || older.content is MessageBody.Service)
         add(Item.Msg(message, showSender))
         if (message.id == state.firstUnreadId) add(Item.UnreadDivider)
     }
@@ -166,10 +170,11 @@ private fun MessageList(
     ) {
         items(items, key = { it.key }) { item ->
             when (item) {
-                is Item.Msg -> if (isChannel) {
-                    ChannelPost(item.message)
-                } else {
-                    MessageBubble(item.message, sender = if (item.showSender) senders[item.message.sender] else null)
+                is Item.Msg -> when {
+                    item.message.content is MessageBody.Service -> ServiceMessage(item.message.content.kind)
+                    isChannel -> ChannelPost(item.message)
+                    else ->
+                        MessageBubble(item.message, sender = if (item.showSender) senders[item.message.sender] else null)
                 }
                 Item.UnreadDivider -> UnreadDivider()
             }
@@ -251,7 +256,7 @@ private fun MessageBubble(message: Message, sender: SenderInfo?) {
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
-            MessageBody(message.content)
+            MessageContent(message.content)
             Text(
                 formatMessageTime(message.date),
                 modifier = Modifier.align(Alignment.End),
@@ -272,7 +277,7 @@ private fun ChannelPost(message: Message) {
             .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
             .padding(12.dp),
     ) {
-        MessageBody(message.content)
+        MessageContent(message.content)
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 message.authorSignature,
@@ -297,17 +302,47 @@ private fun ChannelPost(message: Message) {
 }
 
 @Composable
-private fun MessageBody(content: MessagePreview) {
-    when (content) {
-        is MessagePreview.Text -> Text(content.text, style = MaterialTheme.typography.bodyLarge)
-        is MessagePreview.Media -> {
-            Text(
-                "[" + mediaKindText(content.kind) + "]",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (content.caption.isNotBlank()) Text(content.caption, style = MaterialTheme.typography.bodyLarge)
+private fun MessageContent(body: MessageBody) {
+    when (body) {
+        is MessageBody.Text -> Text(body.text, style = MaterialTheme.typography.bodyLarge)
+        is MessageBody.Unsupported -> {
+            UnsupportedStub(body.kind)
+            if (body.caption.isNotBlank()) Text(body.caption, style = MaterialTheme.typography.bodyLarge)
         }
+        // Служебные рисуются отдельно, без пузыря (ServiceMessage)
+        is MessageBody.Service -> Text(serviceKindText(body.kind), style = MaterialTheme.typography.bodyMedium)
+    }
+}
+
+/** Заглушка для того, что клиент пока не показывает: тип и пометка, а не пустой пузырь. */
+@Composable
+private fun UnsupportedStub(kind: ContentKind) {
+    Column(
+        modifier = Modifier
+            .padding(vertical = 2.dp)
+            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(8.dp))
+            .padding(horizontal = 10.dp, vertical = 6.dp),
+    ) {
+        Text(contentKindText(kind), style = MaterialTheme.typography.labelLarge, fontWeight = FontWeight.SemiBold)
+        Text(
+            stringResource(R.string.content_unsupported_hint),
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun ServiceMessage(kind: ServiceKind) {
+    Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+        Text(
+            serviceKindText(kind),
+            modifier = Modifier
+                .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(12.dp))
+                .padding(horizontal = 10.dp, vertical = 4.dp),
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
     }
 }
 
@@ -337,9 +372,9 @@ private fun ChatPreview() {
     val now = (System.currentTimeMillis() / 1000).toInt()
     val chat = Chat(1, ChatKind.Group, "Семья", null, emptyMap(), 1, 2, null, 3)
     val messages = listOf(
-        Message(3, Sender.User(2), now, false, MessagePreview.Text("И вам 🙂"), "", 0),
-        Message(2, Sender.User(1), now - 60, true, MessagePreview.Text("Всем привет!"), "", 0),
-        Message(1, Sender.User(3), now - 120, false, MessagePreview.Media(io.github.iufb.reach.chats.MediaKind.Photo, "Море"), "", 0),
+        Message(3, Sender.User(2), now, false, MessageBody.Text("И вам 🙂"), "", 0),
+        Message(2, Sender.User(1), now - 60, true, MessageBody.Text("Всем привет!"), "", 0),
+        Message(1, Sender.User(3), now - 120, false, MessageBody.Unsupported(ContentKind.Photo, "Море"), "", 0),
     )
     val senders = mapOf<Sender, SenderInfo>(
         Sender.User(2) to SenderInfo("Аня", null, 1),

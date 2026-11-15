@@ -79,19 +79,45 @@
         <item quantity="other">%d просмотра</item>
     </plurals>
 
-    <!-- Типы содержимого сообщений -->
-    <string name="media_photo">Фото</string>
-    <string name="media_video">Видео</string>
-    <string name="media_document">Файл</string>
-    <string name="media_audio">Аудио</string>
-    <string name="media_voice_note">Голосовое сообщение</string>
-    <string name="media_video_note">Видеосообщение</string>
-    <string name="media_animation">GIF</string>
-    <string name="media_sticker">Стикер</string>
-    <string name="media_poll">Опрос</string>
-    <string name="media_location">Геопозиция</string>
-    <string name="media_contact">Контакт</string>
-    <string name="media_call">Звонок</string>
-    <string name="media_service">Служебное сообщение</string>
-    <string name="media_other">Сообщение</string>
+    <!-- Типы содержимого сообщений (заглушки) -->
+    <string name="content_photo">Фото</string>
+    <string name="content_video">Видео</string>
+    <string name="content_document">Файл</string>
+    <string name="content_audio">Аудио</string>
+    <string name="content_voice_note">Голосовое сообщение</string>
+    <string name="content_video_note">Видеосообщение</string>
+    <string name="content_animation">GIF</string>
+    <string name="content_sticker">Стикер</string>
+    <string name="content_poll">Опрос</string>
+    <string name="content_checklist">Список задач</string>
+    <string name="content_location">Геопозиция</string>
+    <string name="content_live_location">Трансляция геопозиции</string>
+    <string name="content_contact">Контакт</string>
+    <string name="content_call">Звонок</string>
+    <string name="content_group_call">Групповой звонок</string>
+    <string name="content_dice">Кубик</string>
+    <string name="content_game">Игра</string>
+    <string name="content_story">История</string>
+    <string name="content_invoice">Счёт</string>
+    <string name="content_gift">Подарок</string>
+    <string name="content_giveaway">Розыгрыш</string>
+    <string name="content_paid_media">Платный контент</string>
+    <string name="content_expired">Исчезающее сообщение</string>
+    <string name="content_unknown">Неподдерживаемое сообщение</string>
+    <string name="content_unsupported_hint">Пока не поддерживается в Reach</string>
+
+    <!-- Служебные сообщения -->
+    <string name="service_chat_created">Группа создана</string>
+    <string name="service_members_added">Добавлены участники</string>
+    <string name="service_member_joined">Новый участник</string>
+    <string name="service_member_left">Участник покинул группу</string>
+    <string name="service_title_changed">Название изменено</string>
+    <string name="service_photo_changed">Фото чата изменено</string>
+    <string name="service_photo_deleted">Фото чата удалено</string>
+    <string name="service_message_pinned">Сообщение закреплено</string>
+    <string name="service_screenshot">Сделан скриншот</string>
+    <string name="service_contact_registered">Контакт теперь в Telegram</string>
+    <string name="service_video_chat">Видеочат</string>
+    <string name="service_payment">Платёж</string>
+    <string name="service_other">Служебное сообщение</string>
 </resources>

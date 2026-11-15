@@ -1,7 +1,7 @@
 package io.github.iufb.reach.chat
 
-import io.github.iufb.reach.chats.MessagePreview
-import io.github.iufb.reach.chats.toPreview
+import io.github.iufb.reach.chats.MessageBody
+import io.github.iufb.reach.chats.toBody
 import org.drinkless.tdlib.TdApi
 
 sealed interface Sender {
@@ -15,7 +15,7 @@ data class Message(
     /** Unix-время, секунды. */
     val date: Int,
     val isOutgoing: Boolean,
-    val content: MessagePreview,
+    val content: MessageBody,
     /** Подпись автора поста в канале, если включена. */
     val authorSignature: String,
     /** Просмотры поста в канале; 0 — неизвестно. */
@@ -31,7 +31,7 @@ internal fun TdApi.Message.toModel() = Message(
     },
     date = date,
     isOutgoing = isOutgoing,
-    content = content.toPreview(),
+    content = content.toBody(),
     authorSignature = authorSignature,
     viewCount = interactionInfo?.viewCount ?: 0,
 )

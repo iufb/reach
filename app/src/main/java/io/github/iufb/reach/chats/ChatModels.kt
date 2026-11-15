@@ -37,7 +37,7 @@ data class LastMessage(
     /** Unix-время, секунды. */
     val date: Int,
     val isOutgoing: Boolean,
-    val content: MessagePreview,
+    val content: MessageBody,
 )
 
 /** Неизменяемый снимок чата, собранный из апдейтов. */
@@ -75,7 +75,7 @@ private fun TdApi.ChatType.toKind(): ChatKind = when (this) {
     else -> ChatKind.Group
 }
 
-internal fun TdApi.Message.toLastMessage() = LastMessage(id, date, isOutgoing, content.toPreview())
+internal fun TdApi.Message.toLastMessage() = LastMessage(id, date, isOutgoing, content.toBody())
 
 internal fun Array<TdApi.ChatPosition>.toPositionMap(): Map<ChatListType, ChatPosition> =
     mapNotNull { p -> p.list.toModel()?.takeIf { p.order != 0L }?.let { it to ChatPosition(p.order, p.isPinned) } }.toMap()
