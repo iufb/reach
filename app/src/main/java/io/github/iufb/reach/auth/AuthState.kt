@@ -21,10 +21,16 @@ sealed interface AuthState {
         val resendTimeoutSeconds: Int,
     ) : AuthState
 
+    /** Включена двухэтапная проверка: нужен облачный пароль. */
+    data class WaitPassword(
+        /** Подсказка, которую пользователь задал вместе с паролем; может быть пустой. */
+        val hint: String,
+    ) : AuthState
+
     data object Ready : AuthState
 
     /**
-     * Шаг входа, который клиент пока не умеет (2FA, email, регистрация...).
+     * Шаг входа, который клиент пока не умеет (email, регистрация...).
      * Показываем его явно, а не молча зависаем (PRODUCT.md §3, принцип 4).
      */
     data class Unsupported(val step: String) : AuthState
@@ -58,6 +64,8 @@ internal fun TdApi.AuthorizationState.toAuthState(): AuthState = when (this) {
         nextDelivery = codeInfo.nextType?.toCodeDelivery(),
         resendTimeoutSeconds = codeInfo.timeout,
     )
+
+    is TdApi.AuthorizationStateWaitPassword -> AuthState.WaitPassword(passwordHint)
 
     is TdApi.AuthorizationStateReady -> AuthState.Ready
 

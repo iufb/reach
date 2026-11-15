@@ -18,6 +18,7 @@ import androidx.navigation.toRoute
 import io.github.iufb.reach.auth.AuthState
 import io.github.iufb.reach.auth.CodeScreen
 import io.github.iufb.reach.auth.LoadingScreen
+import io.github.iufb.reach.auth.PasswordScreen
 import io.github.iufb.reach.auth.PhoneScreen
 import io.github.iufb.reach.auth.UnsupportedAuthScreen
 import io.github.iufb.reach.chats.ChatsScreen
@@ -26,6 +27,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object AuthGraph
 @Serializable data object PhoneRoute
 @Serializable data object CodeRoute
+@Serializable data object PasswordRoute
 @Serializable data class UnsupportedAuthRoute(val step: String)
 
 @Serializable data object MainGraph
@@ -61,10 +63,10 @@ fun ReachNavHost(authState: AuthState) {
             }
             composable<CodeRoute> {
                 // Назад к уже введённому номеру. TDLib разрешает setAuthenticationPhoneNumber и в WaitCode.
-                CodeScreen(onChangePhoneNumber = {
-                    if (!navController.popBackStack<PhoneRoute>(inclusive = false)) navController.navigate(PhoneRoute)
-                })
+                CodeScreen(onChangePhoneNumber = navController::backToPhone)
             }
+            // В WaitPassword TDLib тоже принимает setAuthenticationPhoneNumber
+            composable<PasswordRoute> { PasswordScreen(onChangePhoneNumber = navController::backToPhone) }
             composable<UnsupportedAuthRoute> { UnsupportedAuthScreen(it.toRoute<UnsupportedAuthRoute>().step) }
         }
         navigation<MainGraph>(startDestination = ChatsRoute) {
@@ -72,6 +74,11 @@ fun ReachNavHost(authState: AuthState) {
         }
     }
     LaunchedEffect(authState) { navController.syncWith(authState) }
+}
+
+/** Назад к уже введённому номеру. */
+private fun NavController.backToPhone() {
+    if (!popBackStack<PhoneRoute>(inclusive = false)) navigate(PhoneRoute)
 }
 
 private fun NavController.syncWith(state: AuthState) {
@@ -85,6 +92,10 @@ private fun NavController.syncWith(state: AuthState) {
 
         is AuthState.WaitCode -> if (current?.hasRoute<CodeRoute>() != true) {
             navigate(CodeRoute) { popUpTo<PhoneRoute>() }
+        }
+
+        is AuthState.WaitPassword -> if (current?.hasRoute<PasswordRoute>() != true) {
+            navigate(PasswordRoute) { popUpTo<PhoneRoute>() }
         }
 
         is AuthState.Unsupported -> navigate(UnsupportedAuthRoute(state.step)) {
