@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Временная иконка: буква «R», пока нет финального логотипа -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M42,34h14c8,0 13,5 13,11.5c0,5 -3,8.6 -7.4,10.2L70,74h-8.2l-7.6,-17H50v17h-8zM50,41v9h5.6c3.2,0 5.2,-1.8 5.2,-4.5S58.8,41 55.6,41z" />
+</vector>
