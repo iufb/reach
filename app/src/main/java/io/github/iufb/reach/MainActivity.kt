@@ -11,13 +11,16 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
+import io.github.iufb.reach.navigation.ReachNavHost
 import io.github.iufb.reach.ui.theme.ReachTheme
 
 @AndroidEntryPoint
@@ -27,22 +30,16 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         setContent {
             ReachTheme {
-                if (hasApiCredentials()) StartScreen() else MissingCredentialsScreen()
+                if (hasApiCredentials()) ReachRoot() else MissingCredentialsScreen()
             }
         }
     }
 }
 
 @Composable
-private fun StartScreen() {
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Box(contentAlignment = Alignment.Center) {
-            Text(
-                text = stringResource(R.string.app_name),
-                style = MaterialTheme.typography.headlineMedium,
-            )
-        }
-    }
+private fun ReachRoot(viewModel: AppViewModel = hiltViewModel()) {
+    val authState by viewModel.authState.collectAsStateWithLifecycle()
+    ReachNavHost(authState)
 }
 
 /** Ключи пробрасываются из GitHub Secrets только при сборке в CI (ADR-0003). */
@@ -59,10 +56,4 @@ private fun MissingCredentialsScreen() {
             )
         }
     }
-}
-
-@Preview
-@Composable
-private fun StartScreenPreview() {
-    ReachTheme { StartScreen() }
 }
