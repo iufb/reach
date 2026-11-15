@@ -53,6 +53,11 @@ class AuthRepository @Inject constructor(
         td.send(TdApi.ResendAuthenticationCode(TdApi.ResendCodeReasonUserRequest()))
     }
 
+    /** Выход: TDLib пройдёт LoggingOut → Closing → Closed, после чего [TdClient] пересоздаст клиент. */
+    suspend fun logOut() {
+        td.send(TdApi.LogOut())
+    }
+
     private companion object {
         const val TAG = "AuthRepository"
     }

@@ -54,6 +54,11 @@
         <item quantity="other">%d часа</item>
     </plurals>
 
+    <string name="cancel">Отмена</string>
+    <string name="logout">Выйти</string>
+    <string name="logout_confirm_title">Выйти из аккаунта?</string>
+    <string name="logout_confirm_text">Сессия на этом устройстве будет завершена, локальный кэш удалён.</string>
+
     <!-- Основной граф (до #19) -->
     <string name="chats_placeholder">Вы вошли. Список чатов появится в #19.</string>
 </resources>
