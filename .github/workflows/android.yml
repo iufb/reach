@@ -22,3 +22,7 @@ jobs:
           java-version: 21
       - uses: gradle/actions/setup-gradle@v4
       - run: ./gradlew assembleDebug
+        env:
+          # Пусто для PR из форков — сборка всё равно проходит (ADR-0003)
+          APP_ID: ${{ secrets.APP_ID }}
+          APP_HASH: ${{ secrets.APP_HASH }}
