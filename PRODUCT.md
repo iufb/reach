@@ -3,7 +3,7 @@
 > Рабочее название: **TBD** (кандидаты: Origami, Kotka, Islet, Qarlygash)
 > Статус: проектирование
 > Платформа: Android
-> Последнее обновление: 2026-11-13
+> Последнее обновление: 2026-11-15
 
 ---
 
@@ -183,7 +183,7 @@
 | UI | Jetpack Compose, Material 3 |
 | Архитектура | MVVM / UDF: Compose → ViewModel (StateFlow) → Repository → TDLib |
 | Асинхронность | Kotlin Coroutines + Flow |
-| DI | Hilt *(или Koin, решить)* |
+| DI | Hilt (KSP) — [ADR-0004](docs/adr/0004-project-setup.md) |
 | Навигация | Navigation Compose |
 | Картинки | Coil (файлы через TDLib `downloadFile`) |
 | Видео / аудио | Media3 (ExoPlayer) — с v0.4 |
@@ -192,7 +192,8 @@
 | Lottie / TGS | `lottie-compose` — с v0.4; rlottie при проблемах с производительностью |
 | Push | Firebase Cloud Messaging — с v0.3 |
 | Telegram | TDLib (Java-интерфейс через JNI) |
-| Min SDK | *(решить, предварительно 26)* |
+| Min SDK | 36 — [ADR-0004](docs/adr/0004-project-setup.md) |
+| Сборка | Только GitHub Actions — [ADR-0001](docs/adr/0001-ci-only-builds.md) |
 
 ## 7. Архитектура
 
@@ -239,7 +240,7 @@ feature/chat/   — экран переписки
 feature/profile/
 feature/community/ — управление группами и каналами (v0.5)
 ```
-*(На старте можно начать с одного модуля и разделить позже.)*
+*(На старте два модуля: `app` и `core:td`, остальное — пакетами внутри `app` ([ADR-0004](docs/adr/0004-project-setup.md)). Делить начнём с v0.2+.)*
 
 ## 8. Сборка TDLib
 
@@ -249,12 +250,15 @@ feature/community/ — управление группами и каналами
 - Сборка вынесена в **GitHub Actions**, `tdlib.zip` публикуется как релиз и пересобирается только при обновлении TDLib.
 - Коммит TDLib фиксируется явно.
 - Для разработки достаточно ABI `arm64-v8a` и `x86_64`.
-- Требования: x86_64-хост, около 8 ГБ RAM.
+- Требования: x86_64-хост, около 8 ГБ RAM. Поэтому только в CI.
+- Приложение получает `tdlib.zip` Gradle-таском по версии из `gradle.properties` ([ADR-0002](docs/adr/0002-tdlib-delivery.md)).
+- APK тоже собирается только в GitHub Actions; локально ничего не билдим ([ADR-0001](docs/adr/0001-ci-only-builds.md)).
 
 ## 9. Конфигурация и секреты
 
 - `api_id` и `api_hash` получить на my.telegram.org.
-- Хранить в `local.properties` / секретах CI, пробрасывать через `BuildConfig`. **Не коммитить.**
+- Хранить только в GitHub Secrets `APP_ID` / `APP_HASH`, пробрасывать через `BuildConfig`. **Не коммитить** ([ADR-0003](docs/adr/0003-api-credentials.md)).
+- Debug-keystore для CI — тоже в GitHub Secrets.
 - `google-services.json` для FCM тоже не коммитить (с v0.3).
 
 ## 10. Риски
@@ -274,7 +278,7 @@ feature/community/ — управление группами и каналами
 - [ ] Финальное название и логотип
 - [ ] Только для себя или публиковать (GitHub / F-Droid / Google Play)?
 - [ ] Свои фичи, которых нет в официальном клиенте
-- [ ] Hilt или Koin?
-- [ ] Минимальная версия Android
-- [ ] Тёмная тема: исключена из скоупа, но следование системной теме в Material 3 почти бесплатное. Включить?
+- [x] Hilt или Koin? → Hilt
+- [x] Минимальная версия Android → 36
+- [x] Тёмная тема → следование системной теме + dynamic color с v0.1
 - [ ] Open source? Если да, лицензия (TDLib — Boost Software License; Noto Emoji — SIL OFL 1.1 / Apache 2.0; tgcalls, если когда-то понадобится, — LGPL-3.0)
