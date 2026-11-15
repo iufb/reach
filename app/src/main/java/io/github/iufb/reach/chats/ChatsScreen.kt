@@ -232,36 +232,10 @@ private const val MAX_BADGE = 999
 
 @Composable
 private fun previewText(message: LastMessage): String {
-    val text = when (val content = message.content) {
-        is MessagePreview.Text -> content.text
-        is MessagePreview.Media -> listOf(mediaKindText(content.kind), content.caption)
-            .filter { it.isNotBlank() }
-            .joinToString(", ")
-    }
     // Переносы строк в превью не нужны
-    val singleLine = text.replace('\n', ' ')
-    return if (message.isOutgoing) stringResource(R.string.chat_preview_you, singleLine) else singleLine
+    val text = bodySummary(message.content).replace('\n', ' ')
+    return if (message.isOutgoing) stringResource(R.string.chat_preview_you, text) else text
 }
-
-@Composable
-internal fun mediaKindText(kind: MediaKind): String = stringResource(
-    when (kind) {
-        MediaKind.Photo -> R.string.media_photo
-        MediaKind.Video -> R.string.media_video
-        MediaKind.Document -> R.string.media_document
-        MediaKind.Audio -> R.string.media_audio
-        MediaKind.VoiceNote -> R.string.media_voice_note
-        MediaKind.VideoNote -> R.string.media_video_note
-        MediaKind.Animation -> R.string.media_animation
-        MediaKind.Sticker -> R.string.media_sticker
-        MediaKind.Poll -> R.string.media_poll
-        MediaKind.Location -> R.string.media_location
-        MediaKind.Contact -> R.string.media_contact
-        MediaKind.Call -> R.string.media_call
-        MediaKind.Service -> R.string.media_service
-        MediaKind.Other -> R.string.media_other
-    },
-)
 
 @Composable
 private fun LogOutDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
@@ -280,9 +254,9 @@ private fun ChatsPreview() {
     val now = (System.currentTimeMillis() / 1000).toInt()
     val chats = listOf(
         Chat(4, ChatKind.Private, "Избранное", null, mapOf(ChatListType.Main to ChatPosition(10, isPinned = true)), 0, 0, null, 0),
-        Chat(1, ChatKind.Private, "Аня", LastMessage(1, now, false, MessagePreview.Text("Привет! 👋")), emptyMap(), 2, 0, null, 1),
-        Chat(2, ChatKind.Group, "Семья", LastMessage(2, now - 86_400, true, MessagePreview.Media(MediaKind.Photo, "Море")), emptyMap(), 0, 0, null, 0),
-        Chat(3, ChatKind.Channel, "Новости", LastMessage(3, now - 30 * 86_400, false, MessagePreview.Media(MediaKind.Poll, "Что дальше?")), emptyMap(), 0, 0, null, 0),
+        Chat(1, ChatKind.Private, "Аня", LastMessage(1, now, false, MessageBody.Text("Привет! 👋")), emptyMap(), 2, 0, null, 1),
+        Chat(2, ChatKind.Group, "Семья", LastMessage(2, now - 86_400, true, MessageBody.Unsupported(ContentKind.Photo, "Море")), emptyMap(), 0, 0, null, 0),
+        Chat(3, ChatKind.Channel, "Новости", LastMessage(3, now - 30 * 86_400, false, MessageBody.Unsupported(ContentKind.Poll, "Что дальше?")), emptyMap(), 0, 0, null, 0),
     )
     ReachTheme { ChatsContent(ChatListType.Main, chats, allLoaded = false, loggingOut = false, onChatClick = {}, onLoadMore = {}, onLogOut = {}) }
 }
