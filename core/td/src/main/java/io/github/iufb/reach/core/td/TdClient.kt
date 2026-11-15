@@ -68,7 +68,7 @@ class TdClient @Inject constructor(private val config: TdConfig) {
             config.useTestDc,
             config.databaseDirectory,
             config.filesDirectory,
-            null,
+            ByteArray(0),
             true,
             true,
             true,
