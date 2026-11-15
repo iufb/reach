@@ -1,0 +1,116 @@
+name: TDLib
+
+# Собирает TDLib для Android и публикует tdlib.zip как GitHub Release.
+# Чтобы обновить TDLib: поменять TDLIB_COMMIT ниже, затем версию в gradle.properties приложения.
+# См. docs/adr/0001-ci-only-builds.md и docs/adr/0002-tdlib-delivery.md.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/tdlib.yml
+
+env:
+  TDLIB_COMMIT: c8828d50f5eac2fc7089ce1089d7ce9095c61b5e
+  ANDROID_NDK_VERSION: 23.2.8568313
+  OPENSSL_VERSION: OpenSSL_1_1_1w
+  ABIS: arm64-v8a x86_64
+
+concurrency:
+  group: tdlib-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      exists: ${{ steps.tag.outputs.exists }}
+    steps:
+      - id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          version=$(curl -sfL "https://raw.githubusercontent.com/tdlib/td/$TDLIB_COMMIT/CMakeLists.txt" \
+            | grep -oP 'project\(TDLib VERSION \K[0-9.]+')
+          test -n "$version"
+          tag="tdlib-$version-${TDLIB_COMMIT:0:7}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Релиз $tag уже есть — сборка пропущена" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: check
+    if: needs.check.outputs.exists != 'true'
+    runs-on: ubuntu-latest
+    container: ubuntu:24.04
+    timeout-minutes: 300
+    env:
+      # TDLib требует много памяти на файл — ограничиваем параллелизм
+      CMAKE_BUILD_PARALLEL_LEVEL: 3
+    defaults:
+      run:
+        shell: bash
+        working-directory: build
+    steps:
+      - name: Install tools
+        working-directory: /
+        run: |
+          apt-get update
+          DEBIAN_FRONTEND=noninteractive apt-get install -yq default-jdk g++ git gperf make perl php-cli unzip wget zstd
+          mkdir -p "$GITHUB_WORKSPACE/build"
+
+      - name: Fetch TDLib
+        run: |
+          git init -q td
+          git -C td fetch -q --depth 1 https://github.com/tdlib/td.git "$TDLIB_COMMIT"
+          git -C td checkout -q FETCH_HEAD
+          cp td/example/android/{check-environment,fetch-sdk,build-openssl}.sh .
+
+      - name: Cache Android SDK and OpenSSL
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            build/SDK
+            build/openssl
+          key: tdlib-deps-${{ env.ANDROID_NDK_VERSION }}-${{ env.OPENSSL_VERSION }}
+
+      - name: Fetch Android SDK
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: ./fetch-sdk.sh SDK "$ANDROID_NDK_VERSION"
+
+      - name: Build OpenSSL
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: ./build-openssl.sh SDK "$ANDROID_NDK_VERSION" openssl "$OPENSSL_VERSION"
+
+      - name: Build TDLib
+        run: td/example/android/build-tdlib.sh SDK "$ANDROID_NDK_VERSION" openssl c++_static Java '' "$ABIS"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tdlib
+          path: build/td/example/android/tdlib/tdlib.zip
+          if-no-files-found: error
+
+  release:
+    needs: [check, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: tdlib
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check.outputs.tag }}
+        run: |
+          gh release create "$TAG" tdlib.zip -R "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --title "$TAG" \
+            --notes "TDLib коммит [\`$TDLIB_COMMIT\`](https://github.com/tdlib/td/commit/$TDLIB_COMMIT), ABI: $ABIS, NDK $ANDROID_NDK_VERSION, $OPENSSL_VERSION, интерфейс Java."
