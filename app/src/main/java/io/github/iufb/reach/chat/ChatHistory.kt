@@ -7,6 +7,7 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
+import io.github.iufb.reach.chats.toBody
 import org.drinkless.tdlib.TdApi
 
 /**
@@ -16,6 +17,9 @@ import org.drinkless.tdlib.TdApi
  * [loadOlder] — вверх, [loadNewer] — вниз, пока не дойдём до последнего сообщения.
  * `getChatHistory` сам выбирает, сколько вернуть, поэтому «пришло меньше, чем просили» —
  * не конец; конец — только пустой ответ.
+ *
+ * [followUpdates] держит отрезок в актуальном виде: новые, изменённые и удалённые сообщения.
+ * Новые добавляются, только если отрезок доходит до конца истории — иначе они придут с [loadNewer].
  */
 class ChatHistory(private val chatId: Long, private val td: TdClient) {
 
@@ -45,16 +49,20 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
             val around = fetch(lastReadInboxId, offset = -PAGE, limit = PAGE * 2)
             val unread = around.filter { it.id > lastReadInboxId }
             if (unread.isNotEmpty()) {
-                _state.value = State(
-                    messages = around.sortedByDescending { it.id },
-                    reachedNewest = unread.size < PAGE,
-                    firstUnreadId = unread.minOf { it.id },
-                    opened = true,
-                )
+                val reachedNewest = unread.size < PAGE
+                _state.update { pending ->
+                    State(
+                        reachedNewest = reachedNewest,
+                        firstUnreadId = unread.minOf { it.id },
+                        opened = true,
+                    ).merge(if (reachedNewest) around + pending.messages else around)
+                }
                 return
             }
         }
-        _state.value = State(messages = fetch(0, 0, PAGE).sortedByDescending { it.id }, reachedNewest = true, opened = true)
+        val latest = fetch(0, 0, PAGE)
+        // Пришедшие во время загрузки новые сообщения не теряем
+        _state.update { pending -> State(reachedNewest = true, opened = true).merge(latest + pending.messages) }
     }
 
     suspend fun loadOlder() {
@@ -80,6 +88,39 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
             _state.update { s -> if (newer.isEmpty()) s.copy(reachedNewest = true) else s.merge(newer) }
         } finally {
             newerLock.unlock()
+        }
+    }
+
+    /** Применяет апдейты этого чата; работает, пока не отменят. Запускать до [open]. */
+    suspend fun followUpdates() {
+        td.updates.collect { update ->
+            when (update) {
+                is TdApi.UpdateNewMessage -> if (update.message.chatId == chatId) {
+                    val message = update.message.toModel()
+                    // До open копим всё: open решит, нужны ли они
+                    _state.update { s -> if (s.reachedNewest || !s.opened) s.merge(listOf(message)) else s }
+                }
+                is TdApi.UpdateMessageContent -> if (update.chatId == chatId) {
+                    val body = update.newContent.toBody()
+                    edit(update.messageId) { copy(content = body) }
+                }
+                is TdApi.UpdateMessageInteractionInfo -> if (update.chatId == chatId) {
+                    val views = update.interactionInfo?.viewCount ?: 0
+                    edit(update.messageId) { copy(viewCount = views) }
+                }
+                // fromCache = выгружено из кэша TDLib, а не удалено — такие оставляем
+                is TdApi.UpdateDeleteMessages -> if (update.chatId == chatId && update.isPermanent) {
+                    val ids = update.messageIds.toSet()
+                    _state.update { s -> s.copy(messages = s.messages.filterNot { it.id in ids }) }
+                }
+            }
+        }
+    }
+
+    private inline fun edit(messageId: Long, crossinline change: Message.() -> Message) {
+        _state.update { s ->
+            if (s.messages.none { it.id == messageId }) s
+            else s.copy(messages = s.messages.map { if (it.id == messageId) it.change() else it })
         }
     }
 
