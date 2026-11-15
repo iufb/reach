@@ -10,6 +10,7 @@ import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.core.td.TdClient
 import io.github.iufb.reach.navigation.ChatRoute
 import io.github.iufb.reach.users.UsersRepository
+import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.combine
@@ -48,6 +49,8 @@ class ChatViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyMap())
 
     init {
+        // UNDISPATCHED: подписка на апдейты раньше, чем уйдёт первый getChatHistory
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { history.followUpdates() }
         viewModelScope.launch {
             val opened = chat.mapNotNull { it }.first()
             history.open(opened.lastReadInboxMessageId.takeIf { opened.unreadCount > 0 })
