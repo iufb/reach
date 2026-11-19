@@ -1,5 +1,16 @@
 package io.github.iufb.reach.auth
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.wrapContentWidth
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.Icon
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -188,10 +199,23 @@ private fun AuthLayout(title: String, subtitle: String, content: @Composable Col
             modifier = Modifier
                 .safeDrawingPadding()
                 .imePadding()
+                .wrapContentWidth(Alignment.CenterHorizontally)
+                .widthIn(max = 420.dp)
+                .verticalScroll(rememberScrollState())
                 .padding(24.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
+            Box(
+                Modifier.size(68.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(
+                    painterResource(R.drawable.ic_send), contentDescription = null,
+                    modifier = Modifier.size(34.dp).rotate(-25f),
+                    tint = MaterialTheme.colorScheme.onPrimary,
+                )
+            }
             Text(title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
             if (subtitle.isNotEmpty()) {
                 Text(
@@ -243,7 +267,12 @@ private fun AuthField(
 
 @Composable
 private fun SubmitButton(enabled: Boolean, submitting: Boolean, onClick: () -> Unit) {
-    Button(onClick = onClick, enabled = enabled, modifier = Modifier.fillMaxWidth()) {
+    Button(
+        onClick = onClick,
+        enabled = enabled,
+        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
+        shape = RoundedCornerShape(10.dp),
+    ) {
         if (submitting) {
             CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
         } else {

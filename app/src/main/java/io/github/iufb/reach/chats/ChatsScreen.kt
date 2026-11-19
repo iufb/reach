@@ -5,6 +5,12 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.ui.unit.Dp
+import io.github.iufb.reach.ui.theme.reachBarColors
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.painterResource
 import androidx.compose.foundation.layout.Arrangement
@@ -73,13 +79,26 @@ private fun ChatsContent(
     onLogOut: () -> Unit,
 ) {
     var confirmLogOut by rememberSaveable { mutableStateOf(false) }
+    var menuOpen by rememberSaveable { mutableStateOf(false) }
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(stringResource(R.string.chats_title)) },
+                colors = reachBarColors(),
+                title = { Text(stringResource(R.string.chats_title), fontWeight = FontWeight.Medium) },
                 actions = {
-                    TextButton(onClick = { confirmLogOut = true }, enabled = !loggingOut) {
-                        Text(stringResource(R.string.logout))
+                    Box {
+                        IconButton(onClick = { menuOpen = true }, enabled = !loggingOut) {
+                            Icon(painterResource(R.drawable.ic_more), stringResource(R.string.chat_list_menu))
+                        }
+                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.logout)) },
+                                onClick = {
+                                    menuOpen = false
+                                    confirmLogOut = true
+                                },
+                            )
+                        }
                     }
                 },
             )
@@ -123,6 +142,7 @@ private fun ChatList(
     LazyColumn(state = listState, modifier = modifier) {
         items(chats, key = { it.id }) { chat ->
             ChatRow(chat, isPinned = chat.positions[list]?.isPinned == true, onClick = { onChatClick(chat.id) })
+            HorizontalDivider(Modifier.padding(start = 80.dp), thickness = Dp.Hairline, color = MaterialTheme.colorScheme.outlineVariant)
         }
         if (!allLoaded) {
             item(key = "loading") {
@@ -157,12 +177,12 @@ private fun ChatRow(chat: Chat, isPinned: Boolean, onClick: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onClick)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
+            .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Avatar(chat.title, chat.photo, chat.accentColorId)
+        Avatar(chat.title, chat.photo, chat.accentColorId, size = 56.dp)
         Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     chat.title.ifBlank { stringResource(R.string.chat_deleted_account) },

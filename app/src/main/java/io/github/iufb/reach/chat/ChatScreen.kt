@@ -4,7 +4,13 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.material3.LocalContentColor
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.PaddingValues
+import io.github.iufb.reach.ui.theme.reachBarColors
 import androidx.compose.material3.Surface
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
@@ -108,6 +114,7 @@ private fun ChatContent(
         bottomBar = { if (composer != null && chat != null) Composer(composer) },
         topBar = {
             TopAppBar(
+                colors = reachBarColors(),
                 navigationIcon = {
                     IconButton(onClick = onBack) {
                         Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
@@ -117,7 +124,10 @@ private fun ChatContent(
             )
         },
     ) { padding ->
-        val modifier = Modifier.fillMaxSize().padding(padding)
+        val scheme = MaterialTheme.colorScheme
+        val modifier = Modifier.fillMaxSize().padding(padding).background(
+            Brush.linearGradient(listOf(scheme.secondaryContainer, scheme.tertiaryContainer)),
+        )
         if (!state.opened || chat == null) {
             Box(modifier, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         } else {
@@ -136,12 +146,20 @@ private class ComposerState(
 
 @Composable
 private fun Composer(state: ComposerState) {
-    Surface(tonalElevation = 2.dp) {
+    Surface(color = MaterialTheme.colorScheme.surface) {
         Row(
             modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            OutlinedTextField(
+            TextField(
+                colors = TextFieldDefaults.colors(
+                    focusedContainerColor = Color.Transparent,
+                    unfocusedContainerColor = Color.Transparent,
+                    errorContainerColor = Color.Transparent,
+                    focusedIndicatorColor = Color.Transparent,
+                    unfocusedIndicatorColor = Color.Transparent,
+                    errorIndicatorColor = Color.Transparent,
+                ),
                 value = state.draft,
                 onValueChange = state.onDraftChange,
                 modifier = Modifier.weight(1f),
@@ -178,7 +196,7 @@ private fun ChatHeader(chat: Chat) {
                     },
                 ),
                 style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = LocalContentColor.current.copy(alpha = 0.88f),
             )
         }
     }
@@ -237,6 +255,7 @@ private fun MessageList(
         state = listState,
         modifier = modifier,
         reverseLayout = true,
+        contentPadding = PaddingValues(vertical = 8.dp),
         verticalArrangement = Arrangement.spacedBy(4.dp),
     ) {
         items(items, key = { it.key }) { item ->
@@ -338,8 +357,12 @@ private fun MessageBubble(message: Message, sender: SenderInfo?) {
             modifier = Modifier
                 .widthIn(max = 320.dp)
                 .background(
-                    if (outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceContainerHigh,
-                    RoundedCornerShape(16.dp),
+                    if (outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
+                    RoundedCornerShape(
+                        topStart = 16.dp, topEnd = 16.dp,
+                        bottomStart = if (outgoing) 16.dp else 4.dp,
+                        bottomEnd = if (outgoing) 4.dp else 16.dp,
+                    ),
                 )
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
@@ -393,7 +416,7 @@ private fun ChannelPost(message: Message) {
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp)
-            .background(MaterialTheme.colorScheme.surfaceContainerHigh, RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
             .padding(12.dp),
     ) {
         MessageContent(message.content)
