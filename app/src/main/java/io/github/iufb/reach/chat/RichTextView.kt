@@ -33,11 +33,7 @@ internal fun RichTextView(
     modifier: Modifier = Modifier,
     style: TextStyle = MaterialTheme.typography.bodyLarge,
 ) {
-    val colors = RichTextColors(
-        link = MaterialTheme.colorScheme.primary,
-        codeBackground = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-        quote = MaterialTheme.colorScheme.primary,
-    )
+    val colors = richTextColors()
     val annotated = remember(text, colors) { text.toAnnotatedString(colors) }
     val uriHandler = LocalUriHandler.current
     val safeHandler = remember(uriHandler) { SafeUriHandler(uriHandler) }
@@ -55,11 +51,18 @@ private class SafeUriHandler(private val delegate: UriHandler) : UriHandler {
 
 internal data class RichTextColors(val link: Color, val codeBackground: Color, val quote: Color)
 
+@Composable
+internal fun richTextColors() = RichTextColors(
+    link = MaterialTheme.colorScheme.primary,
+    codeBackground = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+    quote = MaterialTheme.colorScheme.primary,
+)
+
 /**
  * Entities → AnnotatedString. Блоки (код, цитата) оформляются абзацем; абзацы в Compose
  * не могут пересекаться частично, поэтому блок, задевающий уже оформленный, остаётся без абзаца.
  */
-internal fun RichText.toAnnotatedString(colors: RichTextColors): AnnotatedString = buildAnnotatedString {
+internal fun RichText.toAnnotatedString(colors: RichTextColors, clickableLinks: Boolean = true): AnnotatedString = buildAnnotatedString {
     append(text)
     val paragraphs = mutableListOf<IntRange>()
     fun paragraph(start: Int, end: Int, style: ParagraphStyle) {
@@ -86,11 +89,11 @@ internal fun RichText.toAnnotatedString(colors: RichTextColors): AnnotatedString
                 addStyle(SpanStyle(fontStyle = FontStyle.Italic, color = colors.quote), start, end)
                 paragraph(start, end, ParagraphStyle(textIndent = TextIndent(firstLine = QUOTE_INDENT, restLine = QUOTE_INDENT)))
             }
-            is SpanKind.Link -> addLink(
-                LinkAnnotation.Url(kind.url, TextLinkStyles(SpanStyle(color = colors.link, textDecoration = TextDecoration.Underline))),
-                start,
-                end,
-            )
+            is SpanKind.Link -> {
+                val style = SpanStyle(color = colors.link, textDecoration = TextDecoration.Underline)
+                // В поле ввода ссылка только выглядит ссылкой: тап ставит курсор, а не открывает её
+                if (clickableLinks) addLink(LinkAnnotation.Url(kind.url, TextLinkStyles(style)), start, end) else addStyle(style, start, end)
+            }
         }
     }
 }

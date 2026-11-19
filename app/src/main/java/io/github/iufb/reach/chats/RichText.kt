@@ -111,3 +111,43 @@ internal fun RichText.withEditedText(newText: String): RichText {
     }.filter { it.start < it.end }
     return RichText(newText, kept)
 }
+
+/** Без пробелов по краям; участки обрезаются и сдвигаются вместе с текстом. */
+internal fun RichText.trimmed(): RichText {
+    val start = text.indexOfFirst { !it.isWhitespace() }
+    if (start < 0) return RichText.Empty
+    val end = text.indexOfLast { !it.isWhitespace() } + 1
+    if (start == 0 && end == text.length) return this
+    val clipped = spans.mapNotNull { span ->
+        val s = span.start.coerceIn(start, end)
+        val e = span.end.coerceIn(start, end)
+        if (s < e) span.copy(start = s - start, end = e - start) else null
+    }
+    return RichText(text.substring(start, end), clipped)
+}
+
+/** Тот же вид оформления: ссылки с разными адресами — один вид. */
+private fun SpanKind.sameAs(other: SpanKind): Boolean = this::class == other::class
+
+/**
+ * Включает или выключает оформление [kind] на участке [start]..[end].
+ * Если участок уже целиком так оформлен — оформление с него снимается (у краёв оно остаётся),
+ * иначе добавляется. Ссылка всегда заменяет прежние ссылки на участке.
+ */
+internal fun RichText.toggle(kind: SpanKind, start: Int, end: Int): RichText {
+    if (start >= end) return this
+    val same = spans.filter { it.kind.sameAs(kind) }
+    val covered = (start until end).all { i -> same.any { i >= it.start && i < it.end } }
+    val withoutRange = spans.flatMap { span ->
+        if (!span.kind.sameAs(kind) || span.end <= start || span.start >= end) {
+            listOf(span)
+        } else {
+            listOfNotNull(
+                span.copy(end = start).takeIf { it.start < it.end },
+                span.copy(start = end).takeIf { it.start < it.end },
+            )
+        }
+    }
+    val turnOn = !covered || kind is SpanKind.Link
+    return copy(spans = if (turnOn) withoutRange + TextSpan(start, end, kind) else withoutRange)
+}
