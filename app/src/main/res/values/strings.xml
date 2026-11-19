@@ -78,6 +78,9 @@
     <string name="chat_status_sent">Отправлено</string>
     <string name="chat_status_failed">Ошибка отправки</string>
     <string name="chat_unread_divider">Непрочитанные сообщения</string>
+
+    <!-- Меню действий над сообщением -->
+    <string name="message_action_copy">Копировать</string>
     <plurals name="views">
         <item quantity="one">%d просмотр</item>
         <item quantity="few">%d просмотра</item>

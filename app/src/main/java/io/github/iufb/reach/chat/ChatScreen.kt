@@ -1,6 +1,10 @@
 package io.github.iufb.reach.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.text.KeyboardOptions
@@ -86,6 +90,7 @@ fun ChatScreen(onBack: () -> Unit, viewModel: ChatViewModel = hiltViewModel()) {
     val canWrite by viewModel.canWrite.collectAsStateWithLifecycle()
     val draft by viewModel.draft.collectAsStateWithLifecycle()
     val sendError by viewModel.sendError.collectAsStateWithLifecycle()
+    val menu by viewModel.menu.collectAsStateWithLifecycle()
     LifecycleResumeEffect(viewModel) {
         viewModel.onResume()
         onPauseOrDispose { viewModel.onPause() }
@@ -94,6 +99,7 @@ fun ChatScreen(onBack: () -> Unit, viewModel: ChatViewModel = hiltViewModel()) {
         chat, state, senders, onBack, viewModel::loadOlder, viewModel::loadNewer,
         onVisibleMessagesChange = viewModel::onVisibleMessagesChange,
         composer = if (canWrite) ComposerState(draft, sendError, viewModel::onDraftChange, viewModel::send) else null,
+        menu = MenuState(menu, viewModel::openMenu, viewModel::closeMenu),
     )
 }
 
@@ -108,6 +114,7 @@ private fun ChatContent(
     onLoadNewer: () -> Unit,
     onVisibleMessagesChange: (List<Long>) -> Unit,
     composer: ComposerState?,
+    menu: MenuState,
 ) {
     Scaffold(
         modifier = Modifier.imePadding(),
@@ -131,7 +138,7 @@ private fun ChatContent(
         if (!state.opened || chat == null) {
             Box(modifier, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         } else {
-            MessageList(chat, state, senders, onLoadOlder, onLoadNewer, onVisibleMessagesChange, modifier)
+            MessageList(chat, state, senders, menu, onLoadOlder, onLoadNewer, onVisibleMessagesChange, modifier)
         }
     }
 }
@@ -143,6 +150,16 @@ private class ComposerState(
     val onDraftChange: (String) -> Unit,
     val onSend: () -> Unit,
 )
+
+/** Меню действий: [menu] — открытое сейчас, [onOpen] — долгое нажатие на сообщение. */
+private class MenuState(
+    val menu: MessageMenu?,
+    val onOpen: (Message) -> Unit,
+    val onDismiss: () -> Unit,
+) {
+    /** Меню, если оно открыто именно для [message]. */
+    fun forMessage(message: Message): MessageMenu? = menu?.takeIf { it.message.id == message.id }
+}
 
 @Composable
 private fun Composer(state: ComposerState) {
@@ -232,6 +249,7 @@ private fun MessageList(
     chat: Chat,
     state: ChatHistory.State,
     senders: Map<Sender, SenderInfo>,
+    menu: MenuState,
     onLoadOlder: () -> Unit,
     onLoadNewer: () -> Unit,
     onVisibleMessagesChange: (List<Long>) -> Unit,
@@ -262,9 +280,12 @@ private fun MessageList(
             when (item) {
                 is Item.Msg -> when {
                     item.message.content is MessageBody.Service -> ServiceMessage(item.message.content.kind)
-                    isChannel -> ChannelPost(item.message)
-                    else ->
-                        MessageBubble(item.message, sender = if (item.showSender) senders[item.message.sender] else null)
+                    isChannel -> ChannelPost(item.message, menu)
+                    else -> MessageBubble(
+                        item.message,
+                        sender = if (item.showSender) senders[item.message.sender] else null,
+                        menu = menu,
+                    )
                 }
                 Item.UnreadDivider -> UnreadDivider()
             }
@@ -347,8 +368,13 @@ private fun PagingEffects(
 }
 
 @Composable
-private fun MessageBubble(message: Message, sender: SenderInfo?) {
+private fun MessageBubble(message: Message, sender: SenderInfo?, menu: MenuState) {
     val outgoing = message.isOutgoing
+    val bubbleShape = RoundedCornerShape(
+        topStart = 16.dp, topEnd = 16.dp,
+        bottomStart = if (outgoing) 16.dp else 4.dp,
+        bottomEnd = if (outgoing) 4.dp else 16.dp,
+    )
     Row(
         modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
         horizontalArrangement = if (outgoing) Arrangement.End else Arrangement.Start,
@@ -356,16 +382,12 @@ private fun MessageBubble(message: Message, sender: SenderInfo?) {
         Column(
             modifier = Modifier
                 .widthIn(max = 320.dp)
-                .background(
-                    if (outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface,
-                    RoundedCornerShape(
-                        topStart = 16.dp, topEnd = 16.dp,
-                        bottomStart = if (outgoing) 16.dp else 4.dp,
-                        bottomEnd = if (outgoing) 4.dp else 16.dp,
-                    ),
-                )
+                .clip(bubbleShape)
+                .background(if (outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
+                .messageLongPress(message, menu)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
+            MessageMenuPopup(menu.forMessage(message), menu.onDismiss)
             if (sender != null) {
                 Text(
                     sender.name.ifBlank { stringResource(R.string.chat_deleted_account) },
@@ -391,6 +413,19 @@ private fun MessageBubble(message: Message, sender: SenderInfo?) {
     }
 }
 
+/** Долгое нажатие на сообщение открывает меню действий. */
+@Composable
+private fun Modifier.messageLongPress(message: Message, menu: MenuState): Modifier {
+    val haptics = LocalHapticFeedback.current
+    return combinedClickable(
+        onClick = {},
+        onLongClick = {
+            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+            menu.onOpen(message)
+        },
+    )
+}
+
 /** Отправляется — часы, ошибка — «!», отправлено — галочка. */
 @Composable
 private fun SendingStatus(state: SendingState?) {
@@ -411,14 +446,17 @@ private fun SendingStatus(state: SendingState?) {
 
 /** Пост канала: карточка на всю ширину, подпись автора и просмотры внизу. */
 @Composable
-private fun ChannelPost(message: Message) {
+private fun ChannelPost(message: Message, menu: MenuState) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp)
-            .background(MaterialTheme.colorScheme.surface, RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(12.dp))
+            .background(MaterialTheme.colorScheme.surface)
+            .messageLongPress(message, menu)
             .padding(12.dp),
     ) {
+        MessageMenuPopup(menu.forMessage(message), menu.onDismiss)
         MessageContent(message.content)
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
@@ -528,6 +566,7 @@ private fun ChatPreview() {
             ChatHistory.State(messages, reachedOldest = true, reachedNewest = true, firstUnreadId = 3, opened = true),
             senders, onBack = {}, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
             composer = ComposerState("Как дела?", null, {}, {}),
+            menu = MenuState(null, {}, {}),
         )
     }
 }
