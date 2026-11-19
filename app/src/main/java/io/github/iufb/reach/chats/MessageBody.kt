@@ -10,10 +10,10 @@ import org.drinkless.tdlib.TdApi
  * в одну из веток.
  */
 sealed interface MessageBody {
-    data class Text(val text: String) : MessageBody
+    data class Text(val text: RichText) : MessageBody
 
     /** Сообщение, которое клиент ещё не умеет показать. [caption] — подпись или эмодзи, если есть. */
-    data class Unsupported(val kind: ContentKind, val caption: String = "") : MessageBody
+    data class Unsupported(val kind: ContentKind, val caption: RichText = RichText.Empty) : MessageBody
 
     /** Служебное событие чата: вступление, смена названия, закреп… */
     data class Service(val kind: ServiceKind) : MessageBody
@@ -31,9 +31,9 @@ enum class ServiceKind {
 }
 
 internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
-    is TdApi.MessageText -> MessageBody.Text(text.text)
+    is TdApi.MessageText -> MessageBody.Text(text.toRichText())
     // Одиночный анимированный эмодзи — это текст
-    is TdApi.MessageAnimatedEmoji -> MessageBody.Text(emoji)
+    is TdApi.MessageAnimatedEmoji -> MessageBody.Text(RichText(emoji))
 
     is TdApi.MessagePhoto -> unsupported(ContentKind.Photo, caption)
     is TdApi.MessageVideo -> unsupported(ContentKind.Video, caption)
@@ -43,16 +43,16 @@ internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
     is TdApi.MessageAnimation -> unsupported(ContentKind.Animation, caption)
     is TdApi.MessagePaidMedia -> unsupported(ContentKind.PaidMedia, caption)
     is TdApi.MessageVideoNote -> MessageBody.Unsupported(ContentKind.VideoNote)
-    is TdApi.MessageSticker -> MessageBody.Unsupported(ContentKind.Sticker, sticker.emoji)
-    is TdApi.MessagePoll -> MessageBody.Unsupported(ContentKind.Poll, poll.question.text)
-    is TdApi.MessageChecklist -> MessageBody.Unsupported(ContentKind.Checklist, list.title.text)
+    is TdApi.MessageSticker -> unsupported(ContentKind.Sticker, sticker.emoji)
+    is TdApi.MessagePoll -> unsupported(ContentKind.Poll, poll.question)
+    is TdApi.MessageChecklist -> unsupported(ContentKind.Checklist, list.title)
     is TdApi.MessageLocation, is TdApi.MessageVenue -> MessageBody.Unsupported(ContentKind.Location)
     is TdApi.MessageLiveLocation -> MessageBody.Unsupported(ContentKind.LiveLocation)
-    is TdApi.MessageContact -> MessageBody.Unsupported(ContentKind.Contact, "${contact.firstName} ${contact.lastName}".trim())
+    is TdApi.MessageContact -> unsupported(ContentKind.Contact, "${contact.firstName} ${contact.lastName}".trim())
     is TdApi.MessageCall -> MessageBody.Unsupported(ContentKind.Call)
     is TdApi.MessageGroupCall -> MessageBody.Unsupported(ContentKind.GroupCall)
-    is TdApi.MessageDice -> MessageBody.Unsupported(ContentKind.Dice, emoji)
-    is TdApi.MessageGame -> MessageBody.Unsupported(ContentKind.Game, game.title)
+    is TdApi.MessageDice -> unsupported(ContentKind.Dice, emoji)
+    is TdApi.MessageGame -> unsupported(ContentKind.Game, game.title)
     is TdApi.MessageStory -> MessageBody.Unsupported(ContentKind.Story)
     is TdApi.MessageInvoice -> MessageBody.Unsupported(ContentKind.Invoice)
     is TdApi.MessageGift, is TdApi.MessageUpgradedGift, is TdApi.MessageGiftedPremium,
@@ -87,6 +87,8 @@ internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
 }
 
 private fun unsupported(kind: ContentKind, caption: TdApi.FormattedText?) =
-    MessageBody.Unsupported(kind, caption?.text.orEmpty())
+    MessageBody.Unsupported(kind, caption.toRichText())
+
+private fun unsupported(kind: ContentKind, caption: String) = MessageBody.Unsupported(kind, RichText(caption))
 
 private fun service(kind: ServiceKind) = MessageBody.Service(kind)
