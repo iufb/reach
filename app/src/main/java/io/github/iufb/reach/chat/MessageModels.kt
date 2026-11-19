@@ -94,3 +94,13 @@ internal fun TdApi.Message.toModel() = Message(
     editDate = editDate,
     forwardedFrom = forwardInfo?.origin?.toAuthor(),
 )
+
+/** Участник группы в подсказках упоминаний. */
+data class MentionCandidate(
+    val userId: Long,
+    val name: String,
+    /** Без «@»; пусто — упоминаем по имени. */
+    val username: String,
+    val photo: io.github.iufb.reach.files.TdFile?,
+    val accentColorId: Int,
+)

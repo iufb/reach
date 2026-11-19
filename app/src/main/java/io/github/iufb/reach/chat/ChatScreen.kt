@@ -47,6 +47,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -106,6 +107,15 @@ fun ChatScreen(
     val deleting by viewModel.deleting.collectAsStateWithLifecycle()
     val selection by viewModel.selection.collectAsStateWithLifecycle()
     val selectionActions by viewModel.selectionActions.collectAsStateWithLifecycle()
+    val mentionSuggestions by viewModel.mentionSuggestions.collectAsStateWithLifecycle()
+    val openChat by rememberUpdatedState(onOpenChat)
+    LaunchedEffect(viewModel) { viewModel.openChat.collect { openChat(it) } }
+    val mentionHandler = remember(viewModel) {
+        object : MentionHandler {
+            override fun openUsername(username: String) = viewModel.openUsername(username)
+            override fun openUser(userId: Long) = viewModel.openUser(userId)
+        }
+    }
     BackHandler(enabled = selection.isNotEmpty(), onBack = viewModel::clearSelection)
     val replied by viewModel.replied.collectAsStateWithLifecycle()
     val scrollTarget by viewModel.scrollTarget.collectAsStateWithLifecycle()
@@ -114,51 +124,54 @@ fun ChatScreen(
         onPauseOrDispose { viewModel.onPause() }
     }
     deleting?.let { DeleteDialog(it, viewModel::confirmDelete, viewModel::cancelDelete) }
-    ChatContent(
-        chat, state, senders, onBack,
-        selectionBar = selectionActions?.let { actions ->
-            {
-                SelectionBar(
-                    actions,
-                    onClose = viewModel::clearSelection,
-                    onForward = { ids ->
-                        viewModel.clearSelection()
-                        chat?.let { onForward(it.id, ids) }
-                    },
-                    onDelete = viewModel::requestDeleteSelected,
+    CompositionLocalProvider(LocalMentionHandler provides mentionHandler) {
+        ChatContent(
+            chat, state, senders, onBack,
+            selectionBar = selectionActions?.let { actions ->
+                {
+                    SelectionBar(
+                        actions,
+                        onClose = viewModel::clearSelection,
+                        onForward = { ids ->
+                            viewModel.clearSelection()
+                            chat?.let { onForward(it.id, ids) }
+                        },
+                        onDelete = viewModel::requestDeleteSelected,
+                    )
+                }
+            }, viewModel::loadOlder, viewModel::loadNewer,
+            onVisibleMessagesChange = viewModel::onVisibleMessagesChange,
+            composer = if (canWrite) {
+                ComposerState(
+                    draft, sendError, replyTo, editing,
+                    viewModel::onDraftChange, viewModel::onFormat, viewModel::send, viewModel::cancelReply, viewModel::cancelEdit,
+                    mentionSuggestions, viewModel::onMentionQuery, viewModel::pickMention,
                 )
-            }
-        }, viewModel::loadOlder, viewModel::loadNewer,
-        onVisibleMessagesChange = viewModel::onVisibleMessagesChange,
-        composer = if (canWrite) {
-            ComposerState(
-                draft, sendError, replyTo, editing,
-                viewModel::onDraftChange, viewModel::onFormat, viewModel::send, viewModel::cancelReply, viewModel::cancelEdit,
-            )
-        } else {
-            null
-        },
-        interactions = MessageInteractions(
-            menu = menu,
-            onOpenMenu = viewModel::openMenu,
-            onDismissMenu = viewModel::closeMenu,
-            onReply = if (canWrite) viewModel::startReply else null,
-            onEdit = viewModel::startEdit,
-            onDelete = viewModel::requestDelete,
-            onForward = { message ->
-                viewModel.closeMenu()
-                chat?.let { onForward(it.id, listOf(message.id)) }
+            } else {
+                null
             },
-            onOpenChat = onOpenChat,
-            selection = selection,
-            onToggleSelect = viewModel::toggleSelection,
-            onStartSelection = viewModel::startSelection,
-            replied = replied,
-            onJumpTo = viewModel::jumpTo,
-            scrollTarget = scrollTarget,
-            onScrolledToTarget = viewModel::onScrolledToTarget,
-        ),
-    )
+            interactions = MessageInteractions(
+                menu = menu,
+                onOpenMenu = viewModel::openMenu,
+                onDismissMenu = viewModel::closeMenu,
+                onReply = if (canWrite) viewModel::startReply else null,
+                onEdit = viewModel::startEdit,
+                onDelete = viewModel::requestDelete,
+                onForward = { message ->
+                    viewModel.closeMenu()
+                    chat?.let { onForward(it.id, listOf(message.id)) }
+                },
+                onOpenChat = onOpenChat,
+                selection = selection,
+                onToggleSelect = viewModel::toggleSelection,
+                onStartSelection = viewModel::startSelection,
+                replied = replied,
+                onJumpTo = viewModel::jumpTo,
+                scrollTarget = scrollTarget,
+                onScrolledToTarget = viewModel::onScrolledToTarget,
+            ),
+        )
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
