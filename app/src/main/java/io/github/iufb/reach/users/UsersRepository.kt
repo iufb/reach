@@ -23,6 +23,8 @@ data class User(
     val accentColorId: Int,
     /** Основной активный username без «@»; пусто — нет. */
     val username: String = "",
+    /** Телефон, если пользователь его показывает; без «+». */
+    val phoneNumber: String = "",
 ) {
     /** Пустое имя у удалённых аккаунтов. */
     val fullName: String get() = listOf(firstName, lastName).filter { it.isNotBlank() }.joinToString(" ")
@@ -58,4 +60,5 @@ private fun TdApi.User.toModel() = User(
     photo = profilePhoto?.small?.toTdFile(),
     accentColorId = accentColorId,
     username = usernames?.activeUsernames?.firstOrNull().orEmpty(),
+    phoneNumber = phoneNumber,
 )

@@ -68,6 +68,8 @@ data class Chat(
     /** Общее разрешение участникам писать текст (`ChatPermissions.canSendBasicMessages`). */
     val canSendBasicMessages: Boolean,
     val draft: Draft? = null,
+    /** Собеседник личного (и секретного) чата. */
+    val userId: Long? = null,
 )
 
 internal fun TdApi.Chat.toModel() = Chat(
@@ -87,6 +89,11 @@ internal fun TdApi.Chat.toModel() = Chat(
     accentColorId = accentColorId,
     canSendBasicMessages = permissions.canSendBasicMessages,
     draft = draftMessage?.toDraft(),
+    userId = when (val t = type) {
+        is TdApi.ChatTypePrivate -> t.userId
+        is TdApi.ChatTypeSecret -> t.userId
+        else -> null
+    },
 )
 
 /** Черновики голосовых и видеокружков клиент не показывает. */

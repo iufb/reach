@@ -398,15 +398,6 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    /** Тап по упоминанию по имени: личный чат с пользователем. */
-    fun openUser(userId: Long) {
-        viewModelScope.launch {
-            runCatching { td.send(TdApi.CreatePrivateChat(userId, false)) }
-                .onSuccess { _openChat.emit(it.id) }
-                .onFailure { Log.w(TAG, "createPrivateChat($userId) failed", it) }
-        }
-    }
-
     /** Кнопка оформления над полем: включает или снимает [kind] на выделенном. */
     fun onFormat(kind: SpanKind, start: Int, end: Int) {
         _draft.update { it.toggle(kind, start, end) }

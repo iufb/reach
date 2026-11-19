@@ -24,6 +24,7 @@ import io.github.iufb.reach.auth.UnsupportedAuthScreen
 import io.github.iufb.reach.chat.ChatScreen
 import io.github.iufb.reach.chats.ChatsScreen
 import io.github.iufb.reach.forward.ForwardScreen
+import io.github.iufb.reach.profile.ProfileScreen
 import kotlinx.serialization.Serializable
 
 @Serializable data object AuthGraph
@@ -36,6 +37,8 @@ import kotlinx.serialization.Serializable
 @Serializable data object ChatsRoute
 @Serializable data class ChatRoute(val chatId: Long)
 @Serializable data class ForwardRoute(val fromChatId: Long, val messageIds: List<Long>)
+/** Профиль чата ([chatId]) или пользователя ([userId]); второй — 0. */
+@Serializable data class ProfileRoute(val chatId: Long = 0, val userId: Long = 0)
 
 /**
  * Два графа: вход и основной. Какой экран показан, решает [AuthState]:
@@ -79,6 +82,14 @@ fun ReachNavHost(authState: AuthState) {
                 ChatScreen(
                     onBack = { navController.popBackStack() },
                     onForward = { from, ids -> navController.navigate(ForwardRoute(from, ids)) },
+                    onOpenChat = { navController.navigate(ChatRoute(it)) },
+                    onOpenProfile = { navController.navigate(ProfileRoute(chatId = it)) },
+                    onOpenUserProfile = { navController.navigate(ProfileRoute(userId = it)) },
+                )
+            }
+            composable<ProfileRoute> {
+                ProfileScreen(
+                    onBack = { navController.popBackStack() },
                     onOpenChat = { navController.navigate(ChatRoute(it)) },
                 )
             }
