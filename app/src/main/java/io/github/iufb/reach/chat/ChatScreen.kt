@@ -95,6 +95,7 @@ fun ChatScreen(onBack: () -> Unit, viewModel: ChatViewModel = hiltViewModel()) {
     val sendError by viewModel.sendError.collectAsStateWithLifecycle()
     val menu by viewModel.menu.collectAsStateWithLifecycle()
     val replyTo by viewModel.replyTo.collectAsStateWithLifecycle()
+    val editing by viewModel.editing.collectAsStateWithLifecycle()
     val replied by viewModel.replied.collectAsStateWithLifecycle()
     val scrollTarget by viewModel.scrollTarget.collectAsStateWithLifecycle()
     LifecycleResumeEffect(viewModel) {
@@ -105,7 +106,10 @@ fun ChatScreen(onBack: () -> Unit, viewModel: ChatViewModel = hiltViewModel()) {
         chat, state, senders, onBack, viewModel::loadOlder, viewModel::loadNewer,
         onVisibleMessagesChange = viewModel::onVisibleMessagesChange,
         composer = if (canWrite) {
-            ComposerState(draft, sendError, replyTo, viewModel::onDraftChange, viewModel::send, viewModel::cancelReply)
+            ComposerState(
+                draft, sendError, replyTo, editing,
+                viewModel::onDraftChange, viewModel::send, viewModel::cancelReply, viewModel::cancelEdit,
+            )
         } else {
             null
         },
@@ -114,6 +118,7 @@ fun ChatScreen(onBack: () -> Unit, viewModel: ChatViewModel = hiltViewModel()) {
             onOpenMenu = viewModel::openMenu,
             onDismissMenu = viewModel::closeMenu,
             onReply = if (canWrite) viewModel::startReply else null,
+            onEdit = viewModel::startEdit,
             replied = replied,
             onJumpTo = viewModel::jumpTo,
             scrollTarget = scrollTarget,
@@ -168,9 +173,12 @@ private class ComposerState(
     val error: String?,
     /** Сообщение, на которое отвечаем. */
     val replyTo: Message?,
+    /** Своё сообщение, которое редактируем; плашка редактирования важнее плашки ответа. */
+    val editing: Message?,
     val onDraftChange: (String) -> Unit,
     val onSend: () -> Unit,
     val onCancelReply: () -> Unit,
+    val onCancelEdit: () -> Unit,
 )
 
 /** Что можно делать с сообщениями в ленте: меню, ответ, переход к исходному. */
@@ -181,6 +189,7 @@ private class MessageInteractions(
     val onDismissMenu: () -> Unit,
     /** `null` — писать нельзя, ответить тоже. */
     val onReply: ((Message) -> Unit)?,
+    val onEdit: (Message) -> Unit,
     /** Исходные сообщения ответов вне загруженного отрезка (см. [ChatHistory.replied]). */
     val replied: Map<Long, Message?>,
     val onJumpTo: (Long) -> Unit,
@@ -201,7 +210,10 @@ private class MessageInteractions(
 private fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
     Surface(color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.navigationBarsPadding()) {
-            state.replyTo?.let { ReplyBar(it, senders, state.onCancelReply) }
+            when {
+            state.editing != null -> EditBar(state.editing, state.onCancelEdit)
+            state.replyTo != null -> ReplyBar(state.replyTo, senders, state.onCancelReply)
+        }
             Row(
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
@@ -484,7 +496,7 @@ private fun MessageBubble(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    formatMessageTime(message.date),
+                    messageTimeLabel(message),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
@@ -496,7 +508,12 @@ private fun MessageBubble(
 
 @Composable
 private fun MessagePopup(message: Message, interactions: MessageInteractions) {
-    MessageMenuPopup(interactions.menuFor(message), interactions.onDismissMenu, onReply = { interactions.onReply?.invoke(it) })
+    MessageMenuPopup(
+        interactions.menuFor(message),
+        interactions.onDismissMenu,
+        onReply = { interactions.onReply?.invoke(it) },
+        onEdit = interactions.onEdit,
+    )
 }
 
 /** Долгое нажатие на сообщение открывает меню действий. */
@@ -561,7 +578,7 @@ private fun ChannelPost(message: Message, interactions: MessageInteractions, rep
                 )
             }
             Text(
-                formatMessageTime(message.date),
+                messageTimeLabel(message),
                 style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -629,6 +646,13 @@ private fun UnreadDivider() {
     )
 }
 
+/** «изменено 14:05» у отредактированных, иначе просто время. */
+@Composable
+private fun messageTimeLabel(message: Message): String {
+    val time = formatMessageTime(message.date)
+    return if (message.editDate > 0) "${stringResource(R.string.message_edited)} $time" else time
+}
+
 private val TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm")
 
 private fun formatMessageTime(unixSeconds: Int): String =
@@ -653,8 +677,8 @@ private fun ChatPreview() {
             chat,
             ChatHistory.State(messages, reachedOldest = true, reachedNewest = true, firstUnreadId = 3, opened = true),
             senders, onBack = {}, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
-            composer = ComposerState("Как дела?", null, null, {}, {}, {}),
-            interactions = MessageInteractions(null, {}, {}, {}, emptyMap(), {}, null, {}),
+            composer = ComposerState("Как дела?", null, null, null, {}, {}, {}, {}),
+            interactions = MessageInteractions(null, {}, {}, {}, {}, emptyMap(), {}, null, {}),
         )
     }
 }
