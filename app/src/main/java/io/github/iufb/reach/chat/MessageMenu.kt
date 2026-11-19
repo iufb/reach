@@ -23,8 +23,9 @@ import org.drinkless.tdlib.TdApi
 data class MessageActions(
     /** Текст или подпись, которые можно скопировать; `null` — копировать нечего или нельзя. */
     val copyText: String?,
+    val canReply: Boolean,
 ) {
-    val isEmpty: Boolean get() = copyText == null
+    val isEmpty: Boolean get() = copyText == null && !canReply
 }
 
 /** Открытое меню действий над [message]. */
@@ -44,6 +45,7 @@ internal fun messageActions(message: Message, properties: TdApi.MessagePropertie
         (properties.hasProtectedContentByCurrentUser || properties.hasProtectedContentByOtherUser)
     return MessageActions(
         copyText = message.content.copyableText().takeUnless { protected },
+        canReply = properties?.canBeReplied == true,
     )
 }
 
@@ -52,11 +54,19 @@ internal fun messageActions(message: Message, properties: TdApi.MessagePropertie
  * [menu] не `null` — меню открыто для этого сообщения.
  */
 @Composable
-internal fun MessageMenuPopup(menu: MessageMenu?, onDismiss: () -> Unit) {
+internal fun MessageMenuPopup(menu: MessageMenu?, onDismiss: () -> Unit, onReply: (Message) -> Unit) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     DropdownMenu(expanded = menu != null, onDismissRequest = onDismiss) {
-        val actions = menu?.actions ?: return@DropdownMenu
+        val current = menu ?: return@DropdownMenu
+        val actions = current.actions
+        if (actions.canReply) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.message_action_reply)) },
+                leadingIcon = { Icon(painterResource(R.drawable.ic_reply), contentDescription = null) },
+                onClick = { onReply(current.message) },
+            )
+        }
         actions.copyText?.let { text ->
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.message_action_copy)) },

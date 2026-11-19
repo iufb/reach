@@ -40,15 +40,30 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
     private val newerLock = Mutex()
 
     /**
+     * Номер текущего отрезка. Переход к сообщению ([openAround]) заменяет отрезок целиком;
+     * страница, запрошенная для старого отрезка, в новый не попадает — иначе в истории будет дыра.
+     */
+    private var segment = 0
+
+    private val _replied = MutableStateFlow<Map<Long, Message?>>(emptyMap())
+
+    /**
+     * Сообщения, на которые отвечают, но которых нет в загруженном отрезке; по id исходного.
+     * `null` — исходное недоступно (удалено).
+     */
+    val replied: StateFlow<Map<Long, Message?>> = _replied.asStateFlow()
+
+    /**
      * Открывает историю: с первого непрочитанного, если [lastReadInboxId] указан и за ним есть сообщения,
      * иначе с конца.
      */
     suspend fun open(lastReadInboxId: Long?) {
+        val mySegment = ++segment
         if (lastReadInboxId != null && lastReadInboxId != 0L) {
             // PAGE более новых, само прочитанное и чуть старше
             val around = fetch(lastReadInboxId, offset = -PAGE, limit = PAGE * 2)
             val unread = around.filter { it.id > lastReadInboxId }
-            if (unread.isNotEmpty()) {
+            if (unread.isNotEmpty() && mySegment == segment) {
                 val reachedNewest = unread.size < PAGE
                 _state.update { pending ->
                     State(
@@ -61,8 +76,46 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
             }
         }
         val latest = fetch(0, 0, PAGE)
+        if (mySegment != segment) return
         // Пришедшие во время загрузки новые сообщения не теряем
-        _state.update { pending -> State(reachedNewest = true, opened = true).merge(latest + pending.messages) }
+        _state.update { pending ->
+            val live = if (pending.reachedNewest || !pending.opened) pending.messages else emptyList()
+            State(reachedNewest = true, opened = true, firstUnreadId = pending.firstUnreadId).merge(latest + live)
+        }
+    }
+
+    /**
+     * Переход к сообщению, которого может не быть в отрезке: загружаем историю вокруг него.
+     * Возвращает `false`, если сообщение недоступно.
+     */
+    suspend fun openAround(messageId: Long): Boolean {
+        if (_state.value.messages.any { it.id == messageId }) return true
+        val mySegment = ++segment
+        val around = fetch(messageId, offset = -PAGE / 2, limit = PAGE)
+        if (around.none { it.id == messageId } || mySegment != segment) return false
+        // Конец истории неизвестен: loadNewer дойдёт до него и выставит reachedNewest
+        _state.update { s -> State(opened = true, firstUnreadId = s.firstUnreadId).merge(around) }
+        return true
+    }
+
+    /** Подтягивает исходные сообщения для ответов, которых нет в отрезке. Работает, пока не отменят. */
+    suspend fun followReplies() {
+        val requested = HashSet<Long>()
+        _state.collect { s ->
+            val loaded = s.messages.mapTo(HashSet()) { it.id }
+            val missing = s.messages.filter { m ->
+                val reply = m.replyTo ?: return@filter false
+                !reply.isExternal && reply.content == null && reply.messageId !in loaded && reply.messageId !in requested
+            }
+            for (message in missing) {
+                val id = message.replyTo!!.messageId
+                requested += id
+                val original = runCatching { td.send(TdApi.GetRepliedMessage(chatId, message.id)) }
+                    .onFailure { Log.w(TAG, "getRepliedMessage(${message.id}) failed", it) }
+                    .getOrNull()?.toModel()
+                _replied.update { it + (id to original) }
+            }
+        }
     }
 
     suspend fun loadOlder() {
@@ -70,8 +123,10 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         try {
             val current = _state.value
             if (!current.opened || current.reachedOldest) return
+            val mySegment = segment
             val oldest = current.messages.lastOrNull()?.id ?: 0
             val older = fetch(oldest, 0, PAGE).filter { oldest == 0L || it.id < oldest }
+            if (mySegment != segment) return
             _state.update { s -> if (older.isEmpty()) s.copy(reachedOldest = true) else s.merge(older) }
         } finally {
             olderLock.unlock()
@@ -83,8 +138,10 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         try {
             val current = _state.value
             if (!current.opened || current.reachedNewest) return
+            val mySegment = segment
             val newest = current.messages.firstOrNull()?.id ?: return
             val newer = fetch(newest, offset = -PAGE, limit = PAGE + 1).filter { it.id > newest }
+            if (mySegment != segment) return
             _state.update { s -> if (newer.isEmpty()) s.copy(reachedNewest = true) else s.merge(newer) }
         } finally {
             newerLock.unlock()
@@ -130,10 +187,11 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
      * дальше статус меняют `UpdateMessageSendSucceeded` / `UpdateMessageSendFailed`.
      * Если открыт кусок из середины истории — сначала переходим к концу, иначе своё сообщение не увидеть.
      */
-    suspend fun sendText(text: String) {
+    suspend fun sendText(text: String, replyToMessageId: Long? = null) {
         if (!_state.value.reachedNewest) open(lastReadInboxId = null)
         val content = TdApi.InputMessageText(TdApi.FormattedText(text, emptyArray()), null, true)
-        val pending = td.send(TdApi.SendMessage(chatId, null, null, null, null, content))
+        val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
+        val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, null, null, content))
         _state.update { it.merge(listOf(pending.toModel())) }
     }
 

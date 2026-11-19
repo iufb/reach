@@ -82,6 +82,9 @@
 
     <!-- Меню действий над сообщением -->
     <string name="message_action_copy">Копировать</string>
+    <string name="message_action_reply">Ответить</string>
+    <string name="reply_cancel">Отменить ответ</string>
+    <string name="reply_unavailable">Сообщение удалено</string>
     <plurals name="views">
         <item quantity="one">%d просмотр</item>
         <item quantity="few">%d просмотра</item>

@@ -63,6 +63,17 @@ class ChatViewModel @Inject constructor(
     private val _draft = MutableStateFlow("")
     val draft: StateFlow<String> = _draft.asStateFlow()
 
+    private val _replyTo = MutableStateFlow<Message?>(null)
+    /** Сообщение, на которое отвечаем; плашка над полем ввода. */
+    val replyTo: StateFlow<Message?> = _replyTo.asStateFlow()
+
+    /** Исходные сообщения ответов, которых нет в загруженном отрезке. */
+    val replied: StateFlow<Map<Long, Message?>> = history.replied
+
+    private val _scrollTarget = MutableStateFlow<Long?>(null)
+    /** Сообщение, к которому надо прокрутить ленту (тап по ответу). */
+    val scrollTarget: StateFlow<Long?> = _scrollTarget.asStateFlow()
+
     /** Ошибка отправки (сам запрос не ушёл). Ошибки доставки видны статусом сообщения. */
     private val _sendError = MutableStateFlow<String?>(null)
     val sendError: StateFlow<String?> = _sendError.asStateFlow()
@@ -83,10 +94,14 @@ class ChatViewModel @Inject constructor(
         // UNDISPATCHED: подписка на апдейты раньше, чем уйдёт первый getChatHistory
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { history.followUpdates() }
         viewModelScope.launch { reportViewedMessages() }
+        viewModelScope.launch { history.followReplies() }
         viewModelScope.launch {
             val opened = chat.mapNotNull { it }.first()
             // Черновик восстанавливаем, только если пользователь ещё ничего не набрал
-            opened.draft?.let { draft -> _draft.compareAndSet("", draft.text.text) }
+            opened.draft?.let { draft ->
+                _draft.compareAndSet("", draft.text.text)
+                draft.replyToMessageId?.let { restoreReply(it) }
+            }
             history.open(opened.lastReadInboxMessageId.takeIf { opened.unreadCount > 0 })
         }
     }
@@ -107,14 +122,25 @@ class ChatViewModel @Inject constructor(
         appScope.launch { runCatching { td.send(TdApi.CloseChat(chatId)) }.onFailure { Log.e(TAG, "closeChat failed", it) } }
     }
 
-    /** Уходим с экрана — сохраняем набранное как черновик (или стираем черновик, если поле пусто). */
+    private fun restoreReply(messageId: Long) {
+        viewModelScope.launch {
+            val message = runCatching { td.send(TdApi.GetMessage(chatId, messageId)) }
+                .onFailure { Log.w(TAG, "getMessage($messageId) for draft reply failed", it) }
+                .getOrNull()?.toModel() ?: return@launch
+            _replyTo.compareAndSet(null, message)
+        }
+    }
+
+    /** Уходим с экрана — сохраняем набранное и ответ как черновик (или стираем черновик, если всё пусто). */
     private fun saveDraft() {
         val text = _draft.value.trim()
-        val saved = chat.value?.draft?.text?.text.orEmpty()
-        if (text == saved) return
-        val draft = text.takeIf { it.isNotEmpty() }?.let {
-            val content = TdApi.DraftMessageContentText(TdApi.FormattedText(it, emptyArray()), null)
-            TdApi.DraftMessage(null, 0, content, 0, null)
+        val replyId = _replyTo.value?.id
+        val saved = chat.value?.draft
+        if (text == saved?.text?.text.orEmpty() && replyId == saved?.replyToMessageId) return
+        val draft = if (text.isEmpty() && replyId == null) null else {
+            val content = TdApi.DraftMessageContentText(TdApi.FormattedText(text, emptyArray()), null)
+            val replyTo = replyId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
+            TdApi.DraftMessage(replyTo, 0, content, 0, null)
         }
         appScope.launch {
             runCatching { td.send(TdApi.SetChatDraftMessage(chatId, null, draft)) }
@@ -157,14 +183,38 @@ class ChatViewModel @Inject constructor(
     fun send() {
         val text = _draft.value.trim()
         if (text.isEmpty()) return
+        val reply = _replyTo.value
         _draft.value = ""
+        _replyTo.value = null
         viewModelScope.launch {
-            runCatching { history.sendText(text) }.onFailure {
+            runCatching { history.sendText(text, reply?.id) }.onFailure {
                 Log.e(TAG, "sendMessage failed", it)
                 _draft.value = text
+                _replyTo.value = reply
                 _sendError.value = it.message
             }
         }
+    }
+
+    /** «Ответить» в меню или свайп по сообщению. */
+    fun startReply(message: Message) {
+        _menu.value = null
+        _replyTo.value = message
+    }
+
+    fun cancelReply() {
+        _replyTo.value = null
+    }
+
+    /** Тап по ответу: переходим к исходному сообщению, подгружая историю вокруг него. */
+    fun jumpTo(messageId: Long) {
+        viewModelScope.launch {
+            if (history.openAround(messageId)) _scrollTarget.value = messageId
+        }
+    }
+
+    fun onScrolledToTarget() {
+        _scrollTarget.value = null
     }
 
     private val _menu = MutableStateFlow<MessageMenu?>(null)
