@@ -653,7 +653,7 @@ private fun ChatPreview() {
             chat,
             ChatHistory.State(messages, reachedOldest = true, reachedNewest = true, firstUnreadId = 3, opened = true),
             senders, onBack = {}, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
-            composer = ComposerState("Как дела?", null, {}, {}),
+            composer = ComposerState("Как дела?", null, null, {}, {}, {}),
             interactions = MessageInteractions(null, {}, {}, {}, emptyMap(), {}, null, {}),
         )
     }
