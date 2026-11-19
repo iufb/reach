@@ -74,6 +74,10 @@ class ChatViewModel @Inject constructor(
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyMap())
 
+    // Объявлены до init: reportViewedMessages() стартует там на Main.immediate и читает их сразу
+    private val resumed = MutableStateFlow(false)
+    private val visibleMessageIds = MutableStateFlow<List<Long>>(emptyList())
+
     init {
         // UNDISPATCHED: подписка на апдейты раньше, чем уйдёт первый getChatHistory
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { history.followUpdates() }
@@ -83,9 +87,6 @@ class ChatViewModel @Inject constructor(
             history.open(opened.lastReadInboxMessageId.takeIf { opened.unreadCount > 0 })
         }
     }
-
-    private val resumed = MutableStateFlow(false)
-    private val visibleMessageIds = MutableStateFlow<List<Long>>(emptyList())
 
     /**
      * Экран на виду: `openChat` (TDLib шлёт апдейты чата и считает просмотры), на паузе — `closeChat`.
