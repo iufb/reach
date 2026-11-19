@@ -85,6 +85,8 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch { reportViewedMessages() }
         viewModelScope.launch {
             val opened = chat.mapNotNull { it }.first()
+            // Черновик восстанавливаем, только если пользователь ещё ничего не набрал
+            opened.draft?.let { draft -> _draft.compareAndSet("", draft.text.text) }
             history.open(opened.lastReadInboxMessageId.takeIf { opened.unreadCount > 0 })
         }
     }
@@ -101,7 +103,23 @@ class ChatViewModel @Inject constructor(
     fun onPause() {
         if (!resumed.value) return
         resumed.value = false
+        saveDraft()
         appScope.launch { runCatching { td.send(TdApi.CloseChat(chatId)) }.onFailure { Log.e(TAG, "closeChat failed", it) } }
+    }
+
+    /** Уходим с экрана — сохраняем набранное как черновик (или стираем черновик, если поле пусто). */
+    private fun saveDraft() {
+        val text = _draft.value.trim()
+        val saved = chat.value?.draft?.text?.text.orEmpty()
+        if (text == saved) return
+        val draft = text.takeIf { it.isNotEmpty() }?.let {
+            val content = TdApi.DraftMessageContentText(TdApi.FormattedText(it, emptyArray()), null)
+            TdApi.DraftMessage(null, 0, content, 0, null)
+        }
+        appScope.launch {
+            runCatching { td.send(TdApi.SetChatDraftMessage(chatId, null, draft)) }
+                .onFailure { Log.e(TAG, "setChatDraftMessage failed", it) }
+        }
     }
 
     /** Какие сообщения сейчас на экране — их отмечаем прочитанными. */

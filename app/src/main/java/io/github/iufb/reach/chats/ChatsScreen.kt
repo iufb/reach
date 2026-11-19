@@ -1,6 +1,10 @@
 package io.github.iufb.reach.chats
 
 import androidx.compose.foundation.clickable
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.shape.CircleShape
@@ -192,10 +196,11 @@ private fun ChatRow(chat: Chat, isPinned: Boolean, onClick: () -> Unit) {
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                chat.lastMessage?.let {
+                // Черновик новее последнего сообщения — показываем его время
+                listOfNotNull(chat.lastMessage?.date, chat.draft?.date).maxOrNull()?.let { date ->
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        formatChatTime(it.date),
+                        formatChatTime(date),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
@@ -203,7 +208,8 @@ private fun ChatRow(chat: Chat, isPinned: Boolean, onClick: () -> Unit) {
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    chat.lastMessage?.let { previewText(it) }.orEmpty(),
+                    chat.draft?.let { draftPreview(it) }
+                        ?: AnnotatedString(chat.lastMessage?.let { previewText(it) }.orEmpty()),
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -250,6 +256,18 @@ private fun UnreadBadge(count: Int) {
 
 private const val MAX_BADGE = 999
 
+/** «Черновик: …» — метка красным, как в официальном клиенте. */
+@Composable
+private fun draftPreview(draft: Draft): AnnotatedString {
+    val label = stringResource(R.string.chat_preview_draft)
+    val color = MaterialTheme.colorScheme.error
+    return buildAnnotatedString {
+        withStyle(SpanStyle(color = color)) { append(label) }
+        append(' ')
+        append(draft.text.text.replace('\n', ' '))
+    }
+}
+
 @Composable
 private fun previewText(message: LastMessage): String {
     // Переносы строк в превью не нужны
@@ -274,7 +292,7 @@ private fun ChatsPreview() {
     val now = (System.currentTimeMillis() / 1000).toInt()
     val chats = listOf(
         Chat(4, ChatKind.Private, null, "Избранное", null, mapOf(ChatListType.Main to ChatPosition(10, isPinned = true)), 0, 0, null, 0, true),
-        Chat(1, ChatKind.Private, null, "Аня", LastMessage(1, now, false, MessageBody.Text(RichText("Привет! 👋"))), emptyMap(), 2, 0, null, 1, true),
+        Chat(1, ChatKind.Private, null, "Аня", LastMessage(1, now, false, MessageBody.Text(RichText("Привет! 👋"))), emptyMap(), 2, 0, null, 1, true, Draft(RichText("Завтра в 10?"), now)),
         Chat(2, ChatKind.Group, GroupRef.Basic(2), "Семья", LastMessage(2, now - 86_400, true, MessageBody.Unsupported(ContentKind.Photo, RichText("Море"))), emptyMap(), 0, 0, null, 0, true),
         Chat(3, ChatKind.Channel, GroupRef.Super(3), "Новости", LastMessage(3, now - 30 * 86_400, false, MessageBody.Unsupported(ContentKind.Poll, RichText("Что дальше?"))), emptyMap(), 0, 0, null, 0, true),
     )

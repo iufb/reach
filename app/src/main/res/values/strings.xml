@@ -65,6 +65,7 @@
     <string name="chat_deleted_account">Удалённый аккаунт</string>
     <string name="chat_pinned">Закреплён</string>
     <string name="chat_preview_you">Вы: %1$s</string>
+    <string name="chat_preview_draft">Черновик:</string>
 
     <!-- Экран чата -->
     <string name="back">Назад</string>
