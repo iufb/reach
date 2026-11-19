@@ -23,6 +23,7 @@ import io.github.iufb.reach.auth.PhoneScreen
 import io.github.iufb.reach.auth.UnsupportedAuthScreen
 import io.github.iufb.reach.chat.ChatScreen
 import io.github.iufb.reach.chats.ChatsScreen
+import io.github.iufb.reach.forward.ForwardScreen
 import kotlinx.serialization.Serializable
 
 @Serializable data object AuthGraph
@@ -34,6 +35,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object MainGraph
 @Serializable data object ChatsRoute
 @Serializable data class ChatRoute(val chatId: Long)
+@Serializable data class ForwardRoute(val fromChatId: Long, val messageIds: List<Long>)
 
 /**
  * Два графа: вход и основной. Какой экран показан, решает [AuthState]:
@@ -73,7 +75,20 @@ fun ReachNavHost(authState: AuthState) {
         }
         navigation<MainGraph>(startDestination = ChatsRoute) {
             composable<ChatsRoute> { ChatsScreen(onChatClick = { navController.navigate(ChatRoute(it)) }) }
-            composable<ChatRoute> { ChatScreen(onBack = { navController.popBackStack() }) }
+            composable<ChatRoute> {
+                ChatScreen(
+                    onBack = { navController.popBackStack() },
+                    onForward = { from, ids -> navController.navigate(ForwardRoute(from, ids)) },
+                    onOpenChat = { navController.navigate(ChatRoute(it)) },
+                )
+            }
+            composable<ForwardRoute> {
+                ForwardScreen(
+                    onBack = { navController.popBackStack() },
+                    // После пересылки — в целевой чат; «назад» из него ведёт в список чатов
+                    onForwarded = { navController.navigate(ChatRoute(it)) { popUpTo<ChatsRoute>() } },
+                )
+            }
         }
     }
     LaunchedEffect(authState) { navController.syncWith(authState) }

@@ -30,9 +30,10 @@ data class MessageActions(
     val canEdit: Boolean,
     val canDeleteForAll: Boolean,
     val canDeleteForSelf: Boolean,
+    val canForward: Boolean,
 ) {
     val canDelete: Boolean get() = canDeleteForAll || canDeleteForSelf
-    val isEmpty: Boolean get() = copyText == null && !canReply && !canEdit && !canDelete
+    val isEmpty: Boolean get() = copyText == null && !canReply && !canEdit && !canDelete && !canForward
 }
 
 /** Открытое меню действий над [message]. */
@@ -56,6 +57,7 @@ internal fun messageActions(message: Message, properties: TdApi.MessagePropertie
         canEdit = properties?.canBeEdited == true && message.content.editableText() != null,
         canDeleteForAll = properties?.canBeDeletedForAllUsers == true,
         canDeleteForSelf = properties?.canBeDeletedOnlyForSelf == true,
+        canForward = properties?.canBeForwarded == true,
     )
 }
 
@@ -83,6 +85,7 @@ internal fun MessageMenuPopup(
     onReply: (Message) -> Unit,
     onEdit: (Message) -> Unit,
     onDelete: (MessageMenu) -> Unit,
+    onForward: (Message) -> Unit,
 ) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
@@ -101,6 +104,13 @@ internal fun MessageMenuPopup(
                 text = { Text(stringResource(R.string.message_action_edit)) },
                 leadingIcon = { Icon(painterResource(R.drawable.ic_edit), contentDescription = null) },
                 onClick = { onEdit(current.message) },
+            )
+        }
+        if (actions.canForward) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.message_action_forward)) },
+                leadingIcon = { Icon(painterResource(R.drawable.ic_forward), contentDescription = null) },
+                onClick = { onForward(current.message) },
             )
         }
         if (actions.canDelete) {

@@ -88,6 +88,12 @@
     <string name="edit_cancel">Отменить редактирование</string>
     <string name="message_edited">изменено</string>
     <string name="message_action_delete">Удалить</string>
+    <string name="message_action_forward">Переслать</string>
+    <string name="forwarded_from">Переслано от %1$s</string>
+    <string name="forward_title">Переслать в…</string>
+    <string name="forward_search">Поиск</string>
+    <string name="forward_empty">Подходящих чатов нет</string>
+    <string name="forward_error">Не удалось переслать: %1$s</string>
     <string name="delete_for_all">Удалить у всех</string>
     <string name="delete_confirm">Удалить</string>
     <plurals name="delete_title">

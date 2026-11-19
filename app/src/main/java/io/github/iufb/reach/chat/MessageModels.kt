@@ -69,6 +69,8 @@ data class Message(
     val replyTo: ReplyTo? = null,
     /** Время последней правки, unix-секунды; 0 — не редактировалось. */
     val editDate: Int = 0,
+    /** Автор оригинала, если сообщение переслано. */
+    val forwardedFrom: MessageAuthor? = null,
 )
 
 internal fun TdApi.Message.toModel() = Message(
@@ -90,4 +92,5 @@ internal fun TdApi.Message.toModel() = Message(
     },
     replyTo = replyTo?.toReplyTo(chatId),
     editDate = editDate,
+    forwardedFrom = forwardInfo?.origin?.toAuthor(),
 )
