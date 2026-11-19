@@ -1,5 +1,6 @@
 package io.github.iufb.reach.chat
 
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -103,6 +104,9 @@ fun ChatScreen(
     val replyTo by viewModel.replyTo.collectAsStateWithLifecycle()
     val editing by viewModel.editing.collectAsStateWithLifecycle()
     val deleting by viewModel.deleting.collectAsStateWithLifecycle()
+    val selection by viewModel.selection.collectAsStateWithLifecycle()
+    val selectionActions by viewModel.selectionActions.collectAsStateWithLifecycle()
+    BackHandler(enabled = selection.isNotEmpty(), onBack = viewModel::clearSelection)
     val replied by viewModel.replied.collectAsStateWithLifecycle()
     val scrollTarget by viewModel.scrollTarget.collectAsStateWithLifecycle()
     LifecycleResumeEffect(viewModel) {
@@ -111,7 +115,20 @@ fun ChatScreen(
     }
     deleting?.let { DeleteDialog(it, viewModel::confirmDelete, viewModel::cancelDelete) }
     ChatContent(
-        chat, state, senders, onBack, viewModel::loadOlder, viewModel::loadNewer,
+        chat, state, senders, onBack,
+        selectionBar = selectionActions?.let { actions ->
+            {
+                SelectionBar(
+                    actions,
+                    onClose = viewModel::clearSelection,
+                    onForward = { ids ->
+                        viewModel.clearSelection()
+                        chat?.let { onForward(it.id, ids) }
+                    },
+                    onDelete = viewModel::requestDeleteSelected,
+                )
+            }
+        }, viewModel::loadOlder, viewModel::loadNewer,
         onVisibleMessagesChange = viewModel::onVisibleMessagesChange,
         composer = if (canWrite) {
             ComposerState(
@@ -133,6 +150,9 @@ fun ChatScreen(
                 chat?.let { onForward(it.id, listOf(message.id)) }
             },
             onOpenChat = onOpenChat,
+            selection = selection,
+            onToggleSelect = viewModel::toggleSelection,
+            onStartSelection = viewModel::startSelection,
             replied = replied,
             onJumpTo = viewModel::jumpTo,
             scrollTarget = scrollTarget,
@@ -148,6 +168,8 @@ private fun ChatContent(
     state: ChatHistory.State,
     senders: Map<Sender, SenderInfo>,
     onBack: () -> Unit,
+    /** Шапка режима выбора; `null` — обычная шапка чата. */
+    selectionBar: (@Composable () -> Unit)?,
     onLoadOlder: () -> Unit,
     onLoadNewer: () -> Unit,
     onVisibleMessagesChange: (List<Long>) -> Unit,
@@ -158,15 +180,19 @@ private fun ChatContent(
         modifier = Modifier.imePadding(),
         bottomBar = { if (composer != null && chat != null) Composer(composer, senders) },
         topBar = {
-            TopAppBar(
-                colors = reachBarColors(),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
-                    }
-                },
-                title = { if (chat != null) ChatHeader(chat) },
-            )
+            if (selectionBar != null) {
+                selectionBar()
+            } else {
+                TopAppBar(
+                    colors = reachBarColors(),
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
+                        }
+                    },
+                    title = { if (chat != null) ChatHeader(chat) },
+                )
+            }
         },
     ) { padding ->
         val scheme = MaterialTheme.colorScheme
@@ -208,6 +234,10 @@ private class MessageInteractions(
     val onForward: (Message) -> Unit,
     /** Тап по источнику пересланного: чат или канал. */
     val onOpenChat: (Long) -> Unit,
+    /** Выбранные сообщения; не пусто — режим выбора: тап отмечает, свайп и меню выключены. */
+    val selection: Set<Long>,
+    val onToggleSelect: (Message) -> Unit,
+    val onStartSelection: (MessageMenu) -> Unit,
     /** Исходные сообщения ответов вне загруженного отрезка (см. [ChatHistory.replied]). */
     val replied: Map<Long, Message?>,
     val onJumpTo: (Long) -> Unit,
@@ -219,6 +249,7 @@ private class MessageInteractions(
 
     /** Ответ свайпом: только на уже отправленные сообщения и если писать можно. */
     fun replyAction(message: Message): (() -> Unit)? {
+        if (selection.isNotEmpty()) return null
         val reply = onReply ?: return null
         return if (message.sendingState == null) ({ reply(message) }) else null
     }
@@ -509,7 +540,11 @@ private fun MessageBubble(
         bottomEnd = if (outgoing) 4.dp else 16.dp,
     )
     Row(
-        modifier = Modifier.fillMaxWidth().swipeToReply(interactions.replyAction(message)).padding(horizontal = 8.dp),
+        modifier = Modifier
+            .fillMaxWidth()
+            .selectionHighlight(message, interactions)
+            .swipeToReply(interactions.replyAction(message))
+            .padding(horizontal = 8.dp, vertical = 1.dp),
         horizontalArrangement = if (outgoing) Arrangement.End else Arrangement.Start,
     ) {
         Column(
@@ -556,18 +591,30 @@ private fun MessagePopup(message: Message, interactions: MessageInteractions) {
         onEdit = interactions.onEdit,
         onDelete = interactions.onDelete,
         onForward = interactions.onForward,
+        onSelect = interactions.onStartSelection,
     )
+}
+
+/** Выбранное сообщение подсвечивается на всю ширину; в режиме выбора тап по строке отмечает его. */
+@Composable
+private fun Modifier.selectionHighlight(message: Message, interactions: MessageInteractions): Modifier {
+    if (interactions.selection.isEmpty()) return this
+    val selected = message.id in interactions.selection
+    return this
+        .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.Transparent)
+        .clickable { interactions.onToggleSelect(message) }
 }
 
 /** Долгое нажатие на сообщение открывает меню действий. */
 @Composable
 private fun Modifier.messageLongPress(message: Message, interactions: MessageInteractions): Modifier {
     val haptics = LocalHapticFeedback.current
+    val selecting = interactions.selection.isNotEmpty()
     return combinedClickable(
-        onClick = {},
+        onClick = { if (selecting) interactions.onToggleSelect(message) },
         onLongClick = {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            interactions.onOpenMenu(message)
+            if (selecting) interactions.onToggleSelect(message) else interactions.onOpenMenu(message)
         },
     )
 }
@@ -596,8 +643,9 @@ private fun ChannelPost(message: Message, interactions: MessageInteractions, rep
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .selectionHighlight(message, interactions)
             .swipeToReply(interactions.replyAction(message))
-            .padding(horizontal = 8.dp)
+            .padding(horizontal = 8.dp, vertical = 1.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surface)
             .messageLongPress(message, interactions)
@@ -719,9 +767,9 @@ private fun ChatPreview() {
         ChatContent(
             chat,
             ChatHistory.State(messages, reachedOldest = true, reachedNewest = true, firstUnreadId = 3, opened = true),
-            senders, onBack = {}, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
+            senders, onBack = {}, selectionBar = null, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
             composer = ComposerState("Как дела?", null, null, null, {}, {}, {}, {}),
-            interactions = MessageInteractions(null, {}, {}, {}, {}, {}, {}, {}, emptyMap(), {}, null, {}),
+            interactions = MessageInteractions(null, {}, {}, {}, {}, {}, {}, {}, emptySet(), {}, {}, emptyMap(), {}, null, {}),
         )
     }
 }
