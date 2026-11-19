@@ -8,6 +8,9 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.collectAsState
 import io.github.iufb.reach.files.TdFile
+import io.github.iufb.reach.files.FileState
+import io.github.iufb.reach.chats.DocumentInfo
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
 import androidx.compose.foundation.clickable
@@ -141,6 +144,12 @@ fun ChatScreen(
         viewModel.onPhotosPicked(it)
     }
     if (pickedPhotos.isNotEmpty()) SendPhotosDialog(pickedPhotos, viewModel::sendPhotos, viewModel::cancelPhotos)
+    val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        uri?.let(viewModel::sendFile)
+    }
+    val downloads by viewModel.downloads.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    LaunchedEffect(viewModel) { viewModel.openFile.collect { openFile(context, it) } }
     viewer?.let { (photos, index) -> PhotoViewer(photos, index) { viewer = null } }
     CompositionLocalProvider(LocalMentionHandler provides mentionHandler) {
         ChatContent(
@@ -165,9 +174,10 @@ fun ChatScreen(
                     viewModel::onDraftChange, viewModel::onFormat, viewModel::send, viewModel::cancelReply, viewModel::cancelEdit,
                     mentionSuggestions, viewModel::onMentionQuery, viewModel::pickMention,
                     linkPreview, viewModel::dismissLinkPreview,
-                    onAttach = {
+                    onAttachPhoto = {
                         photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                     },
+                    onAttachFile = { filePicker.launch(arrayOf("*/*")) },
                 )
             } else {
                 null
@@ -190,6 +200,8 @@ fun ChatScreen(
                 onOpenPhotos = { photos, index -> viewer = photos to index },
                 uploadProgress = viewModel::uploadProgress,
                 onCancelSending = viewModel::cancelSending,
+                downloads = downloads,
+                onDocumentClick = viewModel::onDocumentClick,
                 replied = replied,
                 onJumpTo = viewModel::jumpTo,
                 scrollTarget = scrollTarget,
@@ -267,6 +279,9 @@ private class MessageInteractions(
     /** Прогресс загрузки своего отправляющегося файла. */
     val uploadProgress: (TdFile) -> Flow<Float>,
     val onCancelSending: (Message) -> Unit,
+    /** Состояние скачиваемых документов по id файла. */
+    val downloads: Map<Int, FileState>,
+    val onDocumentClick: (DocumentInfo) -> Unit,
     /** Исходные сообщения ответов вне загруженного отрезка (см. [ChatHistory.replied]). */
     val replied: Map<Long, Message?>,
     val onJumpTo: (Long) -> Unit,
@@ -715,6 +730,17 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
             }
             if (!body.caption.isBlank()) RichTextView(body.caption)
         }
+        is MessageBody.Document -> {
+            Box(contentAlignment = Alignment.CenterStart) {
+                DocumentRow(
+                    body.document,
+                    interactions.downloads[body.document.file.id],
+                    Modifier.messageLongPress(message, interactions) { interactions.onDocumentClick(body.document) },
+                )
+                UploadOverlay(message, body.document.file, interactions)
+            }
+            if (!body.caption.isBlank()) RichTextView(body.caption)
+        }
         is MessageBody.Unsupported -> {
             UnsupportedStub(body.kind)
             if (!body.caption.isBlank()) RichTextView(body.caption)
@@ -731,6 +757,11 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
 @Composable
 private fun AlbumContent(album: List<Message>, interactions: MessageInteractions) {
     val photos = album.mapNotNull { (it.content as? MessageBody.Photo)?.photo }
+    // Альбом файлов (или музыки) — столбиком, как отдельные сообщения
+    if (photos.isEmpty()) {
+        album.forEach { MessageContent(it, interactions) }
+        return
+    }
     val rows: List<List<Message>> = when (album.size) {
         2 -> listOf(album)
         3 -> listOf(album.take(1), album.drop(1))
@@ -774,6 +805,7 @@ private fun AlbumContent(album: List<Message>, interactions: MessageInteractions
         when (val body = m.content) {
             is MessageBody.Photo -> body.caption
             is MessageBody.Unsupported -> body.caption
+            is MessageBody.Document -> body.caption
             else -> null
         }?.takeUnless { it.isBlank() }
     }?.let { RichTextView(it) }
@@ -877,7 +909,8 @@ private fun ChatPreview() {
             senders, onBack = {}, selectionBar = null, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
             composer = ComposerState(RichText("Как дела?"), null, null, null, {}, { _, _, _ -> }, {}, {}, {}),
             interactions = MessageInteractions(
-                null, {}, {}, {}, {}, {}, {}, {}, emptySet(), {}, {}, { _, _ -> }, { emptyFlow() }, {}, emptyMap(), {}, null, {},
+                null, {}, {}, {}, {}, {}, {}, {}, emptySet(), {}, {}, { _, _ -> }, { emptyFlow() }, {}, emptyMap(), {},
+                emptyMap(), {}, null, {},
             ),
         )
     }

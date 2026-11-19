@@ -45,6 +45,11 @@ class FilesRepository @Inject constructor(private val td: TdClient) {
             if (total > 0) (file.remote.uploadedSize.toFloat() / total).coerceIn(0f, 1f) else 0f
         }
 
+    /** Останавливает скачивание; уже скачанная часть остаётся. */
+    suspend fun cancelDownload(fileId: Int) {
+        td.send(TdApi.CancelDownloadFile(fileId, false))
+    }
+
     /** Путь к скачанному файлу; ждёт окончания загрузки. */
     suspend fun awaitDownloaded(fileId: Int, priority: Int = PRIORITY_DEFAULT): String =
         download(fileId, priority).first { it.isDownloaded }.path
@@ -53,5 +58,7 @@ class FilesRepository @Inject constructor(private val td: TdClient) {
         /** Приоритеты `downloadFile`: 1..32, больше — раньше. */
         const val PRIORITY_DEFAULT = 1
         const val PRIORITY_AVATAR = 8
+        /** Документ, который пользователь сам попросил скачать. */
+        const val PRIORITY_DOCUMENT = 16
     }
 }

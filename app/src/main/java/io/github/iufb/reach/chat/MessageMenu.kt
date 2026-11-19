@@ -44,6 +44,7 @@ internal fun MessageBody.copyableText(): String? = when (this) {
     is MessageBody.Text -> text.text
     is MessageBody.Unsupported -> caption.text.ifBlank { null }
     is MessageBody.Photo -> caption.text.ifBlank { null }
+    is MessageBody.Document -> caption.text.ifBlank { null }
     is MessageBody.Service -> null
 }
 
@@ -67,6 +68,7 @@ internal fun MessageBody.editableText(): RichText? = when (this) {
     is MessageBody.Text -> text
     is MessageBody.Unsupported -> caption.takeIf { kind in CAPTIONED }
     is MessageBody.Photo -> caption
+    is MessageBody.Document -> caption
     is MessageBody.Service -> null
 }
 
