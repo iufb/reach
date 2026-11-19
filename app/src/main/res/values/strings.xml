@@ -104,6 +104,15 @@
     <string name="format_link_apply">Готово</string>
     <string name="link_preview_remove">Отправить без превью</string>
     <string name="photo_load_error">Не удалось загрузить</string>
+    <string name="attach">Прикрепить</string>
+    <string name="photo_caption_hint">Подпись</string>
+    <string name="upload_cancel">Отменить отправку</string>
+    <plurals name="send_photos_title">
+        <item quantity="one">Отправить %d фото</item>
+        <item quantity="few">Отправить %d фото</item>
+        <item quantity="many">Отправить %d фото</item>
+        <item quantity="other">Отправить %d фото</item>
+    </plurals>
     <string name="forwarded_from">Переслано от %1$s</string>
     <string name="forward_title">Переслать в…</string>
     <string name="forward_search">Поиск</string>

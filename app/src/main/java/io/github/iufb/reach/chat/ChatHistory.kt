@@ -2,6 +2,7 @@ package io.github.iufb.reach.chat
 
 import android.util.Log
 import io.github.iufb.reach.core.td.TdClient
+import io.github.iufb.reach.files.ImportedImage
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -200,6 +201,24 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
         val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, null, null, content))
         _state.update { it.merge(listOf(pending.toModel())) }
+    }
+
+    /** Фото: одно — обычным сообщением, несколько — альбомом; подпись у первого. */
+    suspend fun sendPhotos(images: List<ImportedImage>, caption: RichText, replyToMessageId: Long? = null) {
+        if (images.isEmpty()) return
+        if (!_state.value.reachedNewest) open(lastReadInboxId = null)
+        val contents = images.mapIndexed { i, image ->
+            val photo = TdApi.InputPhoto(TdApi.InputFileLocal(image.path), null, null, IntArray(0), image.width, image.height)
+            val text = if (i == 0) caption.toFormattedText() else null
+            TdApi.InputMessagePhoto(photo, text, false, null, false)
+        }
+        val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
+        val pending = if (contents.size == 1) {
+            listOf(td.send(TdApi.SendMessage(chatId, null, replyTo, null, null, contents.single())))
+        } else {
+            td.send(TdApi.SendMessageAlbum(chatId, null, replyTo, null, contents.toTypedArray<TdApi.InputMessageContent>())).messages.toList()
+        }
+        _state.update { it.merge(pending.map { m -> m.toModel() }) }
     }
 
     /**

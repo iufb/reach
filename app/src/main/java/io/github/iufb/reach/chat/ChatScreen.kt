@@ -1,7 +1,15 @@
 package io.github.iufb.reach.chat
 
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.collectAsState
+import io.github.iufb.reach.files.TdFile
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.emptyFlow
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.draw.clip
@@ -128,6 +136,11 @@ fun ChatScreen(
     }
     deleting?.let { DeleteDialog(it, viewModel::confirmDelete, viewModel::cancelDelete) }
     var viewer by remember { mutableStateOf<Pair<List<PhotoInfo>, Int>?>(null) }
+    val pickedPhotos by viewModel.pickedPhotos.collectAsStateWithLifecycle()
+    val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_PICKED_PHOTOS)) {
+        viewModel.onPhotosPicked(it)
+    }
+    if (pickedPhotos.isNotEmpty()) SendPhotosDialog(pickedPhotos, viewModel::sendPhotos, viewModel::cancelPhotos)
     viewer?.let { (photos, index) -> PhotoViewer(photos, index) { viewer = null } }
     CompositionLocalProvider(LocalMentionHandler provides mentionHandler) {
         ChatContent(
@@ -152,6 +165,9 @@ fun ChatScreen(
                     viewModel::onDraftChange, viewModel::onFormat, viewModel::send, viewModel::cancelReply, viewModel::cancelEdit,
                     mentionSuggestions, viewModel::onMentionQuery, viewModel::pickMention,
                     linkPreview, viewModel::dismissLinkPreview,
+                    onAttach = {
+                        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    },
                 )
             } else {
                 null
@@ -172,6 +188,8 @@ fun ChatScreen(
                 onToggleSelect = viewModel::toggleSelection,
                 onStartSelection = viewModel::startSelection,
                 onOpenPhotos = { photos, index -> viewer = photos to index },
+                uploadProgress = viewModel::uploadProgress,
+                onCancelSending = viewModel::cancelSending,
                 replied = replied,
                 onJumpTo = viewModel::jumpTo,
                 scrollTarget = scrollTarget,
@@ -246,6 +264,9 @@ private class MessageInteractions(
     val onStartSelection: (MessageMenu) -> Unit,
     /** Тап по фото: полноэкранный просмотр с листанием по [photos]. */
     val onOpenPhotos: (photos: List<PhotoInfo>, index: Int) -> Unit,
+    /** Прогресс загрузки своего отправляющегося файла. */
+    val uploadProgress: (TdFile) -> Flow<Float>,
+    val onCancelSending: (Message) -> Unit,
     /** Исходные сообщения ответов вне загруженного отрезка (см. [ChatHistory.replied]). */
     val replied: Map<Long, Message?>,
     val onJumpTo: (Long) -> Unit,
@@ -682,13 +703,16 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
             body.preview?.let { LinkPreviewCard(it) }
         }
         is MessageBody.Photo -> {
-            PhotoThumbnail(
-                body.photo,
-                Modifier
-                    .padding(vertical = 2.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .messageLongPress(message, interactions) { interactions.onOpenPhotos(listOf(body.photo), 0) },
-            )
+            Box(contentAlignment = Alignment.Center) {
+                PhotoThumbnail(
+                    body.photo,
+                    Modifier
+                        .padding(vertical = 2.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .messageLongPress(message, interactions) { interactions.onOpenPhotos(listOf(body.photo), 0) },
+                )
+                UploadOverlay(message, body.photo.full, interactions)
+            }
             if (!body.caption.isBlank()) RichTextView(body.caption)
         }
         is MessageBody.Unsupported -> {
@@ -721,13 +745,16 @@ private fun AlbumContent(album: List<Message>, interactions: MessageInteractions
                         .weight(1f)
                         .clip(RoundedCornerShape(4.dp))
                     when (val body = message.content) {
-                        is MessageBody.Photo -> PhotoThumbnail(
-                            body.photo,
-                            cell.messageLongPress(message, interactions) {
-                                interactions.onOpenPhotos(photos, photos.indexOf(body.photo).coerceAtLeast(0))
-                            },
-                            square = row.size > 1,
-                        )
+                        is MessageBody.Photo -> Box(cell, contentAlignment = Alignment.Center) {
+                            PhotoThumbnail(
+                                body.photo,
+                                Modifier.messageLongPress(message, interactions) {
+                                    interactions.onOpenPhotos(photos, photos.indexOf(body.photo).coerceAtLeast(0))
+                                },
+                                square = row.size > 1,
+                            )
+                            UploadOverlay(message, body.photo.full, interactions)
+                        }
                         else -> Box(
                             cell
                                 .aspectRatio(1f)
@@ -750,6 +777,22 @@ private fun AlbumContent(album: List<Message>, interactions: MessageInteractions
             else -> null
         }?.takeUnless { it.isBlank() }
     }?.let { RichTextView(it) }
+}
+
+/** Своё отправляющееся медиа: кольцо загрузки и ✕ — отменить отправку. */
+@Composable
+private fun UploadOverlay(message: Message, file: TdFile?, interactions: MessageInteractions) {
+    if (message.sendingState != SendingState.Pending || file == null) return
+    val progress by remember(file) { interactions.uploadProgress(file) }.collectAsState(initial = 0f)
+    Box(
+        Modifier.size(48.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape),
+        contentAlignment = Alignment.Center,
+    ) {
+        CircularProgressIndicator(progress = { progress }, modifier = Modifier.size(44.dp), color = Color.White, strokeWidth = 2.dp)
+        IconButton(onClick = { interactions.onCancelSending(message) }) {
+            Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.upload_cancel), tint = Color.White)
+        }
+    }
 }
 
 /** Заглушка для того, что клиент пока не показывает: тип и пометка, а не пустой пузырь. */
@@ -806,6 +849,8 @@ private fun messageTimeLabel(message: Message): String {
     return if (message.editDate > 0) "${stringResource(R.string.message_edited)} $time" else time
 }
 
+private const val MAX_PICKED_PHOTOS = 10
+
 private val TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm")
 
 private fun formatMessageTime(unixSeconds: Int): String =
@@ -831,7 +876,9 @@ private fun ChatPreview() {
             ChatHistory.State(messages, reachedOldest = true, reachedNewest = true, firstUnreadId = 3, opened = true),
             senders, onBack = {}, selectionBar = null, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
             composer = ComposerState(RichText("Как дела?"), null, null, null, {}, { _, _, _ -> }, {}, {}, {}),
-            interactions = MessageInteractions(null, {}, {}, {}, {}, {}, {}, {}, emptySet(), {}, {}, { _, _ -> }, emptyMap(), {}, null, {}),
+            interactions = MessageInteractions(
+                null, {}, {}, {}, {}, {}, {}, {}, emptySet(), {}, {}, { _, _ -> }, { emptyFlow() }, {}, emptyMap(), {}, null, {},
+            ),
         )
     }
 }

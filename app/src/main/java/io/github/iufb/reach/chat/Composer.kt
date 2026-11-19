@@ -81,6 +81,8 @@ internal class ComposerState(
     /** Превью ссылки из набранного; `null` — ссылки нет или превью убрали. */
     val linkPreview: LinkPreview? = null,
     val onDismissLinkPreview: () -> Unit = {},
+    /** Скрепка слева от поля; `null` — вложения недоступны (режим правки). */
+    val onAttach: (() -> Unit)? = null,
 )
 
 /** «@запрос» перед курсором: участок от «@» до курсора и сам запрос. */
@@ -135,6 +137,15 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
+                state.onAttach?.takeIf { state.editing == null }?.let { attach ->
+                    IconButton(onClick = attach) {
+                        Icon(
+                            painterResource(R.drawable.ic_attach),
+                            contentDescription = stringResource(R.string.attach),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 TextField(
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,

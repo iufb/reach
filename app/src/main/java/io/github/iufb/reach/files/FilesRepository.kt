@@ -35,6 +35,16 @@ class FilesRepository @Inject constructor(private val td: TdClient) {
             !it.isDownloaded
         }
 
+    /** Доля отправленного на сервер (0..1) по апдейтам файла; для своих отправляющихся медиа. */
+    fun uploadProgress(fileId: Int): Flow<Float> = td.updates
+        .filterIsInstance<TdApi.UpdateFile>()
+        .filter { it.file.id == fileId }
+        .map { update ->
+            val file = update.file
+            val total = file.size.takeIf { it > 0 } ?: file.expectedSize
+            if (total > 0) (file.remote.uploadedSize.toFloat() / total).coerceIn(0f, 1f) else 0f
+        }
+
     /** Путь к скачанному файлу; ждёт окончания загрузки. */
     suspend fun awaitDownloaded(fileId: Int, priority: Int = PRIORITY_DEFAULT): String =
         download(fileId, priority).first { it.isDownloaded }.path

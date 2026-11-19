@@ -12,7 +12,12 @@ import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
 import io.github.iufb.reach.chats.toFormattedText
+import android.net.Uri
 import io.github.iufb.reach.chats.ChatKind
+import io.github.iufb.reach.files.FilesRepository
+import io.github.iufb.reach.files.MediaImporter
+import io.github.iufb.reach.files.TdFile
+import kotlinx.coroutines.flow.Flow
 import io.github.iufb.reach.chats.LinkPreview
 import io.github.iufb.reach.chats.toModel
 import io.github.iufb.reach.chats.replaceRange
@@ -61,6 +66,8 @@ class ChatViewModel @Inject constructor(
     chats: ChatsRepository,
     private val users: UsersRepository,
     groups: GroupsRepository,
+    private val importer: MediaImporter,
+    private val files: FilesRepository,
 ) : ViewModel() {
 
     private val chatId: Long = savedStateHandle.toRoute<ChatRoute>().chatId
@@ -136,6 +143,10 @@ class ChatViewModel @Inject constructor(
         .mapLatest { draft -> draft?.let { loadLinkPreview(it) } }
         .combine(dismissedPreviewUrl) { preview, dismissed -> preview?.takeUnless { it.url == dismissed } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
+
+    private val _pickedPhotos = MutableStateFlow<List<Uri>>(emptyList())
+    /** Выбранные в Photo Picker фото: перед отправкой — превью и подпись. */
+    val pickedPhotos: StateFlow<List<Uri>> = _pickedPhotos.asStateFlow()
 
     /** Исходные сообщения ответов, которых нет в загруженном отрезке. */
     val replied: StateFlow<Map<Long, Message?>> = history.replied
@@ -256,6 +267,44 @@ class ChatViewModel @Inject constructor(
     private suspend fun loadLinkPreview(draft: RichText): LinkPreview? =
         // Нет ссылки — TDLib отвечает ошибкой, это нормально
         runCatching { td.send(TdApi.GetLinkPreview(draft.toFormattedText(), null)) }.getOrNull()?.toModel()
+
+    fun onPhotosPicked(uris: List<Uri>) {
+        _pickedPhotos.value = uris
+    }
+
+    fun cancelPhotos() {
+        _pickedPhotos.value = emptyList()
+    }
+
+    /** Отправка выбранных фото с подписью; ответ, если он начат, уходит вместе с ними. */
+    fun sendPhotos(caption: String) {
+        val uris = _pickedPhotos.value
+        if (uris.isEmpty()) return
+        _pickedPhotos.value = emptyList()
+        val reply = _replyTo.value
+        _replyTo.value = null
+        viewModelScope.launch {
+            runCatching {
+                val images = uris.map { importer.importImage(it) }
+                history.sendPhotos(images, RichText(caption.trim()), reply?.id)
+            }.onFailure {
+                Log.e(TAG, "send photos failed", it)
+                _replyTo.value = reply
+                _sendError.value = it.message
+            }
+        }
+    }
+
+    /** Прогресс загрузки своего отправляющегося файла, 0..1. */
+    fun uploadProgress(file: TdFile): Flow<Float> = files.uploadProgress(file.id)
+
+    /** Отмена отправки: удаление отправляющегося сообщения останавливает загрузку. */
+    fun cancelSending(message: Message) {
+        viewModelScope.launch {
+            runCatching { td.send(TdApi.DeleteMessages(chatId, longArrayOf(message.id), true)) }
+                .onFailure { Log.e(TAG, "cancel sending failed", it) }
+        }
+    }
 
     /** ✕ на превью над полем: отправим без него. */
     fun dismissLinkPreview() {

@@ -1,0 +1,60 @@
+package io.github.iufb.reach.chat
+
+import android.net.Uri
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.pluralStringResource
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.unit.dp
+import coil3.compose.AsyncImage
+import io.github.iufb.reach.R
+
+/** Выбранные фото перед отправкой: превью и подпись. */
+@Composable
+internal fun SendPhotosDialog(uris: List<Uri>, onSend: (caption: String) -> Unit, onDismiss: () -> Unit) {
+    var caption by rememberSaveable { mutableStateOf("") }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(pluralStringResource(R.plurals.send_photos_title, uris.size, uris.size)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                    items(uris, key = { it.toString() }) { uri ->
+                        AsyncImage(
+                            uri,
+                            contentDescription = null,
+                            modifier = Modifier.size(96.dp).clip(RoundedCornerShape(8.dp)),
+                            contentScale = ContentScale.Crop,
+                        )
+                    }
+                }
+                OutlinedTextField(
+                    value = caption,
+                    onValueChange = { caption = it },
+                    modifier = Modifier.fillMaxWidth(),
+                    placeholder = { Text(stringResource(R.string.photo_caption_hint)) },
+                    maxLines = 4,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = { onSend(caption) }) { Text(stringResource(R.string.chat_send)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
