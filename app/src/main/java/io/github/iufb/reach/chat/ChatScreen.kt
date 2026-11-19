@@ -71,6 +71,9 @@ import io.github.iufb.reach.chats.ChatKind
 import io.github.iufb.reach.chats.ContentKind
 import io.github.iufb.reach.chats.GroupRef
 import io.github.iufb.reach.chats.MessageBody
+import io.github.iufb.reach.chats.RichText
+import io.github.iufb.reach.chats.SpanKind
+import io.github.iufb.reach.chats.TextSpan
 import io.github.iufb.reach.chats.ServiceKind
 import io.github.iufb.reach.chats.contentKindText
 import io.github.iufb.reach.chats.serviceKindText
@@ -484,10 +487,10 @@ private fun ChannelPost(message: Message, menu: MenuState) {
 @Composable
 private fun MessageContent(body: MessageBody) {
     when (body) {
-        is MessageBody.Text -> Text(body.text, style = MaterialTheme.typography.bodyLarge)
+        is MessageBody.Text -> RichTextView(body.text)
         is MessageBody.Unsupported -> {
             UnsupportedStub(body.kind)
-            if (body.caption.isNotBlank()) Text(body.caption, style = MaterialTheme.typography.bodyLarge)
+            if (!body.caption.isBlank()) RichTextView(body.caption)
         }
         // Служебные рисуются отдельно, без пузыря (ServiceMessage)
         is MessageBody.Service -> Text(serviceKindText(body.kind), style = MaterialTheme.typography.bodyMedium)
@@ -552,9 +555,9 @@ private fun ChatPreview() {
     val now = (System.currentTimeMillis() / 1000).toInt()
     val chat = Chat(1, ChatKind.Group, GroupRef.Basic(1), "Семья", null, emptyMap(), 1, 2, null, 3, true)
     val messages = listOf(
-        Message(3, Sender.User(2), now, false, MessageBody.Text("И вам 🙂"), "", 0),
-        Message(2, Sender.User(1), now - 60, true, MessageBody.Text("Всем привет!"), "", 0, SendingState.Pending),
-        Message(1, Sender.User(3), now - 120, false, MessageBody.Unsupported(ContentKind.Photo, "Море"), "", 0),
+        Message(3, Sender.User(2), now, false, MessageBody.Text(RichText("И вам 🙂")), "", 0),
+        Message(2, Sender.User(1), now - 60, true, MessageBody.Text(RichText("Всем привет!", listOf(TextSpan(0, 4, SpanKind.Bold)))), "", 0, SendingState.Pending),
+        Message(1, Sender.User(3), now - 120, false, MessageBody.Unsupported(ContentKind.Photo, RichText("Море")), "", 0),
     )
     val senders = mapOf<Sender, SenderInfo>(
         Sender.User(2) to SenderInfo("Аня", null, 1),

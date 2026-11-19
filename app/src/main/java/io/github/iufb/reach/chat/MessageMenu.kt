@@ -32,8 +32,8 @@ data class MessageMenu(val message: Message, val actions: MessageActions)
 
 /** Текст, который копируется из сообщения: сам текст или подпись к медиа. */
 internal fun MessageBody.copyableText(): String? = when (this) {
-    is MessageBody.Text -> text
-    is MessageBody.Unsupported -> caption.ifBlank { null }
+    is MessageBody.Text -> text.text
+    is MessageBody.Unsupported -> caption.text.ifBlank { null }
     is MessageBody.Service -> null
 }
 

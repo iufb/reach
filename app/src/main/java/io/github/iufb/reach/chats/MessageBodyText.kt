@@ -57,7 +57,7 @@ fun serviceKindText(kind: ServiceKind): String = stringResource(
 /** Одна строка для превью в списке чатов. */
 @Composable
 fun bodySummary(body: MessageBody): String = when (body) {
-    is MessageBody.Text -> body.text
-    is MessageBody.Unsupported -> listOf(contentKindText(body.kind), body.caption).filter { it.isNotBlank() }.joinToString(", ")
+    is MessageBody.Text -> body.text.text
+    is MessageBody.Unsupported -> listOf(contentKindText(body.kind), body.caption.text).filter { it.isNotBlank() }.joinToString(", ")
     is MessageBody.Service -> serviceKindText(body.kind)
 }
