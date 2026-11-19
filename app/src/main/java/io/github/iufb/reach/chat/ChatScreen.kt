@@ -1,6 +1,7 @@
 package io.github.iufb.reach.chat
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
@@ -86,7 +87,12 @@ import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @Composable
-fun ChatScreen(onBack: () -> Unit, viewModel: ChatViewModel = hiltViewModel()) {
+fun ChatScreen(
+    onBack: () -> Unit,
+    onForward: (fromChatId: Long, messageIds: List<Long>) -> Unit,
+    onOpenChat: (Long) -> Unit,
+    viewModel: ChatViewModel = hiltViewModel(),
+) {
     val chat by viewModel.chat.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val senders by viewModel.senders.collectAsStateWithLifecycle()
@@ -122,6 +128,11 @@ fun ChatScreen(onBack: () -> Unit, viewModel: ChatViewModel = hiltViewModel()) {
             onReply = if (canWrite) viewModel::startReply else null,
             onEdit = viewModel::startEdit,
             onDelete = viewModel::requestDelete,
+            onForward = { message ->
+                viewModel.closeMenu()
+                chat?.let { onForward(it.id, listOf(message.id)) }
+            },
+            onOpenChat = onOpenChat,
             replied = replied,
             onJumpTo = viewModel::jumpTo,
             scrollTarget = scrollTarget,
@@ -194,6 +205,9 @@ private class MessageInteractions(
     val onReply: ((Message) -> Unit)?,
     val onEdit: (Message) -> Unit,
     val onDelete: (MessageMenu) -> Unit,
+    val onForward: (Message) -> Unit,
+    /** Тап по источнику пересланного: чат или канал. */
+    val onOpenChat: (Long) -> Unit,
     /** Исходные сообщения ответов вне загруженного отрезка (см. [ChatHistory.replied]). */
     val replied: Map<Long, Message?>,
     val onJumpTo: (Long) -> Unit,
@@ -338,6 +352,7 @@ private fun MessageList(
                 is Item.Msg -> when {
                     item.message.content is MessageBody.Service -> ServiceMessage(item.message.content.kind)
                     isChannel -> ChannelPost(item.message, interactions) {
+                        ForwardHeader(item.message, senders, interactions)
                         ReplyHeader(item.message, byId, senders, interactions)
                     }
                     else -> MessageBubble(
@@ -345,6 +360,7 @@ private fun MessageList(
                         sender = if (item.showSender) senders[item.message.sender] else null,
                         interactions = interactions,
                     ) {
+                        ForwardHeader(item.message, senders, interactions)
                         ReplyHeader(item.message, byId, senders, interactions)
                     }
                 }
@@ -359,6 +375,27 @@ private fun MessageList(
             }
         }
     }
+}
+
+/** «Переслано от …»; тап открывает исходный чат или канал, если он известен. */
+@Composable
+private fun ForwardHeader(message: Message, senders: Map<Sender, SenderInfo>, interactions: MessageInteractions) {
+    val author = message.forwardedFrom ?: return
+    val source = ((author as? MessageAuthor.Known)?.sender as? Sender.Chat)?.id?.takeIf { Sender.Chat(it) in senders }
+    val name = when (author) {
+        is MessageAuthor.Known -> senders[author.sender]?.name.orEmpty().ifBlank { stringResource(R.string.chat_deleted_account) }
+        is MessageAuthor.Hidden -> author.name
+    }
+    Text(
+        stringResource(R.string.forwarded_from, name),
+        modifier = Modifier
+            .padding(bottom = 2.dp)
+            .then(if (source != null) Modifier.clickable { interactions.onOpenChat(source) } else Modifier),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.primary,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
 }
 
 /** Блок ответа над текстом сообщения; тап ведёт к исходному. */
@@ -518,6 +555,7 @@ private fun MessagePopup(message: Message, interactions: MessageInteractions) {
         onReply = { interactions.onReply?.invoke(it) },
         onEdit = interactions.onEdit,
         onDelete = interactions.onDelete,
+        onForward = interactions.onForward,
     )
 }
 
@@ -683,7 +721,7 @@ private fun ChatPreview() {
             ChatHistory.State(messages, reachedOldest = true, reachedNewest = true, firstUnreadId = 3, opened = true),
             senders, onBack = {}, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
             composer = ComposerState("Как дела?", null, null, null, {}, {}, {}, {}),
-            interactions = MessageInteractions(null, {}, {}, {}, {}, {}, emptyMap(), {}, null, {}),
+            interactions = MessageInteractions(null, {}, {}, {}, {}, {}, {}, {}, emptyMap(), {}, null, {}),
         )
     }
 }
