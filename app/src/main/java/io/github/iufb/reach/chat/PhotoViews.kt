@@ -58,8 +58,10 @@ import kotlin.math.abs
  * Пропорции известны заранее, поэтому пузырь не прыгает при загрузке.
  */
 @Composable
-internal fun PhotoThumbnail(photo: PhotoInfo, modifier: Modifier = Modifier) {
-    val ratio = if (photo.width > 0 && photo.height > 0) {
+internal fun PhotoThumbnail(photo: PhotoInfo, modifier: Modifier = Modifier, square: Boolean = false) {
+    val ratio = if (square) {
+        1f
+    } else if (photo.width > 0 && photo.height > 0) {
         (photo.width.toFloat() / photo.height).coerceIn(MIN_RATIO, MAX_RATIO)
     } else {
         1f
@@ -67,11 +69,10 @@ internal fun PhotoThumbnail(photo: PhotoInfo, modifier: Modifier = Modifier) {
     val painter = rememberAsyncImagePainter(photo.preview)
     val state by painter.state.collectAsState()
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .aspectRatio(ratio)
-            .background(MaterialTheme.colorScheme.surfaceVariant)
-            .then(modifier),
+            .background(MaterialTheme.colorScheme.surfaceVariant),
         contentAlignment = Alignment.Center,
     ) {
         if (state !is AsyncImagePainter.State.Success) {

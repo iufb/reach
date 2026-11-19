@@ -23,6 +23,7 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -288,7 +289,11 @@ private fun ChatHeader(chat: Chat) {
 private sealed interface Item {
     val key: Any
 
-    data class Msg(val message: Message, val showSender: Boolean) : Item {
+    /**
+     * Сообщение или альбом. У альбома [message] — самое старое из загруженных (к нему подпись и ответ),
+     * [album] — все его сообщения от старых к новым; у обычного сообщения — только оно само.
+     */
+    data class Msg(val message: Message, val showSender: Boolean, val album: List<Message> = listOf(message)) : Item {
         override val key: Any get() = message.id
     }
 
@@ -299,13 +304,21 @@ private sealed interface Item {
 
 private fun buildItems(state: ChatHistory.State, isGroup: Boolean): List<Item> = buildList {
     val messages = state.messages
-    messages.forEachIndexed { i, message ->
-        val older = messages.getOrNull(i + 1)
+    var i = 0
+    while (i < messages.size) {
+        // Сообщения альбома идут подряд; лента — от новых к старым
+        var end = i + 1
+        val albumId = messages[i].mediaAlbumId
+        if (albumId != 0L) while (end < messages.size && messages[end].mediaAlbumId == albumId) end++
+        val group = messages.subList(i, end)
+        val message = group.last()
+        val older = messages.getOrNull(end)
         // В группе имя автора — над первым сообщением серии
         val showSender = isGroup && !message.isOutgoing &&
             (older?.sender != message.sender || older.content is MessageBody.Service)
-        add(Item.Msg(message, showSender))
-        if (message.id == state.firstUnreadId) add(Item.UnreadDivider)
+        add(Item.Msg(message, showSender, group.reversed()))
+        if (group.any { it.id == state.firstUnreadId }) add(Item.UnreadDivider)
+        i = end
     }
 }
 
@@ -328,9 +341,17 @@ private fun MessageList(
     FollowNewMessages(listState, state)
     ScrollToTarget(listState, items, interactions.scrollTarget, interactions.onScrolledToTarget)
     val visibleChanged by rememberUpdatedState(onVisibleMessagesChange)
+    // Ключ альбома — id одного сообщения, а видны все его сообщения
+    val albumIds by rememberUpdatedState(
+        items.filterIsInstance<Item.Msg>().filter { it.album.size > 1 }.associate { it.key to it.album.map(Message::id) },
+    )
     LaunchedEffect(listState) {
         // Ключи сообщений — их id (Long); разделитель и загрузчик отсеиваются
-        snapshotFlow { listState.layoutInfo.visibleItemsInfo.mapNotNull { it.key as? Long } }
+        snapshotFlow {
+            listState.layoutInfo.visibleItemsInfo.flatMap { info ->
+                albumIds[info.key] ?: listOfNotNull(info.key as? Long)
+            }
+        }
             .distinctUntilChanged()
             .collect { visibleChanged(it) }
     }
@@ -347,7 +368,7 @@ private fun MessageList(
             when (item) {
                 is Item.Msg -> when {
                     item.message.content is MessageBody.Service -> ServiceMessage(item.message.content.kind)
-                    isChannel -> ChannelPost(item.message, interactions) {
+                    isChannel -> ChannelPost(item.message, interactions, item.album) {
                         ForwardHeader(item.message, senders, interactions)
                         ReplyHeader(item.message, byId, senders, interactions)
                     }
@@ -355,6 +376,7 @@ private fun MessageList(
                         item.message,
                         sender = if (item.showSender) senders[item.message.sender] else null,
                         interactions = interactions,
+                        album = item.album,
                     ) {
                         ForwardHeader(item.message, senders, interactions)
                         ReplyHeader(item.message, byId, senders, interactions)
@@ -417,7 +439,7 @@ private fun ScrollToTarget(listState: LazyListState, items: List<Item>, target: 
     val done by rememberUpdatedState(onDone)
     LaunchedEffect(target, items) {
         if (target == null) return@LaunchedEffect
-        val index = items.indexOfFirst { it is Item.Msg && it.message.id == target }
+        val index = items.indexOfFirst { it is Item.Msg && it.album.any { m -> m.id == target } }
         if (index < 0) return@LaunchedEffect
         listState.animateScrollToItem(index)
         done()
@@ -496,6 +518,7 @@ private fun MessageBubble(
     message: Message,
     sender: SenderInfo?,
     interactions: MessageInteractions,
+    album: List<Message>,
     reply: @Composable () -> Unit,
 ) {
     val outgoing = message.isOutgoing
@@ -530,7 +553,7 @@ private fun MessageBubble(
                 )
             }
             reply()
-            MessageContent(message, interactions)
+            if (album.size > 1) AlbumContent(album, interactions) else MessageContent(message, interactions)
             Row(
                 modifier = Modifier.align(Alignment.End),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -608,7 +631,12 @@ private fun SendingStatus(state: SendingState?) {
 
 /** Пост канала: карточка на всю ширину, подпись автора и просмотры внизу. */
 @Composable
-private fun ChannelPost(message: Message, interactions: MessageInteractions, reply: @Composable () -> Unit) {
+private fun ChannelPost(
+    message: Message,
+    interactions: MessageInteractions,
+    album: List<Message>,
+    reply: @Composable () -> Unit,
+) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -622,7 +650,7 @@ private fun ChannelPost(message: Message, interactions: MessageInteractions, rep
     ) {
         MessagePopup(message, interactions)
         reply()
-        MessageContent(message, interactions)
+        if (album.size > 1) AlbumContent(album, interactions) else MessageContent(message, interactions)
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 message.authorSignature,
@@ -670,6 +698,58 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
         // Служебные рисуются отдельно, без пузыря (ServiceMessage)
         is MessageBody.Service -> Text(serviceKindText(body.kind), style = MaterialTheme.typography.bodyMedium)
     }
+}
+
+/**
+ * Альбом: сетка до 10 элементов. 2 — в ряд, 3 — большой сверху и два под ним, 4 — 2×2,
+ * дальше — ряд из двух и ряды по три. Подпись — первая непустая.
+ */
+@Composable
+private fun AlbumContent(album: List<Message>, interactions: MessageInteractions) {
+    val photos = album.mapNotNull { (it.content as? MessageBody.Photo)?.photo }
+    val rows: List<List<Message>> = when (album.size) {
+        2 -> listOf(album)
+        3 -> listOf(album.take(1), album.drop(1))
+        4 -> album.chunked(2)
+        else -> listOf(album.take(2)) + album.drop(2).chunked(3)
+    }
+    Column(Modifier.padding(vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        rows.forEach { row ->
+            Row(horizontalArrangement = Arrangement.spacedBy(2.dp)) {
+                row.forEach { message ->
+                    val cell = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(4.dp))
+                    when (val body = message.content) {
+                        is MessageBody.Photo -> PhotoThumbnail(
+                            body.photo,
+                            cell.messageLongPress(message, interactions) {
+                                interactions.onOpenPhotos(photos, photos.indexOf(body.photo).coerceAtLeast(0))
+                            },
+                            square = row.size > 1,
+                        )
+                        else -> Box(
+                            cell
+                                .aspectRatio(1f)
+                                .background(MaterialTheme.colorScheme.surfaceVariant)
+                                .messageLongPress(message, interactions),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            val kind = (body as? MessageBody.Unsupported)?.kind ?: ContentKind.Unknown
+                            Text(contentKindText(kind), style = MaterialTheme.typography.labelLarge)
+                        }
+                    }
+                }
+            }
+        }
+    }
+    album.firstNotNullOfOrNull { m ->
+        when (val body = m.content) {
+            is MessageBody.Photo -> body.caption
+            is MessageBody.Unsupported -> body.caption
+            else -> null
+        }?.takeUnless { it.isBlank() }
+    }?.let { RichTextView(it) }
 }
 
 /** Заглушка для того, что клиент пока не показывает: тип и пометка, а не пустой пузырь. */

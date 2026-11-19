@@ -71,6 +71,8 @@ data class Message(
     val editDate: Int = 0,
     /** Автор оригинала, если сообщение переслано. */
     val forwardedFrom: MessageAuthor? = null,
+    /** Общий id сообщений одного альбома; 0 — не альбом. */
+    val mediaAlbumId: Long = 0,
 )
 
 internal fun TdApi.Message.toModel() = Message(
@@ -93,6 +95,7 @@ internal fun TdApi.Message.toModel() = Message(
     replyTo = replyTo?.toReplyTo(chatId),
     editDate = editDate,
     forwardedFrom = forwardInfo?.origin?.toAuthor(),
+    mediaAlbumId = mediaAlbumId,
 )
 
 /** Участник группы в подсказках упоминаний. */
