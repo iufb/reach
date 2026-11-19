@@ -34,5 +34,18 @@ internal fun TdApi.Photo.toInfo(): PhotoInfo {
     )
 }
 
+/** Фото профиля (пользователя, группы, канала) — те же три качества. */
+internal fun TdApi.ChatPhoto.toInfo(): PhotoInfo {
+    val largest = sizes.maxByOrNull { it.width.toLong() * it.height }
+    val preview = sizes.filter { it.width >= PREVIEW_WIDTH }.minByOrNull { it.width } ?: largest
+    return PhotoInfo(
+        width = largest?.width ?: 0,
+        height = largest?.height ?: 0,
+        minithumbnail = minithumbnail?.data,
+        preview = preview?.photo?.toTdFile(),
+        full = largest?.photo?.toTdFile(),
+    )
+}
+
 /** Ширина пузыря в пикселях на плотном экране — с запасом. */
 private const val PREVIEW_WIDTH = 800

@@ -106,6 +106,8 @@ fun ChatScreen(
     onBack: () -> Unit,
     onForward: (fromChatId: Long, messageIds: List<Long>) -> Unit,
     onOpenChat: (Long) -> Unit,
+    onOpenProfile: (chatId: Long) -> Unit,
+    onOpenUserProfile: (userId: Long) -> Unit,
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val chat by viewModel.chat.collectAsStateWithLifecycle()
@@ -124,10 +126,12 @@ fun ChatScreen(
     val linkPreview by viewModel.linkPreview.collectAsStateWithLifecycle()
     val openChat by rememberUpdatedState(onOpenChat)
     LaunchedEffect(viewModel) { viewModel.openChat.collect { openChat(it) } }
+    val openUserProfile by rememberUpdatedState(onOpenUserProfile)
     val mentionHandler = remember(viewModel) {
         object : MentionHandler {
             override fun openUsername(username: String) = viewModel.openUsername(username)
-            override fun openUser(userId: Long) = viewModel.openUser(userId)
+            // Упоминание по имени — в профиль пользователя, оттуда можно написать
+            override fun openUser(userId: Long) = openUserProfile(userId)
         }
     }
     BackHandler(enabled = selection.isNotEmpty(), onBack = viewModel::clearSelection)
@@ -154,6 +158,7 @@ fun ChatScreen(
     CompositionLocalProvider(LocalMentionHandler provides mentionHandler) {
         ChatContent(
             chat, state, senders, onBack,
+            onOpenProfile = { chat?.let { onOpenProfile(it.id) } },
             selectionBar = selectionActions?.let { actions ->
                 {
                     SelectionBar(
@@ -218,6 +223,7 @@ private fun ChatContent(
     state: ChatHistory.State,
     senders: Map<Sender, SenderInfo>,
     onBack: () -> Unit,
+    onOpenProfile: () -> Unit,
     /** Шапка режима выбора; `null` — обычная шапка чата. */
     selectionBar: (@Composable () -> Unit)?,
     onLoadOlder: () -> Unit,
@@ -240,7 +246,7 @@ private fun ChatContent(
                             Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
                         }
                     },
-                    title = { if (chat != null) ChatHeader(chat) },
+                    title = { if (chat != null) ChatHeader(chat, onOpenProfile) },
                 )
             }
         },
@@ -300,8 +306,11 @@ private class MessageInteractions(
 }
 
 @Composable
-private fun ChatHeader(chat: Chat) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
+private fun ChatHeader(chat: Chat, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier.clickable(onClickLabel = stringResource(R.string.open_profile), onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         Avatar(chat.title, chat.photo, chat.accentColorId, size = 40.dp)
         Spacer(Modifier.width(12.dp))
         Column {
@@ -906,7 +915,7 @@ private fun ChatPreview() {
         ChatContent(
             chat,
             ChatHistory.State(messages, reachedOldest = true, reachedNewest = true, firstUnreadId = 3, opened = true),
-            senders, onBack = {}, selectionBar = null, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
+            senders, onBack = {}, onOpenProfile = {}, selectionBar = null, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
             composer = ComposerState(RichText("Как дела?"), null, null, null, {}, { _, _, _ -> }, {}, {}, {}),
             interactions = MessageInteractions(
                 null, {}, {}, {}, {}, {}, {}, {}, emptySet(), {}, {}, { _, _ -> }, { emptyFlow() }, {}, emptyMap(), {},

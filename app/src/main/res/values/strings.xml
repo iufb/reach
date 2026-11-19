@@ -112,6 +112,28 @@
     <string name="emoji_search">Поиск эмодзи</string>
     <string name="emoji_recent">Недавние</string>
     <string name="emoji_nothing_found">Ничего не нашлось</string>
+
+    <!-- Профиль -->
+    <string name="profile_title">Информация</string>
+    <string name="profile_write">Написать</string>
+    <string name="profile_phone">Телефон</string>
+    <string name="profile_username">Имя пользователя</string>
+    <string name="profile_link">Ссылка</string>
+    <string name="profile_bio">О себе</string>
+    <string name="profile_description">Описание</string>
+    <string name="open_profile">Открыть профиль</string>
+    <plurals name="members">
+        <item quantity="one">%d участник</item>
+        <item quantity="few">%d участника</item>
+        <item quantity="many">%d участников</item>
+        <item quantity="other">%d участника</item>
+    </plurals>
+    <plurals name="subscribers">
+        <item quantity="one">%d подписчик</item>
+        <item quantity="few">%d подписчика</item>
+        <item quantity="many">%d подписчиков</item>
+        <item quantity="other">%d подписчика</item>
+    </plurals>
     <string name="document_download">Скачать</string>
     <string name="document_cancel">Отменить загрузку</string>
     <string name="document_open">Открыть</string>
