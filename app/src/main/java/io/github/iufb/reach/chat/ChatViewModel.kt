@@ -32,6 +32,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -79,6 +80,17 @@ class ChatViewModel @Inject constructor(
     private val _deleting = MutableStateFlow<DeleteRequest?>(null)
     /** Открытое подтверждение удаления. */
     val deleting: StateFlow<DeleteRequest?> = _deleting.asStateFlow()
+
+    /** Режим выбора: выбранные id и их права (`null` — ещё загружаются). Пусто — режим выключен. */
+    private val _selection = MutableStateFlow<Map<Long, MessageActions?>>(emptyMap())
+
+    val selection: StateFlow<Set<Long>> = _selection.map { it.keys }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, emptySet())
+
+    /** Общие действия над выбранными; `null` — режим выбора выключен. */
+    val selectionActions: StateFlow<SelectionActions?> = combine(_selection, history.state) { selected, state ->
+        if (selected.isEmpty()) null else selectionActions(selected, state.messages)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
     /** Исходные сообщения ответов, которых нет в загруженном отрезке. */
     val replied: StateFlow<Map<Long, Message?>> = history.replied
@@ -236,6 +248,7 @@ class ChatViewModel @Inject constructor(
     fun confirmDelete(revoke: Boolean) {
         val request = _deleting.value ?: return
         _deleting.value = null
+        clearSelection()
         if (_editing.value?.id in request.messageIds) cancelEdit()
         if (_replyTo.value?.id in request.messageIds) _replyTo.value = null
         viewModelScope.launch {
@@ -305,12 +318,45 @@ class ChatViewModel @Inject constructor(
     fun openMenu(message: Message) {
         if (message.content is MessageBody.Service) return
         viewModelScope.launch {
-            val properties = runCatching { td.send(TdApi.GetMessageProperties(chatId, message.id)) }
-                .onFailure { Log.w(TAG, "getMessageProperties failed", it) }
-                .getOrNull()
-            val actions = messageActions(message, properties)
+            val actions = loadActions(message)
             if (!actions.isEmpty) _menu.value = MessageMenu(message, actions)
         }
+    }
+
+    private suspend fun loadActions(message: Message): MessageActions {
+        val properties = runCatching { td.send(TdApi.GetMessageProperties(chatId, message.id)) }
+            .onFailure { Log.w(TAG, "getMessageProperties failed", it) }
+            .getOrNull()
+        return messageActions(message, properties)
+    }
+
+    /** «Выбрать» в меню: включаем режим выбора с этим сообщением. */
+    fun startSelection(menu: MessageMenu) {
+        _menu.value = null
+        _selection.value = mapOf(menu.message.id to menu.actions)
+    }
+
+    /** Тап по сообщению в режиме выбора. Права подгружаются, пока они не пришли — действия недоступны. */
+    fun toggleSelection(message: Message) {
+        if (message.content is MessageBody.Service || message.sendingState != null) return
+        if (message.id in _selection.value) {
+            _selection.update { it - message.id }
+            return
+        }
+        _selection.update { it + (message.id to null) }
+        viewModelScope.launch {
+            val actions = loadActions(message)
+            _selection.update { if (message.id in it) it + (message.id to actions) else it }
+        }
+    }
+
+    fun clearSelection() {
+        _selection.value = emptyMap()
+    }
+
+    /** Удаление выбранных: то же подтверждение, что и для одного. */
+    fun requestDeleteSelected(request: DeleteRequest) {
+        _deleting.value = request
     }
 
     fun closeMenu() {

@@ -86,6 +86,7 @@ internal fun MessageMenuPopup(
     onEdit: (Message) -> Unit,
     onDelete: (MessageMenu) -> Unit,
     onForward: (Message) -> Unit,
+    onSelect: (MessageMenu) -> Unit,
 ) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
@@ -113,6 +114,12 @@ internal fun MessageMenuPopup(
                 onClick = { onForward(current.message) },
             )
         }
+        // Выбрать можно любое сообщение, у которого открылось меню
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.message_action_select)) },
+            leadingIcon = { Icon(painterResource(R.drawable.ic_select), contentDescription = null) },
+            onClick = { onSelect(current) },
+        )
         if (actions.canDelete) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.message_action_delete), color = MaterialTheme.colorScheme.error) },
