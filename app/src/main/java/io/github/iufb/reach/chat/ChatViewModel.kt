@@ -12,6 +12,8 @@ import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
 import io.github.iufb.reach.chats.toFormattedText
+import io.github.iufb.reach.chats.ChatKind
+import io.github.iufb.reach.chats.replaceRange
 import io.github.iufb.reach.chats.toggle
 import io.github.iufb.reach.chats.trimmed
 import io.github.iufb.reach.chats.withEditedText
@@ -38,6 +40,11 @@ import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.mapLatest
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -50,7 +57,7 @@ class ChatViewModel @Inject constructor(
     private val td: TdClient,
     @ApplicationScope private val appScope: CoroutineScope,
     chats: ChatsRepository,
-    users: UsersRepository,
+    private val users: UsersRepository,
     groups: GroupsRepository,
 ) : ViewModel() {
 
@@ -97,6 +104,22 @@ class ChatViewModel @Inject constructor(
     val selectionActions: StateFlow<SelectionActions?> = combine(_selection, history.state) { selected, state ->
         if (selected.isEmpty()) null else selectionActions(selected, state.messages)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
+
+    private val _openChat = MutableSharedFlow<Long>(extraBufferCapacity = 1)
+    /** Перейти в другой чат: тап по упоминанию. */
+    val openChat: SharedFlow<Long> = _openChat.asSharedFlow()
+
+    private val mentionQuery = MutableStateFlow<String?>(null)
+
+    /** Подсказки участников при вводе «@» в группе. */
+    @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
+    val mentionSuggestions: StateFlow<List<MentionCandidate>> = combine(mentionQuery, chat) { query, chat ->
+        query?.takeIf { chat?.kind == ChatKind.Group }
+    }
+        .distinctUntilChanged()
+        .debounce(MENTION_DEBOUNCE_MS)
+        .mapLatest { query -> if (query == null) emptyList() else searchMembers(query) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
     /** Исходные сообщения ответов, которых нет в загруженном отрезке. */
     val replied: StateFlow<Map<Long, Message?>> = history.replied
@@ -212,6 +235,53 @@ class ChatViewModel @Inject constructor(
     fun onDraftChange(value: String) {
         _draft.update { it.withEditedText(value) }
         _sendError.value = null
+    }
+
+    /** Слово с «@» под курсором (без «@»); `null` — курсор не в упоминании. */
+    fun onMentionQuery(query: String?) {
+        mentionQuery.value = query
+    }
+
+    /** Выбор из подсказок: «@username » или имя с упоминанием по id, если username нет. */
+    fun pickMention(candidate: MentionCandidate, start: Int, end: Int) {
+        _draft.update { draft ->
+            if (candidate.username.isNotEmpty()) {
+                draft.replaceRange(start, end, "@${candidate.username} ")
+            } else {
+                draft.replaceRange(start, end, "${candidate.name} ", SpanKind.MentionUser(candidate.userId))
+            }
+        }
+        mentionQuery.value = null
+    }
+
+    private suspend fun searchMembers(query: String): List<MentionCandidate> {
+        val result = runCatching { td.send(TdApi.SearchChatMembers(chatId, query, MENTION_LIMIT, null)) }
+            .onFailure { Log.w(TAG, "searchChatMembers failed", it) }
+            .getOrNull() ?: return emptyList()
+        val known = users.users.value
+        return result.members.mapNotNull { member ->
+            val id = (member.memberId as? TdApi.MessageSenderUser)?.userId ?: return@mapNotNull null
+            val user = known[id] ?: return@mapNotNull null
+            MentionCandidate(id, user.fullName, user.username, user.photo, user.accentColorId)
+        }
+    }
+
+    /** Тап по @username: ищем публичный чат и открываем его. */
+    fun openUsername(username: String) {
+        viewModelScope.launch {
+            runCatching { td.send(TdApi.SearchPublicChat(username)) }
+                .onSuccess { _openChat.emit(it.id) }
+                .onFailure { Log.w(TAG, "searchPublicChat($username) failed", it) }
+        }
+    }
+
+    /** Тап по упоминанию по имени: личный чат с пользователем. */
+    fun openUser(userId: Long) {
+        viewModelScope.launch {
+            runCatching { td.send(TdApi.CreatePrivateChat(userId, false)) }
+                .onSuccess { _openChat.emit(it.id) }
+                .onFailure { Log.w(TAG, "createPrivateChat($userId) failed", it) }
+        }
     }
 
     /** Кнопка оформления над полем: включает или снимает [kind] на выделенном. */
@@ -386,5 +456,7 @@ class ChatViewModel @Inject constructor(
         const val TAG = "ChatViewModel"
         const val STOP_TIMEOUT_MS = 5_000L
         const val VIEW_DEBOUNCE_MS = 300L
+        const val MENTION_DEBOUNCE_MS = 200L
+        const val MENTION_LIMIT = 20
     }
 }

@@ -6,6 +6,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalUriHandler
@@ -34,13 +35,23 @@ internal fun RichTextView(
     style: TextStyle = MaterialTheme.typography.bodyLarge,
 ) {
     val colors = richTextColors()
-    val annotated = remember(text, colors) { text.toAnnotatedString(colors) }
+    val mentions = LocalMentionHandler.current
+    val annotated = remember(text, colors, mentions) { text.toAnnotatedString(colors, mentions = mentions) }
     val uriHandler = LocalUriHandler.current
     val safeHandler = remember(uriHandler) { SafeUriHandler(uriHandler) }
     CompositionLocalProvider(LocalUriHandler provides safeHandler) {
         Text(annotated, modifier = modifier, style = style)
     }
 }
+
+/** Что делать по тапу на упоминание; задаёт экран чата. */
+internal interface MentionHandler {
+    fun openUsername(username: String)
+    fun openUser(userId: Long)
+}
+
+/** `null` — упоминания только выделены цветом. */
+internal val LocalMentionHandler = staticCompositionLocalOf<MentionHandler?> { null }
 
 /** Ссылка, которую нечем открыть (кривой адрес, нет приложения), не должна ронять экран. */
 private class SafeUriHandler(private val delegate: UriHandler) : UriHandler {
@@ -62,7 +73,11 @@ internal fun richTextColors() = RichTextColors(
  * Entities → AnnotatedString. Блоки (код, цитата) оформляются абзацем; абзацы в Compose
  * не могут пересекаться частично, поэтому блок, задевающий уже оформленный, остаётся без абзаца.
  */
-internal fun RichText.toAnnotatedString(colors: RichTextColors, clickableLinks: Boolean = true): AnnotatedString = buildAnnotatedString {
+internal fun RichText.toAnnotatedString(
+    colors: RichTextColors,
+    clickableLinks: Boolean = true,
+    mentions: MentionHandler? = null,
+): AnnotatedString = buildAnnotatedString {
     append(text)
     val paragraphs = mutableListOf<IntRange>()
     fun paragraph(start: Int, end: Int, style: ParagraphStyle) {
@@ -94,6 +109,23 @@ internal fun RichText.toAnnotatedString(colors: RichTextColors, clickableLinks: 
                 // В поле ввода ссылка только выглядит ссылкой: тап ставит курсор, а не открывает её
                 if (clickableLinks) addLink(LinkAnnotation.Url(kind.url, TextLinkStyles(style)), start, end) else addStyle(style, start, end)
             }
+            is SpanKind.Mention, is SpanKind.MentionUser -> {
+                val style = SpanStyle(color = colors.link)
+                val open: (() -> Unit)? = mentions?.let { handler ->
+                    when (kind) {
+                        is SpanKind.Mention -> ({ handler.openUsername(kind.username) })
+                        is SpanKind.MentionUser -> ({ handler.openUser(kind.userId) })
+                        else -> null
+                    }
+                }
+                if (clickableLinks && open != null) {
+                    addLink(LinkAnnotation.Clickable("mention", TextLinkStyles(style)) { open() }, start, end)
+                } else {
+                    addStyle(style, start, end)
+                }
+            }
+            // По тапу пока ничего: поиск по хэштегу — вместе с поиском (v0.3)
+            is SpanKind.Hashtag -> addStyle(SpanStyle(color = colors.link), start, end)
         }
     }
 }

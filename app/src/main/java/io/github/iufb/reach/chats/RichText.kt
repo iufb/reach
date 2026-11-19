@@ -29,6 +29,12 @@ sealed interface SpanKind {
     data class Pre(val language: String) : SpanKind
     data object Quote : SpanKind
     data class Link(val url: String) : SpanKind
+    /** `@username` в тексте. */
+    data class Mention(val username: String) : SpanKind
+    /** Упоминание по имени пользователя без username. */
+    data class MentionUser(val userId: Long) : SpanKind
+    /** Хэштег или кэштег. */
+    data class Hashtag(val tag: String) : SpanKind
 }
 
 internal fun TdApi.FormattedText?.toRichText(): RichText {
@@ -58,7 +64,10 @@ private fun TdApi.TextEntityType.toSpanKind(covered: String): SpanKind? = when (
     is TdApi.TextEntityTypeUrl -> SpanKind.Link(if ("://" in covered) covered else "https://$covered")
     is TdApi.TextEntityTypeEmailAddress -> SpanKind.Link("mailto:$covered")
     is TdApi.TextEntityTypePhoneNumber -> SpanKind.Link("tel:$covered")
-    // Упоминания, хэштеги и остальное — пока обычный текст
+    is TdApi.TextEntityTypeMention -> SpanKind.Mention(covered.removePrefix("@"))
+    is TdApi.TextEntityTypeMentionName -> SpanKind.MentionUser(userId)
+    is TdApi.TextEntityTypeHashtag, is TdApi.TextEntityTypeCashtag -> SpanKind.Hashtag(covered)
+    // Остальное (команды ботов, кастомные эмодзи…) — обычный текст
     else -> null
 }
 
@@ -85,6 +94,9 @@ private fun SpanKind.toEntityType(covered: String): TdApi.TextEntityType? = when
         covered, "https://$covered", "mailto:$covered", "tel:$covered" -> null
         else -> TdApi.TextEntityTypeTextUrl(url)
     }
+    is SpanKind.MentionUser -> TdApi.TextEntityTypeMentionName(userId)
+    // @username и хэштеги сервер тоже распознаёт сам
+    is SpanKind.Mention, is SpanKind.Hashtag -> null
 }
 
 /**
@@ -150,4 +162,17 @@ internal fun RichText.toggle(kind: SpanKind, start: Int, end: Int): RichText {
     }
     val turnOn = !covered || kind is SpanKind.Link
     return copy(spans = if (turnOn) withoutRange + TextSpan(start, end, kind) else withoutRange)
+}
+
+/**
+ * Заменяет участок [start]..[end] на [insert]; оформление вне участка сохраняется.
+ * [kind] — оформление вставленного (например, упоминание по имени).
+ */
+internal fun RichText.replaceRange(start: Int, end: Int, insert: String, kind: SpanKind? = null): RichText {
+    val replaced = text.replaceRange(start, end, insert)
+    // Сначала убираем оформление с заменяемого участка, чтобы withEditedText не растянул его на вставку
+    val cleared = copy(spans = spans.filter { it.end <= start || it.start >= end })
+    val edited = cleared.withEditedText(replaced)
+    val added = kind?.let { TextSpan(start, start + insert.trimEnd().length, it) }?.takeIf { it.start < it.end }
+    return if (added == null) edited else edited.copy(spans = edited.spans + added)
 }

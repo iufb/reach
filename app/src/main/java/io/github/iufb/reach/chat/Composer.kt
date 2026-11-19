@@ -1,7 +1,15 @@
 package io.github.iufb.reach.chat
 
 import androidx.annotation.StringRes
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.text.style.TextOverflow
+import io.github.iufb.reach.ui.components.Avatar
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -64,7 +72,28 @@ internal class ComposerState(
     val onSend: () -> Unit,
     val onCancelReply: () -> Unit,
     val onCancelEdit: () -> Unit,
+    /** Участники по набранному «@…» (только в группах). */
+    val mentionSuggestions: List<MentionCandidate> = emptyList(),
+    val onMentionQuery: (String?) -> Unit = {},
+    /** Выбор подсказки: заменить участок [start]..[end] («@запрос») упоминанием. */
+    val onPickMention: (MentionCandidate, start: Int, end: Int) -> Unit = { _, _, _ -> },
 )
+
+/** «@запрос» перед курсором: участок от «@» до курсора и сам запрос. */
+private data class MentionToken(val start: Int, val end: Int, val query: String)
+
+private fun mentionToken(field: TextFieldValue): MentionToken? {
+    if (!field.selection.collapsed) return null
+    val cursor = field.selection.start
+    val before = field.text.substring(0, cursor)
+    val at = before.lastIndexOf('@')
+    if (at < 0) return null
+    // «@» в начале слова, после него — без пробелов
+    if (at > 0 && !before[at - 1].isWhitespace()) return null
+    val query = before.substring(at + 1)
+    if (query.any { it.isWhitespace() }) return null
+    return MentionToken(at, cursor, query)
+}
 
 @Composable
 internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
@@ -74,6 +103,9 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
         if (field.text != state.draft.text) field = TextFieldValue(state.draft.text, TextRange(state.draft.text.length))
     }
     var linkFor by remember { mutableStateOf<TextRange?>(null) }
+    val token = mentionToken(field)
+    val mentionQuery = token?.query
+    LaunchedEffect(mentionQuery) { state.onMentionQuery(mentionQuery) }
     val colors = richTextColors()
     val transformation = remember(state.draft, colors) { RichVisualTransformation(state.draft, colors) }
     val canSend = state.draft.text.isNotBlank()
@@ -83,6 +115,9 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
             when {
                 state.editing != null -> EditBar(state.editing, state.onCancelEdit)
                 state.replyTo != null -> ReplyBar(state.replyTo, senders, state.onCancelReply)
+            }
+            if (token != null && state.mentionSuggestions.isNotEmpty()) {
+                MentionSuggestions(state.mentionSuggestions) { state.onPickMention(it, token.start, token.end) }
             }
             val selection = field.selection
             if (!selection.collapsed) {
@@ -135,6 +170,38 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
             },
             onDismiss = { linkFor = null },
         )
+    }
+}
+
+/** Список участников над полем; не выше нескольких строк, дальше прокрутка. */
+@Composable
+private fun MentionSuggestions(candidates: List<MentionCandidate>, onPick: (MentionCandidate) -> Unit) {
+    LazyColumn(Modifier.fillMaxWidth().heightIn(max = 200.dp)) {
+        items(candidates, key = { it.userId }) { candidate ->
+            Row(
+                modifier = Modifier.fillMaxWidth().clickable { onPick(candidate) }.padding(horizontal = 16.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Avatar(candidate.name, candidate.photo, candidate.accentColorId, size = 32.dp)
+                Spacer(Modifier.width(12.dp))
+                Text(
+                    candidate.name,
+                    modifier = Modifier.weight(1f, fill = false),
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (candidate.username.isNotEmpty()) {
+                    Spacer(Modifier.width(8.dp))
+                    Text(
+                        "@${candidate.username}",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                    )
+                }
+            }
+        }
     }
 }
 
