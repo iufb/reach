@@ -107,6 +107,11 @@
     <string name="attach">Прикрепить</string>
     <string name="attach_photo">Фото</string>
     <string name="attach_file">Файл</string>
+    <string name="emoji_open">Эмодзи</string>
+    <string name="emoji_keyboard">Клавиатура</string>
+    <string name="emoji_search">Поиск эмодзи</string>
+    <string name="emoji_recent">Недавние</string>
+    <string name="emoji_nothing_found">Ничего не нашлось</string>
     <string name="document_download">Скачать</string>
     <string name="document_cancel">Отменить загрузку</string>
     <string name="document_open">Открыть</string>

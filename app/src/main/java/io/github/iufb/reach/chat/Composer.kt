@@ -17,7 +17,11 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.platform.LocalSoftwareKeyboardController
+import io.github.iufb.reach.emoji.EmojiPanel
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -113,6 +117,12 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
         if (field.text != state.draft.text) field = TextFieldValue(state.draft.text, TextRange(state.draft.text.length))
     }
     var linkFor by remember { mutableStateOf<TextRange?>(null) }
+    var emojiOpen by remember { mutableStateOf(false) }
+    val keyboard = LocalSoftwareKeyboardController.current
+    val fieldInteraction = remember { MutableInteractionSource() }
+    val fieldPressed by fieldInteraction.collectIsPressedAsState()
+    // Тап по полю, пока открыта панель, возвращает клавиатуру
+    LaunchedEffect(fieldPressed) { if (fieldPressed) emojiOpen = false }
     val token = mentionToken(field)
     val mentionQuery = token?.query
     LaunchedEffect(mentionQuery) { state.onMentionQuery(mentionQuery) }
@@ -165,6 +175,21 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
                     maxLines = 6,
                     keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                     visualTransformation = transformation,
+                    interactionSource = fieldInteraction,
+                    trailingIcon = {
+                        IconButton(onClick = {
+                            if (emojiOpen) keyboard?.show() else keyboard?.hide()
+                            emojiOpen = !emojiOpen
+                        }) {
+                            val description = stringResource(if (emojiOpen) R.string.emoji_keyboard else R.string.emoji_open)
+                            Text(
+                                if (emojiOpen) "⌨" else "☺",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.semantics { contentDescription = description },
+                            )
+                        }
+                    },
                 )
                 IconButton(onClick = state.onSend, enabled = canSend) {
                     Icon(
@@ -173,6 +198,15 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
                         tint = if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
+            }
+            if (emojiOpen) {
+                EmojiPanel(onPick = { emoji ->
+                    // Вставка на место выделения / курсора
+                    val selection = field.selection
+                    val text = field.text.replaceRange(selection.min, selection.max, emoji)
+                    field = TextFieldValue(text, TextRange(selection.min + emoji.length))
+                    state.onDraftChange(text)
+                })
             }
         }
     }
