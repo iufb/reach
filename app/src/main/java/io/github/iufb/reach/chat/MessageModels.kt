@@ -110,3 +110,14 @@ data class MentionCandidate(
 
 /** Скачанный файл, который надо открыть во внешнем приложении. */
 data class OpenFile(val path: String, val mimeType: String)
+
+/** Данные для подписи в шапке чата. */
+data class HeaderInfo(
+    val activities: Map<Sender, io.github.iufb.reach.presence.ActivityKind> = emptyMap(),
+    /** Статус собеседника личного чата. */
+    val userStatus: io.github.iufb.reach.users.UserStatus? = null,
+    /** Участники группы или подписчики канала; 0 — неизвестно. */
+    val memberCount: Int = 0,
+    /** В сети сейчас (только для открытой группы). */
+    val onlineCount: Int = 0,
+)

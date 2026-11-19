@@ -86,6 +86,8 @@ import io.github.iufb.reach.chats.ChatKind
 import io.github.iufb.reach.chats.ContentKind
 import io.github.iufb.reach.chats.GroupRef
 import io.github.iufb.reach.chats.MessageBody
+import io.github.iufb.reach.presence.activityText
+import io.github.iufb.reach.presence.userStatusText
 import io.github.iufb.reach.chats.PhotoInfo
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
@@ -124,6 +126,7 @@ fun ChatScreen(
     val selectionActions by viewModel.selectionActions.collectAsStateWithLifecycle()
     val mentionSuggestions by viewModel.mentionSuggestions.collectAsStateWithLifecycle()
     val linkPreview by viewModel.linkPreview.collectAsStateWithLifecycle()
+    val header by viewModel.header.collectAsStateWithLifecycle()
     val openChat by rememberUpdatedState(onOpenChat)
     LaunchedEffect(viewModel) { viewModel.openChat.collect { openChat(it) } }
     val openUserProfile by rememberUpdatedState(onOpenUserProfile)
@@ -158,6 +161,7 @@ fun ChatScreen(
     CompositionLocalProvider(LocalMentionHandler provides mentionHandler) {
         ChatContent(
             chat, state, senders, onBack,
+            header = header,
             onOpenProfile = { chat?.let { onOpenProfile(it.id) } },
             selectionBar = selectionActions?.let { actions ->
                 {
@@ -223,6 +227,7 @@ private fun ChatContent(
     state: ChatHistory.State,
     senders: Map<Sender, SenderInfo>,
     onBack: () -> Unit,
+    header: HeaderInfo,
     onOpenProfile: () -> Unit,
     /** Шапка режима выбора; `null` — обычная шапка чата. */
     selectionBar: (@Composable () -> Unit)?,
@@ -246,7 +251,7 @@ private fun ChatContent(
                             Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
                         }
                     },
-                    title = { if (chat != null) ChatHeader(chat, onOpenProfile) },
+                    title = { if (chat != null) ChatHeader(chat, header, senders, onOpenProfile) },
                 )
             }
         },
@@ -306,7 +311,7 @@ private class MessageInteractions(
 }
 
 @Composable
-private fun ChatHeader(chat: Chat, onClick: () -> Unit) {
+private fun ChatHeader(chat: Chat, header: HeaderInfo, senders: Map<Sender, SenderInfo>, onClick: () -> Unit) {
     Row(
         modifier = Modifier.clickable(onClickLabel = stringResource(R.string.open_profile), onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
@@ -315,18 +320,36 @@ private fun ChatHeader(chat: Chat, onClick: () -> Unit) {
         Spacer(Modifier.width(12.dp))
         Column {
             Text(chat.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            val activity = activityText(header.activities, withNames = chat.kind == ChatKind.Group) { sender ->
+                senders[sender]?.name?.substringBefore(' ').orEmpty()
+            }
             Text(
-                stringResource(
-                    when (chat.kind) {
-                        ChatKind.Private, ChatKind.Secret -> R.string.chat_kind_private
-                        ChatKind.Group -> R.string.chat_kind_group
-                        ChatKind.Channel -> R.string.chat_kind_channel
-                    },
-                ),
+                activity ?: headerSubtitle(chat, header),
                 style = MaterialTheme.typography.bodySmall,
                 color = LocalContentColor.current.copy(alpha = 0.88f),
+                fontWeight = if (activity != null) FontWeight.SemiBold else null,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
             )
         }
+    }
+}
+
+/** Когда никто ничего не делает: статус собеседника, участники группы, подписчики канала. */
+@Composable
+private fun headerSubtitle(chat: Chat, header: HeaderInfo): String = when (chat.kind) {
+    ChatKind.Private, ChatKind.Secret ->
+        header.userStatus?.let { userStatusText(it) } ?: stringResource(R.string.chat_kind_private)
+    ChatKind.Group -> if (header.memberCount > 0) {
+        val members = pluralStringResource(R.plurals.members, header.memberCount, header.memberCount)
+        if (header.onlineCount > 1) stringResource(R.string.group_online, members, header.onlineCount) else members
+    } else {
+        stringResource(R.string.chat_kind_group)
+    }
+    ChatKind.Channel -> if (header.memberCount > 0) {
+        pluralStringResource(R.plurals.subscribers, header.memberCount, header.memberCount)
+    } else {
+        stringResource(R.string.chat_kind_channel)
     }
 }
 
@@ -915,7 +938,7 @@ private fun ChatPreview() {
         ChatContent(
             chat,
             ChatHistory.State(messages, reachedOldest = true, reachedNewest = true, firstUnreadId = 3, opened = true),
-            senders, onBack = {}, onOpenProfile = {}, selectionBar = null, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
+            senders, onBack = {}, header = HeaderInfo(), onOpenProfile = {}, selectionBar = null, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
             composer = ComposerState(RichText("Как дела?"), null, null, null, {}, { _, _, _ -> }, {}, {}, {}),
             interactions = MessageInteractions(
                 null, {}, {}, {}, {}, {}, {}, {}, emptySet(), {}, {}, { _, _ -> }, { emptyFlow() }, {}, emptyMap(), {},
