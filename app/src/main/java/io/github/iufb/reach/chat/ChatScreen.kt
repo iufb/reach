@@ -96,12 +96,14 @@ fun ChatScreen(onBack: () -> Unit, viewModel: ChatViewModel = hiltViewModel()) {
     val menu by viewModel.menu.collectAsStateWithLifecycle()
     val replyTo by viewModel.replyTo.collectAsStateWithLifecycle()
     val editing by viewModel.editing.collectAsStateWithLifecycle()
+    val deleting by viewModel.deleting.collectAsStateWithLifecycle()
     val replied by viewModel.replied.collectAsStateWithLifecycle()
     val scrollTarget by viewModel.scrollTarget.collectAsStateWithLifecycle()
     LifecycleResumeEffect(viewModel) {
         viewModel.onResume()
         onPauseOrDispose { viewModel.onPause() }
     }
+    deleting?.let { DeleteDialog(it, viewModel::confirmDelete, viewModel::cancelDelete) }
     ChatContent(
         chat, state, senders, onBack, viewModel::loadOlder, viewModel::loadNewer,
         onVisibleMessagesChange = viewModel::onVisibleMessagesChange,
@@ -119,6 +121,7 @@ fun ChatScreen(onBack: () -> Unit, viewModel: ChatViewModel = hiltViewModel()) {
             onDismissMenu = viewModel::closeMenu,
             onReply = if (canWrite) viewModel::startReply else null,
             onEdit = viewModel::startEdit,
+            onDelete = viewModel::requestDelete,
             replied = replied,
             onJumpTo = viewModel::jumpTo,
             scrollTarget = scrollTarget,
@@ -190,6 +193,7 @@ private class MessageInteractions(
     /** `null` — писать нельзя, ответить тоже. */
     val onReply: ((Message) -> Unit)?,
     val onEdit: (Message) -> Unit,
+    val onDelete: (MessageMenu) -> Unit,
     /** Исходные сообщения ответов вне загруженного отрезка (см. [ChatHistory.replied]). */
     val replied: Map<Long, Message?>,
     val onJumpTo: (Long) -> Unit,
@@ -513,6 +517,7 @@ private fun MessagePopup(message: Message, interactions: MessageInteractions) {
         interactions.onDismissMenu,
         onReply = { interactions.onReply?.invoke(it) },
         onEdit = interactions.onEdit,
+        onDelete = interactions.onDelete,
     )
 }
 
@@ -678,7 +683,7 @@ private fun ChatPreview() {
             ChatHistory.State(messages, reachedOldest = true, reachedNewest = true, firstUnreadId = 3, opened = true),
             senders, onBack = {}, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
             composer = ComposerState("Как дела?", null, null, null, {}, {}, {}, {}),
-            interactions = MessageInteractions(null, {}, {}, {}, {}, emptyMap(), {}, null, {}),
+            interactions = MessageInteractions(null, {}, {}, {}, {}, {}, emptyMap(), {}, null, {}),
         )
     }
 }
