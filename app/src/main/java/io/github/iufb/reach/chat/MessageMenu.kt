@@ -12,7 +12,9 @@ import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import io.github.iufb.reach.R
+import io.github.iufb.reach.chats.ContentKind
 import io.github.iufb.reach.chats.MessageBody
+import io.github.iufb.reach.chats.RichText
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
 
@@ -24,8 +26,9 @@ data class MessageActions(
     /** Текст или подпись, которые можно скопировать; `null` — копировать нечего или нельзя. */
     val copyText: String?,
     val canReply: Boolean,
+    val canEdit: Boolean,
 ) {
-    val isEmpty: Boolean get() = copyText == null && !canReply
+    val isEmpty: Boolean get() = copyText == null && !canReply && !canEdit
 }
 
 /** Открытое меню действий над [message]. */
@@ -46,15 +49,34 @@ internal fun messageActions(message: Message, properties: TdApi.MessagePropertie
     return MessageActions(
         copyText = message.content.copyableText().takeUnless { protected },
         canReply = properties?.canBeReplied == true,
+        canEdit = properties?.canBeEdited == true && message.content.editableText() != null,
     )
 }
+
+/** Что правится в поле ввода: текст сообщения или подпись к медиа (пустую тоже можно дописать). */
+internal fun MessageBody.editableText(): RichText? = when (this) {
+    is MessageBody.Text -> text
+    is MessageBody.Unsupported -> caption.takeIf { kind in CAPTIONED }
+    is MessageBody.Service -> null
+}
+
+/** Типы медиа, у которых есть подпись. */
+private val CAPTIONED = setOf(
+    ContentKind.Photo, ContentKind.Video, ContentKind.Document, ContentKind.Audio,
+    ContentKind.VoiceNote, ContentKind.Animation,
+)
 
 /**
  * Меню у пузыря. Ставится внутрь пузыря: `DropdownMenu` привязывается к родителю.
  * [menu] не `null` — меню открыто для этого сообщения.
  */
 @Composable
-internal fun MessageMenuPopup(menu: MessageMenu?, onDismiss: () -> Unit, onReply: (Message) -> Unit) {
+internal fun MessageMenuPopup(
+    menu: MessageMenu?,
+    onDismiss: () -> Unit,
+    onReply: (Message) -> Unit,
+    onEdit: (Message) -> Unit,
+) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     DropdownMenu(expanded = menu != null, onDismissRequest = onDismiss) {
@@ -65,6 +87,13 @@ internal fun MessageMenuPopup(menu: MessageMenu?, onDismiss: () -> Unit, onReply
                 text = { Text(stringResource(R.string.message_action_reply)) },
                 leadingIcon = { Icon(painterResource(R.drawable.ic_reply), contentDescription = null) },
                 onClick = { onReply(current.message) },
+            )
+        }
+        if (actions.canEdit) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.message_action_edit)) },
+                leadingIcon = { Icon(painterResource(R.drawable.ic_edit), contentDescription = null) },
+                onClick = { onEdit(current.message) },
             )
         }
         actions.copyText?.let { text ->

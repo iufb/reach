@@ -7,7 +7,10 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.sync.Mutex
+import io.github.iufb.reach.chats.MessageBody
+import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.toBody
+import io.github.iufb.reach.chats.toFormattedText
 import org.drinkless.tdlib.TdApi
 
 /**
@@ -161,6 +164,9 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
                     val body = update.newContent.toBody()
                     edit(update.messageId) { copy(content = body) }
                 }
+                is TdApi.UpdateMessageEdited -> if (update.chatId == chatId) {
+                    edit(update.messageId) { copy(editDate = update.editDate) }
+                }
                 is TdApi.UpdateMessageInteractionInfo -> if (update.chatId == chatId) {
                     val views = update.interactionInfo?.viewCount ?: 0
                     edit(update.messageId) { copy(viewCount = views) }
@@ -193,6 +199,20 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
         val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, null, null, content))
         _state.update { it.merge(listOf(pending.toModel())) }
+    }
+
+    /**
+     * Правка своего сообщения: текст — `editMessageText`, подпись к медиа — `editMessageCaption`.
+     * Новое содержимое придёт апдейтами `UpdateMessageContent` / `UpdateMessageEdited`.
+     */
+    suspend fun editText(message: Message, text: RichText) {
+        val formatted = text.toFormattedText()
+        when (message.content) {
+            is MessageBody.Text -> td.send(
+                TdApi.EditMessageText(chatId, message.id, null, TdApi.InputMessageText(formatted, null, false)),
+            )
+            else -> td.send(TdApi.EditMessageCaption(chatId, message.id, null, formatted, false))
+        }
     }
 
     private fun replace(oldId: Long, message: Message) {

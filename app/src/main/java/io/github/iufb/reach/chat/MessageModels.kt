@@ -67,6 +67,8 @@ data class Message(
     val viewCount: Int,
     val sendingState: SendingState? = null,
     val replyTo: ReplyTo? = null,
+    /** Время последней правки, unix-секунды; 0 — не редактировалось. */
+    val editDate: Int = 0,
 )
 
 internal fun TdApi.Message.toModel() = Message(
@@ -87,4 +89,5 @@ internal fun TdApi.Message.toModel() = Message(
         else -> null
     },
     replyTo = replyTo?.toReplyTo(chatId),
+    editDate = editDate,
 )

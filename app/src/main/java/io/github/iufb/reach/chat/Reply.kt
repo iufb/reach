@@ -1,5 +1,6 @@
 package io.github.iufb.reach.chat
 
+import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -75,22 +76,43 @@ internal fun ReplyBlock(
 /** Плашка над полем ввода: на что отвечаем, с кнопкой отмены. */
 @Composable
 internal fun ReplyBar(message: Message, senders: Map<Sender, SenderInfo>, onCancel: () -> Unit) {
+    ComposerContextBar(
+        icon = R.drawable.ic_reply,
+        title = authorName(MessageAuthor.Known(message.sender), senders),
+        text = bodySummary(message.content),
+        cancelDescription = stringResource(R.string.reply_cancel),
+        onCancel = onCancel,
+    )
+}
+
+/** Плашка над полем ввода в режиме редактирования. */
+@Composable
+internal fun EditBar(message: Message, onCancel: () -> Unit) {
+    ComposerContextBar(
+        icon = R.drawable.ic_edit,
+        title = stringResource(R.string.edit_title),
+        text = bodySummary(message.content),
+        cancelDescription = stringResource(R.string.edit_cancel),
+        onCancel = onCancel,
+    )
+}
+
+@Composable
+private fun ComposerContextBar(
+    @DrawableRes icon: Int,
+    title: String,
+    text: String,
+    cancelDescription: String,
+    onCancel: () -> Unit,
+) {
     Row(
         modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 6.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(
-            painterResource(R.drawable.ic_reply),
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.primary,
-        )
-        QuoteStrip(
-            authorName(MessageAuthor.Known(message.sender), senders),
-            bodySummary(message.content),
-            Modifier.weight(1f).padding(start = 12.dp),
-        )
+        Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+        QuoteStrip(title, text, Modifier.weight(1f).padding(start = 12.dp))
         IconButton(onClick = onCancel) {
-            Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.reply_cancel))
+            Icon(painterResource(R.drawable.ic_close), contentDescription = cancelDescription)
         }
     }
 }
