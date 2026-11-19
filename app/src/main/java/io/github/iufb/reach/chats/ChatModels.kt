@@ -45,6 +45,8 @@ data class Draft(
     val text: RichText,
     /** Unix-время, секунды. */
     val date: Int,
+    /** Сообщение этого чата, на которое начат ответ. */
+    val replyToMessageId: Long? = null,
 )
 
 /** Неизменяемый снимок чата, собранный из апдейтов. */
@@ -90,7 +92,8 @@ internal fun TdApi.Chat.toModel() = Chat(
 /** Черновики голосовых и видеокружков клиент не показывает. */
 internal fun TdApi.DraftMessage.toDraft(): Draft? {
     val text = (content as? TdApi.DraftMessageContentText)?.text?.toRichText() ?: return null
-    return Draft(text, date).takeUnless { text.isBlank() }
+    val replyTo = (replyTo as? TdApi.InputMessageReplyToMessage)?.messageId?.takeIf { it != 0L }
+    return Draft(text, date, replyTo).takeUnless { text.isBlank() && replyTo == null }
 }
 
 private fun TdApi.ChatType.toKind(): ChatKind = when (this) {

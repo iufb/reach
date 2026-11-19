@@ -94,6 +94,9 @@ fun ChatScreen(onBack: () -> Unit, viewModel: ChatViewModel = hiltViewModel()) {
     val draft by viewModel.draft.collectAsStateWithLifecycle()
     val sendError by viewModel.sendError.collectAsStateWithLifecycle()
     val menu by viewModel.menu.collectAsStateWithLifecycle()
+    val replyTo by viewModel.replyTo.collectAsStateWithLifecycle()
+    val replied by viewModel.replied.collectAsStateWithLifecycle()
+    val scrollTarget by viewModel.scrollTarget.collectAsStateWithLifecycle()
     LifecycleResumeEffect(viewModel) {
         viewModel.onResume()
         onPauseOrDispose { viewModel.onPause() }
@@ -101,8 +104,21 @@ fun ChatScreen(onBack: () -> Unit, viewModel: ChatViewModel = hiltViewModel()) {
     ChatContent(
         chat, state, senders, onBack, viewModel::loadOlder, viewModel::loadNewer,
         onVisibleMessagesChange = viewModel::onVisibleMessagesChange,
-        composer = if (canWrite) ComposerState(draft, sendError, viewModel::onDraftChange, viewModel::send) else null,
-        menu = MenuState(menu, viewModel::openMenu, viewModel::closeMenu),
+        composer = if (canWrite) {
+            ComposerState(draft, sendError, replyTo, viewModel::onDraftChange, viewModel::send, viewModel::cancelReply)
+        } else {
+            null
+        },
+        interactions = MessageInteractions(
+            menu = menu,
+            onOpenMenu = viewModel::openMenu,
+            onDismissMenu = viewModel::closeMenu,
+            onReply = if (canWrite) viewModel::startReply else null,
+            replied = replied,
+            onJumpTo = viewModel::jumpTo,
+            scrollTarget = scrollTarget,
+            onScrolledToTarget = viewModel::onScrolledToTarget,
+        ),
     )
 }
 
@@ -117,11 +133,11 @@ private fun ChatContent(
     onLoadNewer: () -> Unit,
     onVisibleMessagesChange: (List<Long>) -> Unit,
     composer: ComposerState?,
-    menu: MenuState,
+    interactions: MessageInteractions,
 ) {
     Scaffold(
         modifier = Modifier.imePadding(),
-        bottomBar = { if (composer != null && chat != null) Composer(composer) },
+        bottomBar = { if (composer != null && chat != null) Composer(composer, senders) },
         topBar = {
             TopAppBar(
                 colors = reachBarColors(),
@@ -141,7 +157,7 @@ private fun ChatContent(
         if (!state.opened || chat == null) {
             Box(modifier, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         } else {
-            MessageList(chat, state, senders, menu, onLoadOlder, onLoadNewer, onVisibleMessagesChange, modifier)
+            MessageList(chat, state, senders, interactions, onLoadOlder, onLoadNewer, onVisibleMessagesChange, modifier)
         }
     }
 }
@@ -150,51 +166,71 @@ private fun ChatContent(
 private class ComposerState(
     val draft: String,
     val error: String?,
+    /** Сообщение, на которое отвечаем. */
+    val replyTo: Message?,
     val onDraftChange: (String) -> Unit,
     val onSend: () -> Unit,
+    val onCancelReply: () -> Unit,
 )
 
-/** Меню действий: [menu] — открытое сейчас, [onOpen] — долгое нажатие на сообщение. */
-private class MenuState(
+/** Что можно делать с сообщениями в ленте: меню, ответ, переход к исходному. */
+private class MessageInteractions(
+    /** Открытое сейчас меню. */
     val menu: MessageMenu?,
-    val onOpen: (Message) -> Unit,
-    val onDismiss: () -> Unit,
+    val onOpenMenu: (Message) -> Unit,
+    val onDismissMenu: () -> Unit,
+    /** `null` — писать нельзя, ответить тоже. */
+    val onReply: ((Message) -> Unit)?,
+    /** Исходные сообщения ответов вне загруженного отрезка (см. [ChatHistory.replied]). */
+    val replied: Map<Long, Message?>,
+    val onJumpTo: (Long) -> Unit,
+    val scrollTarget: Long?,
+    val onScrolledToTarget: () -> Unit,
 ) {
     /** Меню, если оно открыто именно для [message]. */
-    fun forMessage(message: Message): MessageMenu? = menu?.takeIf { it.message.id == message.id }
+    fun menuFor(message: Message): MessageMenu? = menu?.takeIf { it.message.id == message.id }
+
+    /** Ответ свайпом: только на уже отправленные сообщения и если писать можно. */
+    fun replyAction(message: Message): (() -> Unit)? {
+        val reply = onReply ?: return null
+        return if (message.sendingState == null) ({ reply(message) }) else null
+    }
 }
 
 @Composable
-private fun Composer(state: ComposerState) {
+private fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
     Surface(color = MaterialTheme.colorScheme.surface) {
-        Row(
-            modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            TextField(
-                colors = TextFieldDefaults.colors(
-                    focusedContainerColor = Color.Transparent,
-                    unfocusedContainerColor = Color.Transparent,
-                    errorContainerColor = Color.Transparent,
-                    focusedIndicatorColor = Color.Transparent,
-                    unfocusedIndicatorColor = Color.Transparent,
-                    errorIndicatorColor = Color.Transparent,
-                ),
-                value = state.draft,
-                onValueChange = state.onDraftChange,
-                modifier = Modifier.weight(1f),
-                placeholder = { Text(stringResource(R.string.chat_input_placeholder)) },
-                isError = state.error != null,
-                supportingText = state.error?.let { { Text(stringResource(R.string.chat_send_error, it)) } },
-                maxLines = 6,
-                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-            )
-            IconButton(onClick = state.onSend, enabled = state.draft.isNotBlank()) {
-                Icon(
-                    painterResource(R.drawable.ic_send),
-                    contentDescription = stringResource(R.string.chat_send),
-                    tint = if (state.draft.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+        Column(Modifier.navigationBarsPadding()) {
+            state.replyTo?.let { ReplyBar(it, senders, state.onCancelReply) }
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                TextField(
+                    colors = TextFieldDefaults.colors(
+                        focusedContainerColor = Color.Transparent,
+                        unfocusedContainerColor = Color.Transparent,
+                        errorContainerColor = Color.Transparent,
+                        focusedIndicatorColor = Color.Transparent,
+                        unfocusedIndicatorColor = Color.Transparent,
+                        errorIndicatorColor = Color.Transparent,
+                    ),
+                    value = state.draft,
+                    onValueChange = state.onDraftChange,
+                    modifier = Modifier.weight(1f),
+                    placeholder = { Text(stringResource(R.string.chat_input_placeholder)) },
+                    isError = state.error != null,
+                    supportingText = state.error?.let { { Text(stringResource(R.string.chat_send_error, it)) } },
+                    maxLines = 6,
+                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
                 )
+                IconButton(onClick = state.onSend, enabled = state.draft.isNotBlank()) {
+                    Icon(
+                        painterResource(R.drawable.ic_send),
+                        contentDescription = stringResource(R.string.chat_send),
+                        tint = if (state.draft.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
             }
         }
     }
@@ -252,7 +288,7 @@ private fun MessageList(
     chat: Chat,
     state: ChatHistory.State,
     senders: Map<Sender, SenderInfo>,
-    menu: MenuState,
+    interactions: MessageInteractions,
     onLoadOlder: () -> Unit,
     onLoadNewer: () -> Unit,
     onVisibleMessagesChange: (List<Long>) -> Unit,
@@ -261,8 +297,10 @@ private fun MessageList(
     val isChannel = chat.kind == ChatKind.Channel
     val items = buildItems(state, isGroup = chat.kind == ChatKind.Group)
     val listState = rememberLazyListState()
+    val byId = remember(state.messages) { state.messages.associateBy { it.id } }
     ScrollToUnreadOnce(listState, items)
     FollowNewMessages(listState, state)
+    ScrollToTarget(listState, items, interactions.scrollTarget, interactions.onScrolledToTarget)
     val visibleChanged by rememberUpdatedState(onVisibleMessagesChange)
     LaunchedEffect(listState) {
         // Ключи сообщений — их id (Long); разделитель и загрузчик отсеиваются
@@ -283,12 +321,16 @@ private fun MessageList(
             when (item) {
                 is Item.Msg -> when {
                     item.message.content is MessageBody.Service -> ServiceMessage(item.message.content.kind)
-                    isChannel -> ChannelPost(item.message, menu)
+                    isChannel -> ChannelPost(item.message, interactions) {
+                        ReplyHeader(item.message, byId, senders, interactions)
+                    }
                     else -> MessageBubble(
                         item.message,
                         sender = if (item.showSender) senders[item.message.sender] else null,
-                        menu = menu,
-                    )
+                        interactions = interactions,
+                    ) {
+                        ReplyHeader(item.message, byId, senders, interactions)
+                    }
                 }
                 Item.UnreadDivider -> UnreadDivider()
             }
@@ -300,6 +342,36 @@ private fun MessageList(
                 }
             }
         }
+    }
+}
+
+/** Блок ответа над текстом сообщения; тап ведёт к исходному. */
+@Composable
+private fun ReplyHeader(
+    message: Message,
+    loaded: Map<Long, Message>,
+    senders: Map<Sender, SenderInfo>,
+    interactions: MessageInteractions,
+) {
+    val reply = message.replyTo ?: return
+    val inChat = !reply.isExternal
+    val original = if (inChat) loaded[reply.messageId] ?: interactions.replied[reply.messageId] else null
+    val resolved = !inChat || reply.messageId in loaded || reply.messageId in interactions.replied
+    ReplyBlock(reply, original, resolved, senders) {
+        if (inChat && original != null) interactions.onJumpTo(reply.messageId)
+    }
+}
+
+/** Переход к сообщению (тап по ответу): прокручиваем к нему, когда оно появилось в ленте. */
+@Composable
+private fun ScrollToTarget(listState: LazyListState, items: List<Item>, target: Long?, onDone: () -> Unit) {
+    val done by rememberUpdatedState(onDone)
+    LaunchedEffect(target, items) {
+        if (target == null) return@LaunchedEffect
+        val index = items.indexOfFirst { it is Item.Msg && it.message.id == target }
+        if (index < 0) return@LaunchedEffect
+        listState.animateScrollToItem(index)
+        done()
     }
 }
 
@@ -371,7 +443,12 @@ private fun PagingEffects(
 }
 
 @Composable
-private fun MessageBubble(message: Message, sender: SenderInfo?, menu: MenuState) {
+private fun MessageBubble(
+    message: Message,
+    sender: SenderInfo?,
+    interactions: MessageInteractions,
+    reply: @Composable () -> Unit,
+) {
     val outgoing = message.isOutgoing
     val bubbleShape = RoundedCornerShape(
         topStart = 16.dp, topEnd = 16.dp,
@@ -379,7 +456,7 @@ private fun MessageBubble(message: Message, sender: SenderInfo?, menu: MenuState
         bottomEnd = if (outgoing) 4.dp else 16.dp,
     )
     Row(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+        modifier = Modifier.fillMaxWidth().swipeToReply(interactions.replyAction(message)).padding(horizontal = 8.dp),
         horizontalArrangement = if (outgoing) Arrangement.End else Arrangement.Start,
     ) {
         Column(
@@ -387,10 +464,10 @@ private fun MessageBubble(message: Message, sender: SenderInfo?, menu: MenuState
                 .widthIn(max = 320.dp)
                 .clip(bubbleShape)
                 .background(if (outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
-                .messageLongPress(message, menu)
+                .messageLongPress(message, interactions)
                 .padding(horizontal = 12.dp, vertical = 8.dp),
         ) {
-            MessageMenuPopup(menu.forMessage(message), menu.onDismiss)
+            MessagePopup(message, interactions)
             if (sender != null) {
                 Text(
                     sender.name.ifBlank { stringResource(R.string.chat_deleted_account) },
@@ -399,6 +476,7 @@ private fun MessageBubble(message: Message, sender: SenderInfo?, menu: MenuState
                     color = MaterialTheme.colorScheme.primary,
                 )
             }
+            reply()
             MessageContent(message.content)
             Row(
                 modifier = Modifier.align(Alignment.End),
@@ -416,15 +494,20 @@ private fun MessageBubble(message: Message, sender: SenderInfo?, menu: MenuState
     }
 }
 
+@Composable
+private fun MessagePopup(message: Message, interactions: MessageInteractions) {
+    MessageMenuPopup(interactions.menuFor(message), interactions.onDismissMenu, onReply = { interactions.onReply?.invoke(it) })
+}
+
 /** Долгое нажатие на сообщение открывает меню действий. */
 @Composable
-private fun Modifier.messageLongPress(message: Message, menu: MenuState): Modifier {
+private fun Modifier.messageLongPress(message: Message, interactions: MessageInteractions): Modifier {
     val haptics = LocalHapticFeedback.current
     return combinedClickable(
         onClick = {},
         onLongClick = {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
-            menu.onOpen(message)
+            interactions.onOpenMenu(message)
         },
     )
 }
@@ -449,17 +532,19 @@ private fun SendingStatus(state: SendingState?) {
 
 /** Пост канала: карточка на всю ширину, подпись автора и просмотры внизу. */
 @Composable
-private fun ChannelPost(message: Message, menu: MenuState) {
+private fun ChannelPost(message: Message, interactions: MessageInteractions, reply: @Composable () -> Unit) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
+            .swipeToReply(interactions.replyAction(message))
             .padding(horizontal = 8.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(MaterialTheme.colorScheme.surface)
-            .messageLongPress(message, menu)
+            .messageLongPress(message, interactions)
             .padding(12.dp),
     ) {
-        MessageMenuPopup(menu.forMessage(message), menu.onDismiss)
+        MessagePopup(message, interactions)
+        reply()
         MessageContent(message.content)
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
@@ -569,7 +654,7 @@ private fun ChatPreview() {
             ChatHistory.State(messages, reachedOldest = true, reachedNewest = true, firstUnreadId = 3, opened = true),
             senders, onBack = {}, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
             composer = ComposerState("Как дела?", null, {}, {}),
-            menu = MenuState(null, {}, {}),
+            interactions = MessageInteractions(null, {}, {}, {}, emptyMap(), {}, null, {}),
         )
     }
 }
