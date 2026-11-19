@@ -8,6 +8,7 @@ import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.iufb.reach.chats.Chat
 import io.github.iufb.reach.chats.ChatsRepository
+import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.GroupsRepository
 import io.github.iufb.reach.chats.canWrite
 import io.github.iufb.reach.core.td.TdClient
@@ -146,6 +147,26 @@ class ChatViewModel @Inject constructor(
                 _sendError.value = it.message
             }
         }
+    }
+
+    private val _menu = MutableStateFlow<MessageMenu?>(null)
+    /** Открытое меню действий над сообщением. */
+    val menu: StateFlow<MessageMenu?> = _menu.asStateFlow()
+
+    /** Долгое нажатие: спрашиваем у TDLib права на сообщение и открываем меню, если есть что показать. */
+    fun openMenu(message: Message) {
+        if (message.content is MessageBody.Service) return
+        viewModelScope.launch {
+            val properties = runCatching { td.send(TdApi.GetMessageProperties(chatId, message.id)) }
+                .onFailure { Log.w(TAG, "getMessageProperties failed", it) }
+                .getOrNull()
+            val actions = messageActions(message, properties)
+            if (!actions.isEmpty) _menu.value = MessageMenu(message, actions)
+        }
+    }
+
+    fun closeMenu() {
+        _menu.value = null
     }
 
     fun loadOlder() {
