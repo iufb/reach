@@ -76,6 +76,10 @@ class ChatViewModel @Inject constructor(
     private var stashedDraft = ""
     private var stashedReply: Message? = null
 
+    private val _deleting = MutableStateFlow<DeleteRequest?>(null)
+    /** Открытое подтверждение удаления. */
+    val deleting: StateFlow<DeleteRequest?> = _deleting.asStateFlow()
+
     /** Исходные сообщения ответов, которых нет в загруженном отрезке. */
     val replied: StateFlow<Map<Long, Message?>> = history.replied
 
@@ -216,6 +220,28 @@ class ChatViewModel @Inject constructor(
 
     fun cancelReply() {
         _replyTo.value = null
+    }
+
+    /** «Удалить» в меню: спрашиваем подтверждение. */
+    fun requestDelete(menu: MessageMenu) {
+        _menu.value = null
+        _deleting.value = DeleteRequest(listOf(menu.message.id), menu.actions.canDeleteForAll, menu.actions.canDeleteForSelf)
+    }
+
+    fun cancelDelete() {
+        _deleting.value = null
+    }
+
+    /** Удаление подтверждено; из ленты сообщения уберёт `UpdateDeleteMessages`. */
+    fun confirmDelete(revoke: Boolean) {
+        val request = _deleting.value ?: return
+        _deleting.value = null
+        if (_editing.value?.id in request.messageIds) cancelEdit()
+        if (_replyTo.value?.id in request.messageIds) _replyTo.value = null
+        viewModelScope.launch {
+            runCatching { td.send(TdApi.DeleteMessages(chatId, request.messageIds.toLongArray(), revoke)) }
+                .onFailure { Log.e(TAG, "deleteMessages failed", it) }
+        }
     }
 
     /** «Изменить» в меню: текст сообщения в поле ввода, набранное откладывается. */

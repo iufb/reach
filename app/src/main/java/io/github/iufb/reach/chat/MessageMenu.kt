@@ -4,6 +4,7 @@ import android.content.ClipData
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.rememberCoroutineScope
@@ -27,8 +28,11 @@ data class MessageActions(
     val copyText: String?,
     val canReply: Boolean,
     val canEdit: Boolean,
+    val canDeleteForAll: Boolean,
+    val canDeleteForSelf: Boolean,
 ) {
-    val isEmpty: Boolean get() = copyText == null && !canReply && !canEdit
+    val canDelete: Boolean get() = canDeleteForAll || canDeleteForSelf
+    val isEmpty: Boolean get() = copyText == null && !canReply && !canEdit && !canDelete
 }
 
 /** Открытое меню действий над [message]. */
@@ -50,6 +54,8 @@ internal fun messageActions(message: Message, properties: TdApi.MessagePropertie
         copyText = message.content.copyableText().takeUnless { protected },
         canReply = properties?.canBeReplied == true,
         canEdit = properties?.canBeEdited == true && message.content.editableText() != null,
+        canDeleteForAll = properties?.canBeDeletedForAllUsers == true,
+        canDeleteForSelf = properties?.canBeDeletedOnlyForSelf == true,
     )
 }
 
@@ -76,6 +82,7 @@ internal fun MessageMenuPopup(
     onDismiss: () -> Unit,
     onReply: (Message) -> Unit,
     onEdit: (Message) -> Unit,
+    onDelete: (MessageMenu) -> Unit,
 ) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
@@ -94,6 +101,15 @@ internal fun MessageMenuPopup(
                 text = { Text(stringResource(R.string.message_action_edit)) },
                 leadingIcon = { Icon(painterResource(R.drawable.ic_edit), contentDescription = null) },
                 onClick = { onEdit(current.message) },
+            )
+        }
+        if (actions.canDelete) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.message_action_delete), color = MaterialTheme.colorScheme.error) },
+                leadingIcon = {
+                    Icon(painterResource(R.drawable.ic_delete), contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                },
+                onClick = { onDelete(current) },
             )
         }
         actions.copyText?.let { text ->
