@@ -221,6 +221,15 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         _state.update { it.merge(pending.map { m -> m.toModel() }) }
     }
 
+    /** Документ из локального файла [path]; имя берётся из пути. */
+    suspend fun sendDocument(path: String, replyToMessageId: Long? = null) {
+        if (!_state.value.reachedNewest) open(lastReadInboxId = null)
+        val document = TdApi.InputDocument(TdApi.InputFileLocal(path), null, false)
+        val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
+        val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, null, null, TdApi.InputMessageDocument(document, null)))
+        _state.update { it.merge(listOf(pending.toModel())) }
+    }
+
     /**
      * Правка своего сообщения: текст — `editMessageText`, подпись к медиа — `editMessageCaption`.
      * Новое содержимое придёт апдейтами `UpdateMessageContent` / `UpdateMessageEdited`.

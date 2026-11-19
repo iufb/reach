@@ -107,3 +107,6 @@ data class MentionCandidate(
     val photo: io.github.iufb.reach.files.TdFile?,
     val accentColorId: Int,
 )
+
+/** Скачанный файл, который надо открыть во внешнем приложении. */
+data class OpenFile(val path: String, val mimeType: String)

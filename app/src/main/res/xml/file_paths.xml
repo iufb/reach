@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Что можно отдать другим приложениям через FileProvider: скачанные TDLib файлы и свои отправляемые -->
+<paths>
+    <files-path name="tdlib" path="tdlib-files/" />
+    <cache-path name="upload" path="upload/" />
+</paths>

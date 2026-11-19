@@ -14,7 +14,10 @@ import io.github.iufb.reach.chats.SpanKind
 import io.github.iufb.reach.chats.toFormattedText
 import android.net.Uri
 import io.github.iufb.reach.chats.ChatKind
+import io.github.iufb.reach.chats.DocumentInfo
+import io.github.iufb.reach.files.FileState
 import io.github.iufb.reach.files.FilesRepository
+import kotlinx.coroutines.Job
 import io.github.iufb.reach.files.MediaImporter
 import io.github.iufb.reach.files.TdFile
 import kotlinx.coroutines.flow.Flow
@@ -289,6 +292,52 @@ class ChatViewModel @Inject constructor(
                 history.sendPhotos(images, RichText(caption.trim()), reply?.id)
             }.onFailure {
                 Log.e(TAG, "send photos failed", it)
+                _replyTo.value = reply
+                _sendError.value = it.message
+            }
+        }
+    }
+
+    private val _downloads = MutableStateFlow<Map<Int, FileState>>(emptyMap())
+    /** Состояние документов, которые качаются или скачаны в этом экране; по id файла. */
+    val downloads: StateFlow<Map<Int, FileState>> = _downloads.asStateFlow()
+    private val downloadJobs = HashMap<Int, Job>()
+
+    private val _openFile = MutableSharedFlow<OpenFile>(extraBufferCapacity = 1)
+    /** Открыть скачанный файл во внешнем приложении. */
+    val openFile: SharedFlow<OpenFile> = _openFile.asSharedFlow()
+
+    /** Тап по документу: скачан — открыть, качается — остановить, иначе — скачать. */
+    fun onDocumentClick(document: DocumentInfo) {
+        val id = document.file.id
+        val state = _downloads.value[id]
+        val path = state?.takeIf { it.isDownloaded }?.path ?: document.localPath.takeIf { document.downloaded && state == null }
+        when {
+            path != null -> _openFile.tryEmit(OpenFile(path, document.mimeType))
+            downloadJobs[id]?.isActive == true -> {
+                downloadJobs.remove(id)?.cancel()
+                _downloads.update { it - id }
+                viewModelScope.launch { runCatching { files.cancelDownload(id) } }
+            }
+            else -> downloadJobs[id] = viewModelScope.launch {
+                runCatching {
+                    files.download(id, FilesRepository.PRIORITY_DOCUMENT).collect { s -> _downloads.update { it + (id to s) } }
+                }.onFailure {
+                    if (it is kotlinx.coroutines.CancellationException) throw it
+                    Log.e(TAG, "download $id failed", it)
+                    _downloads.update { map -> map - id }
+                }
+            }
+        }
+    }
+
+    /** Отправка файла, выбранного через системный выбор. */
+    fun sendFile(uri: Uri) {
+        val reply = _replyTo.value
+        _replyTo.value = null
+        viewModelScope.launch {
+            runCatching { history.sendDocument(importer.importFile(uri), reply?.id) }.onFailure {
+                Log.e(TAG, "send file failed", it)
                 _replyTo.value = reply
                 _sendError.value = it.message
             }

@@ -17,7 +17,10 @@ import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.layout.Box
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -81,8 +84,9 @@ internal class ComposerState(
     /** Превью ссылки из набранного; `null` — ссылки нет или превью убрали. */
     val linkPreview: LinkPreview? = null,
     val onDismissLinkPreview: () -> Unit = {},
-    /** Скрепка слева от поля; `null` — вложения недоступны (режим правки). */
-    val onAttach: (() -> Unit)? = null,
+    /** Скрепка слева от поля: фото или файл; `null` — вложения недоступны. */
+    val onAttachPhoto: (() -> Unit)? = null,
+    val onAttachFile: (() -> Unit)? = null,
 )
 
 /** «@запрос» перед курсором: участок от «@» до курсора и сам запрос. */
@@ -137,14 +141,8 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                state.onAttach?.takeIf { state.editing == null }?.let { attach ->
-                    IconButton(onClick = attach) {
-                        Icon(
-                            painterResource(R.drawable.ic_attach),
-                            contentDescription = stringResource(R.string.attach),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                if (state.editing == null && (state.onAttachPhoto != null || state.onAttachFile != null)) {
+                    AttachButton(state.onAttachPhoto, state.onAttachFile)
                 }
                 TextField(
                     colors = TextFieldDefaults.colors(
@@ -216,6 +214,29 @@ private fun MentionSuggestions(candidates: List<MentionCandidate>, onPick: (Ment
                         maxLines = 1,
                     )
                 }
+            }
+        }
+    }
+}
+
+/** Скрепка с выбором: фото из галереи или любой файл. */
+@Composable
+private fun AttachButton(onPhoto: (() -> Unit)?, onFile: (() -> Unit)?) {
+    var open by remember { mutableStateOf(false) }
+    Box {
+        IconButton(onClick = { open = true }) {
+            Icon(
+                painterResource(R.drawable.ic_attach),
+                contentDescription = stringResource(R.string.attach),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+            onPhoto?.let { pick ->
+                DropdownMenuItem(text = { Text(stringResource(R.string.attach_photo)) }, onClick = { open = false; pick() })
+            }
+            onFile?.let { pick ->
+                DropdownMenuItem(text = { Text(stringResource(R.string.attach_file)) }, onClick = { open = false; pick() })
             }
         }
     }

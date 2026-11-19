@@ -15,6 +15,8 @@ sealed interface MessageBody {
 
     data class Photo(val photo: PhotoInfo, val caption: RichText) : MessageBody
 
+    data class Document(val document: DocumentInfo, val caption: RichText) : MessageBody
+
     /** Сообщение, которое клиент ещё не умеет показать. [caption] — подпись или эмодзи, если есть. */
     data class Unsupported(val kind: ContentKind, val caption: RichText = RichText.Empty) : MessageBody
 
@@ -40,8 +42,9 @@ internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
 
     is TdApi.MessagePhoto -> MessageBody.Photo(photo.toInfo(), caption.toRichText())
     is TdApi.MessageVideo -> unsupported(ContentKind.Video, caption)
-    is TdApi.MessageDocument -> unsupported(ContentKind.Document, caption)
-    is TdApi.MessageAudio -> unsupported(ContentKind.Audio, caption)
+    is TdApi.MessageDocument -> MessageBody.Document(document.toInfo(), caption.toRichText())
+    // Плеер — в v0.4, пока аудио — файл
+    is TdApi.MessageAudio -> MessageBody.Document(audio.toInfo(), caption.toRichText())
     is TdApi.MessageVoiceNote -> unsupported(ContentKind.VoiceNote, caption)
     is TdApi.MessageAnimation -> unsupported(ContentKind.Animation, caption)
     is TdApi.MessagePaidMedia -> unsupported(ContentKind.PaidMedia, caption)
