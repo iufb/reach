@@ -108,6 +108,7 @@ fun ChatScreen(
     val selection by viewModel.selection.collectAsStateWithLifecycle()
     val selectionActions by viewModel.selectionActions.collectAsStateWithLifecycle()
     val mentionSuggestions by viewModel.mentionSuggestions.collectAsStateWithLifecycle()
+    val linkPreview by viewModel.linkPreview.collectAsStateWithLifecycle()
     val openChat by rememberUpdatedState(onOpenChat)
     LaunchedEffect(viewModel) { viewModel.openChat.collect { openChat(it) } }
     val mentionHandler = remember(viewModel) {
@@ -146,6 +147,7 @@ fun ChatScreen(
                     draft, sendError, replyTo, editing,
                     viewModel::onDraftChange, viewModel::onFormat, viewModel::send, viewModel::cancelReply, viewModel::cancelEdit,
                     mentionSuggestions, viewModel::onMentionQuery, viewModel::pickMention,
+                    linkPreview, viewModel::dismissLinkPreview,
                 )
             } else {
                 null
@@ -637,7 +639,10 @@ private fun ChannelPost(message: Message, interactions: MessageInteractions, rep
 @Composable
 private fun MessageContent(body: MessageBody) {
     when (body) {
-        is MessageBody.Text -> RichTextView(body.text)
+        is MessageBody.Text -> {
+            RichTextView(body.text)
+            body.preview?.let { LinkPreviewCard(it) }
+        }
         is MessageBody.Unsupported -> {
             UnsupportedStub(body.kind)
             if (!body.caption.isBlank()) RichTextView(body.caption)
