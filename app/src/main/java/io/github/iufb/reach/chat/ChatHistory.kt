@@ -193,9 +193,10 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
      * дальше статус меняют `UpdateMessageSendSucceeded` / `UpdateMessageSendFailed`.
      * Если открыт кусок из середины истории — сначала переходим к концу, иначе своё сообщение не увидеть.
      */
-    suspend fun sendText(text: RichText, replyToMessageId: Long? = null) {
+    suspend fun sendText(text: RichText, replyToMessageId: Long? = null, withLinkPreview: Boolean = true) {
         if (!_state.value.reachedNewest) open(lastReadInboxId = null)
-        val content = TdApi.InputMessageText(text.toFormattedText(), null, true)
+        val options = if (withLinkPreview) null else TdApi.LinkPreviewOptions(true, "", false, false, false)
+        val content = TdApi.InputMessageText(text.toFormattedText(), options, true)
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
         val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, null, null, content))
         _state.update { it.merge(listOf(pending.toModel())) }

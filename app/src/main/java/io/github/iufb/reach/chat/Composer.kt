@@ -54,6 +54,7 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import io.github.iufb.reach.R
+import io.github.iufb.reach.chats.LinkPreview
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
 
@@ -77,6 +78,9 @@ internal class ComposerState(
     val onMentionQuery: (String?) -> Unit = {},
     /** Выбор подсказки: заменить участок [start]..[end] («@запрос») упоминанием. */
     val onPickMention: (MentionCandidate, start: Int, end: Int) -> Unit = { _, _, _ -> },
+    /** Превью ссылки из набранного; `null` — ссылки нет или превью убрали. */
+    val linkPreview: LinkPreview? = null,
+    val onDismissLinkPreview: () -> Unit = {},
 )
 
 /** «@запрос» перед курсором: участок от «@» до курсора и сам запрос. */
@@ -116,6 +120,7 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
                 state.editing != null -> EditBar(state.editing, state.onCancelEdit)
                 state.replyTo != null -> ReplyBar(state.replyTo, senders, state.onCancelReply)
             }
+            state.linkPreview?.let { ComposerLinkPreview(it, state.onDismissLinkPreview) }
             if (token != null && state.mentionSuggestions.isNotEmpty()) {
                 MentionSuggestions(state.mentionSuggestions) { state.onPickMention(it, token.start, token.end) }
             }

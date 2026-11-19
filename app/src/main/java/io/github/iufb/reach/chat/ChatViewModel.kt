@@ -13,6 +13,8 @@ import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
 import io.github.iufb.reach.chats.toFormattedText
 import io.github.iufb.reach.chats.ChatKind
+import io.github.iufb.reach.chats.LinkPreview
+import io.github.iufb.reach.chats.toModel
 import io.github.iufb.reach.chats.replaceRange
 import io.github.iufb.reach.chats.toggle
 import io.github.iufb.reach.chats.trimmed
@@ -120,6 +122,20 @@ class ChatViewModel @Inject constructor(
         .debounce(MENTION_DEBOUNCE_MS)
         .mapLatest { query -> if (query == null) emptyList() else searchMembers(query) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
+    /** Адрес, превью которого пользователь убрал: для него превью больше не показываем и не отправляем. */
+    private val dismissedPreviewUrl = MutableStateFlow<String?>(null)
+
+    /** Превью первой ссылки в набранном (только для нового сообщения, не для правки). */
+    @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
+    val linkPreview: StateFlow<LinkPreview?> = combine(_draft, _editing) { draft, editing ->
+        draft.takeIf { editing == null && it.text.contains('.') }
+    }
+        .distinctUntilChanged()
+        .debounce(LINK_PREVIEW_DEBOUNCE_MS)
+        .mapLatest { draft -> draft?.let { loadLinkPreview(it) } }
+        .combine(dismissedPreviewUrl) { preview, dismissed -> preview?.takeUnless { it.url == dismissed } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
     /** Исходные сообщения ответов, которых нет в загруженном отрезке. */
     val replied: StateFlow<Map<Long, Message?>> = history.replied
@@ -237,6 +253,15 @@ class ChatViewModel @Inject constructor(
         _sendError.value = null
     }
 
+    private suspend fun loadLinkPreview(draft: RichText): LinkPreview? =
+        // Нет ссылки — TDLib отвечает ошибкой, это нормально
+        runCatching { td.send(TdApi.GetLinkPreview(draft.toFormattedText(), null)) }.getOrNull()?.toModel()
+
+    /** ✕ на превью над полем: отправим без него. */
+    fun dismissLinkPreview() {
+        dismissedPreviewUrl.value = linkPreview.value?.url
+    }
+
     /** Слово с «@» под курсором (без «@»); `null` — курсор не в упоминании. */
     fun onMentionQuery(query: String?) {
         mentionQuery.value = query
@@ -294,10 +319,12 @@ class ChatViewModel @Inject constructor(
         val text = _draft.value.trimmed()
         if (text.isBlank()) return
         val reply = _replyTo.value
+        val noPreview = dismissedPreviewUrl.value != null
         _draft.value = RichText.Empty
         _replyTo.value = null
+        dismissedPreviewUrl.value = null
         viewModelScope.launch {
-            runCatching { history.sendText(text, reply?.id) }.onFailure {
+            runCatching { history.sendText(text, reply?.id, withLinkPreview = !noPreview) }.onFailure {
                 Log.e(TAG, "sendMessage failed", it)
                 _draft.value = text
                 _replyTo.value = reply
@@ -458,5 +485,6 @@ class ChatViewModel @Inject constructor(
         const val VIEW_DEBOUNCE_MS = 300L
         const val MENTION_DEBOUNCE_MS = 200L
         const val MENTION_LIMIT = 20
+        const val LINK_PREVIEW_DEBOUNCE_MS = 600L
     }
 }

@@ -10,7 +10,8 @@ import org.drinkless.tdlib.TdApi
  * в одну из веток.
  */
 sealed interface MessageBody {
-    data class Text(val text: RichText) : MessageBody
+    /** [preview] — карточка ссылки из текста, если сервер её собрал. */
+    data class Text(val text: RichText, val preview: LinkPreview? = null) : MessageBody
 
     /** Сообщение, которое клиент ещё не умеет показать. [caption] — подпись или эмодзи, если есть. */
     data class Unsupported(val kind: ContentKind, val caption: RichText = RichText.Empty) : MessageBody
@@ -31,7 +32,7 @@ enum class ServiceKind {
 }
 
 internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
-    is TdApi.MessageText -> MessageBody.Text(text.toRichText())
+    is TdApi.MessageText -> MessageBody.Text(text.toRichText(), linkPreview?.toModel())
     // Одиночный анимированный эмодзи — это текст
     is TdApi.MessageAnimatedEmoji -> MessageBody.Text(RichText(emoji))
 
