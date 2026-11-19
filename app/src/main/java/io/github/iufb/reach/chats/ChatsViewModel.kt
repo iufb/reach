@@ -5,6 +5,9 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.iufb.reach.auth.AuthRepository
+import io.github.iufb.reach.chat.Sender
+import io.github.iufb.reach.presence.ActivityKind
+import io.github.iufb.reach.presence.PresenceRepository
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -17,7 +20,11 @@ import javax.inject.Inject
 class ChatsViewModel @Inject constructor(
     private val auth: AuthRepository,
     private val chatsRepository: ChatsRepository,
+    presence: PresenceRepository,
 ) : ViewModel() {
+
+    /** Кто что делает в чатах: «печатает…» вместо последнего сообщения. */
+    val activities: StateFlow<Map<Long, Map<Sender, ActivityKind>>> = presence.activities
 
     val list: ChatListType = ChatListType.Main
 

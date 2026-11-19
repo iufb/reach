@@ -113,6 +113,32 @@
     <string name="emoji_recent">Недавние</string>
     <string name="emoji_nothing_found">Ничего не нашлось</string>
 
+    <!-- Статус и действия -->
+    <string name="status_online">в сети</string>
+    <string name="status_just_now">был(а) только что</string>
+    <string name="status_today">был(а) в %1$s</string>
+    <string name="status_yesterday">был(а) вчера в %1$s</string>
+    <string name="status_date">был(а) %1$s</string>
+    <string name="status_recently">был(а) недавно</string>
+    <string name="status_last_week">был(а) на этой неделе</string>
+    <string name="status_last_month">был(а) в этом месяце</string>
+    <string name="status_long_ago">был(а) давно</string>
+    <string name="group_online">%1$s, %2$d в сети</string>
+    <string name="activity_typing">печатает…</string>
+    <string name="activity_recording_voice">записывает голосовое…</string>
+    <string name="activity_recording_video">записывает видео…</string>
+    <string name="activity_uploading_photo">отправляет фото…</string>
+    <string name="activity_uploading_file">отправляет файл…</string>
+    <string name="activity_choosing_sticker">выбирает стикер…</string>
+    <string name="activity_named">%1$s %2$s</string>
+    <string name="activity_two">%1$s и %2$s печатают…</string>
+    <plurals name="activity_many">
+        <item quantity="one">%d человек печатает…</item>
+        <item quantity="few">%d человека печатают…</item>
+        <item quantity="many">%d человек печатают…</item>
+        <item quantity="other">%d человека печатают…</item>
+    </plurals>
+
     <!-- Профиль -->
     <string name="profile_title">Информация</string>
     <string name="profile_write">Написать</string>

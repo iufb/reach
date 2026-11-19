@@ -1,6 +1,9 @@
 package io.github.iufb.reach.chats
 
 import androidx.compose.foundation.clickable
+import io.github.iufb.reach.chat.Sender
+import io.github.iufb.reach.presence.ActivityKind
+import io.github.iufb.reach.presence.activityText
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.buildAnnotatedString
@@ -68,7 +71,8 @@ fun ChatsScreen(onChatClick: (Long) -> Unit, viewModel: ChatsViewModel = hiltVie
     val chats by viewModel.chats.collectAsStateWithLifecycle()
     val allLoaded by viewModel.allLoaded.collectAsStateWithLifecycle()
     val loggingOut by viewModel.loggingOut.collectAsStateWithLifecycle()
-    ChatsContent(viewModel.list, chats, allLoaded, loggingOut, onChatClick, viewModel::loadMore, viewModel::logOut)
+    val activities by viewModel.activities.collectAsStateWithLifecycle()
+    ChatsContent(viewModel.list, chats, allLoaded, loggingOut, onChatClick, viewModel::loadMore, viewModel::logOut, activities)
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -81,6 +85,7 @@ private fun ChatsContent(
     onChatClick: (Long) -> Unit,
     onLoadMore: () -> Unit,
     onLogOut: () -> Unit,
+    activities: Map<Long, Map<Sender, ActivityKind>> = emptyMap(),
 ) {
     var confirmLogOut by rememberSaveable { mutableStateOf(false) }
     var menuOpen by rememberSaveable { mutableStateOf(false) }
@@ -118,7 +123,7 @@ private fun ChatsContent(
                     textAlign = TextAlign.Center,
                 )
             }
-            else -> ChatList(list, chats, allLoaded, onChatClick, onLoadMore, modifier)
+            else -> ChatList(list, chats, allLoaded, onChatClick, onLoadMore, modifier, activities)
         }
     }
     if (confirmLogOut) {
@@ -140,12 +145,18 @@ private fun ChatList(
     onChatClick: (Long) -> Unit,
     onLoadMore: () -> Unit,
     modifier: Modifier,
+    activities: Map<Long, Map<Sender, ActivityKind>>,
 ) {
     val listState = rememberLazyListState()
     LoadMoreEffect(listState, enabled = !allLoaded, onLoadMore)
     LazyColumn(state = listState, modifier = modifier) {
         items(chats, key = { it.id }) { chat ->
-            ChatRow(chat, isPinned = chat.positions[list]?.isPinned == true, onClick = { onChatClick(chat.id) })
+            ChatRow(
+                chat,
+                isPinned = chat.positions[list]?.isPinned == true,
+                activity = activities[chat.id]?.let { activityText(it, withNames = false) { "" } },
+                onClick = { onChatClick(chat.id) },
+            )
             HorizontalDivider(Modifier.padding(start = 80.dp), thickness = Dp.Hairline, color = MaterialTheme.colorScheme.outlineVariant)
         }
         if (!allLoaded) {
@@ -176,7 +187,7 @@ private fun LoadMoreEffect(listState: LazyListState, enabled: Boolean, onLoadMor
 }
 
 @Composable
-private fun ChatRow(chat: Chat, isPinned: Boolean, onClick: () -> Unit) {
+private fun ChatRow(chat: Chat, isPinned: Boolean, activity: String?, onClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -208,11 +219,13 @@ private fun ChatRow(chat: Chat, isPinned: Boolean, onClick: () -> Unit) {
             }
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    chat.draft?.let { draftPreview(it) }
+                    // «печатает…» важнее черновика и последнего сообщения
+                    activity?.let { AnnotatedString(it) }
+                        ?: chat.draft?.let { draftPreview(it) }
                         ?: AnnotatedString(chat.lastMessage?.let { previewText(it) }.orEmpty()),
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (activity != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )

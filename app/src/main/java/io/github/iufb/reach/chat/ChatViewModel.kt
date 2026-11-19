@@ -14,6 +14,8 @@ import io.github.iufb.reach.chats.SpanKind
 import io.github.iufb.reach.chats.toFormattedText
 import android.net.Uri
 import io.github.iufb.reach.chats.ChatKind
+import io.github.iufb.reach.chats.GroupRef
+import io.github.iufb.reach.presence.PresenceRepository
 import io.github.iufb.reach.chats.DocumentInfo
 import io.github.iufb.reach.files.FileState
 import io.github.iufb.reach.files.FilesRepository
@@ -71,6 +73,7 @@ class ChatViewModel @Inject constructor(
     groups: GroupsRepository,
     private val importer: MediaImporter,
     private val files: FilesRepository,
+    presence: PresenceRepository,
 ) : ViewModel() {
 
     private val chatId: Long = savedStateHandle.toRoute<ChatRoute>().chatId
@@ -151,6 +154,23 @@ class ChatViewModel @Inject constructor(
     /** Выбранные в Photo Picker фото: перед отправкой — превью и подпись. */
     val pickedPhotos: StateFlow<List<Uri>> = _pickedPhotos.asStateFlow()
 
+    private val memberCount = MutableStateFlow(0)
+
+    /** Подпись под названием: действия, статус собеседника или участники группы. */
+    val header: StateFlow<HeaderInfo> = combine(
+        chat, users.users, presence.activities, presence.online, memberCount,
+    ) { chat, userMap, activities, online, members ->
+        HeaderInfo(
+            activities = activities[chatId].orEmpty(),
+            userStatus = chat?.userId?.let { userMap[it]?.status },
+            memberCount = members,
+            onlineCount = online[chatId] ?: 0,
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), HeaderInfo())
+
+    /** Когда последний раз говорили собеседникам «печатает»: не чаще раза в [TYPING_INTERVAL_MS]. */
+    private var lastTypingSent = 0L
+
     /** Исходные сообщения ответов, которых нет в загруженном отрезке. */
     val replied: StateFlow<Map<Long, Message?>> = history.replied
 
@@ -179,6 +199,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { history.followUpdates() }
         viewModelScope.launch { reportViewedMessages() }
         viewModelScope.launch { history.followReplies() }
+        viewModelScope.launch { followMemberCount() }
         viewModelScope.launch {
             val opened = chat.mapNotNull { it }.first()
             // Черновик восстанавливаем, только если пользователь ещё ничего не набрал
@@ -265,6 +286,36 @@ class ChatViewModel @Inject constructor(
     fun onDraftChange(value: String) {
         _draft.update { it.withEditedText(value) }
         _sendError.value = null
+        if (value.isNotBlank() && _editing.value == null) sendTyping()
+    }
+
+    private fun sendTyping() {
+        val now = System.currentTimeMillis()
+        if (now - lastTypingSent < TYPING_INTERVAL_MS) return
+        lastTypingSent = now
+        viewModelScope.launch {
+            runCatching { td.send(TdApi.SendChatAction(chatId, null, "", TdApi.ChatActionTyping())) }
+                .onFailure { Log.w(TAG, "sendChatAction failed", it) }
+        }
+    }
+
+    /** Число участников группы или подписчиков канала: первым запросом и дальше по апдейтам. */
+    private suspend fun followMemberCount() {
+        val group = chat.mapNotNull { it }.first().group ?: return
+        runCatching {
+            memberCount.value = when (group) {
+                is GroupRef.Super -> td.send(TdApi.GetSupergroup(group.id)).memberCount
+                is GroupRef.Basic -> td.send(TdApi.GetBasicGroup(group.id)).memberCount
+            }
+        }.onFailure { Log.w(TAG, "member count failed", it) }
+        td.updates.collect { update ->
+            when {
+                update is TdApi.UpdateSupergroup && group is GroupRef.Super && update.supergroup.id == group.id ->
+                    memberCount.value = update.supergroup.memberCount
+                update is TdApi.UpdateBasicGroup && group is GroupRef.Basic && update.basicGroup.id == group.id ->
+                    memberCount.value = update.basicGroup.memberCount
+            }
+        }
     }
 
     private suspend fun loadLinkPreview(draft: RichText): LinkPreview? =
@@ -575,5 +626,6 @@ class ChatViewModel @Inject constructor(
         const val MENTION_DEBOUNCE_MS = 200L
         const val MENTION_LIMIT = 20
         const val LINK_PREVIEW_DEBOUNCE_MS = 600L
+        const val TYPING_INTERVAL_MS = 5_000L
     }
 }
