@@ -133,7 +133,7 @@ fun ChatScreen(
         composer = if (canWrite) {
             ComposerState(
                 draft, sendError, replyTo, editing,
-                viewModel::onDraftChange, viewModel::send, viewModel::cancelReply, viewModel::cancelEdit,
+                viewModel::onDraftChange, viewModel::onFormat, viewModel::send, viewModel::cancelReply, viewModel::cancelEdit,
             )
         } else {
             null
@@ -207,20 +207,6 @@ private fun ChatContent(
     }
 }
 
-/** Поле ввода; `null` в [ChatContent] — писать нельзя, поле скрыто. */
-private class ComposerState(
-    val draft: String,
-    val error: String?,
-    /** Сообщение, на которое отвечаем. */
-    val replyTo: Message?,
-    /** Своё сообщение, которое редактируем; плашка редактирования важнее плашки ответа. */
-    val editing: Message?,
-    val onDraftChange: (String) -> Unit,
-    val onSend: () -> Unit,
-    val onCancelReply: () -> Unit,
-    val onCancelEdit: () -> Unit,
-)
-
 /** Что можно делать с сообщениями в ленте: меню, ответ, переход к исходному. */
 private class MessageInteractions(
     /** Открытое сейчас меню. */
@@ -252,48 +238,6 @@ private class MessageInteractions(
         if (selection.isNotEmpty()) return null
         val reply = onReply ?: return null
         return if (message.sendingState == null) ({ reply(message) }) else null
-    }
-}
-
-@Composable
-private fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
-    Surface(color = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.navigationBarsPadding()) {
-            when {
-            state.editing != null -> EditBar(state.editing, state.onCancelEdit)
-            state.replyTo != null -> ReplyBar(state.replyTo, senders, state.onCancelReply)
-        }
-            Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
-            ) {
-                TextField(
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        errorContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        errorIndicatorColor = Color.Transparent,
-                    ),
-                    value = state.draft,
-                    onValueChange = state.onDraftChange,
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text(stringResource(R.string.chat_input_placeholder)) },
-                    isError = state.error != null,
-                    supportingText = state.error?.let { { Text(stringResource(R.string.chat_send_error, it)) } },
-                    maxLines = 6,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                )
-                IconButton(onClick = state.onSend, enabled = state.draft.isNotBlank()) {
-                    Icon(
-                        painterResource(R.drawable.ic_send),
-                        contentDescription = stringResource(R.string.chat_send),
-                        tint = if (state.draft.isNotBlank()) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-        }
     }
 }
 
@@ -768,7 +712,7 @@ private fun ChatPreview() {
             chat,
             ChatHistory.State(messages, reachedOldest = true, reachedNewest = true, firstUnreadId = 3, opened = true),
             senders, onBack = {}, selectionBar = null, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
-            composer = ComposerState("Как дела?", null, null, null, {}, {}, {}, {}),
+            composer = ComposerState(RichText("Как дела?"), null, null, null, {}, { _, _, _ -> }, {}, {}, {}),
             interactions = MessageInteractions(null, {}, {}, {}, {}, {}, {}, {}, emptySet(), {}, {}, emptyMap(), {}, null, {}),
         )
     }

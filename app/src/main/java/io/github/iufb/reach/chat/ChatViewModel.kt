@@ -9,6 +9,11 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.iufb.reach.chats.Chat
 import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.chats.MessageBody
+import io.github.iufb.reach.chats.RichText
+import io.github.iufb.reach.chats.SpanKind
+import io.github.iufb.reach.chats.toFormattedText
+import io.github.iufb.reach.chats.toggle
+import io.github.iufb.reach.chats.trimmed
 import io.github.iufb.reach.chats.withEditedText
 import io.github.iufb.reach.chats.GroupsRepository
 import io.github.iufb.reach.chats.canWrite
@@ -62,8 +67,9 @@ class ChatViewModel @Inject constructor(
         chat != null && chat.canWrite(chat.group?.let(statuses::get))
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), false)
 
-    private val _draft = MutableStateFlow("")
-    val draft: StateFlow<String> = _draft.asStateFlow()
+    private val _draft = MutableStateFlow(RichText.Empty)
+    /** Набранное в поле ввода, с оформлением. */
+    val draft: StateFlow<RichText> = _draft.asStateFlow()
 
     private val _replyTo = MutableStateFlow<Message?>(null)
     /** Сообщение, на которое отвечаем; плашка над полем ввода. */
@@ -74,7 +80,7 @@ class ChatViewModel @Inject constructor(
     val editing: StateFlow<Message?> = _editing.asStateFlow()
 
     /** Набранное до входа в редактирование: вернётся в поле после него. */
-    private var stashedDraft = ""
+    private var stashedDraft = RichText.Empty
     private var stashedReply: Message? = null
 
     private val _deleting = MutableStateFlow<DeleteRequest?>(null)
@@ -124,7 +130,7 @@ class ChatViewModel @Inject constructor(
             val opened = chat.mapNotNull { it }.first()
             // Черновик восстанавливаем, только если пользователь ещё ничего не набрал
             opened.draft?.let { draft ->
-                _draft.compareAndSet("", draft.text.text)
+                _draft.compareAndSet(RichText.Empty, draft.text)
                 draft.replyToMessageId?.let { restoreReply(it) }
             }
             history.open(opened.lastReadInboxMessageId.takeIf { opened.unreadCount > 0 })
@@ -160,12 +166,12 @@ class ChatViewModel @Inject constructor(
     private fun saveDraft() {
         // Во время редактирования в поле правка, а черновик — отложенный текст
         val editing = _editing.value != null
-        val text = (if (editing) stashedDraft else _draft.value).trim()
+        val text = (if (editing) stashedDraft else _draft.value).trimmed()
         val replyId = (if (editing) stashedReply else _replyTo.value)?.id
         val saved = chat.value?.draft
-        if (text == saved?.text?.text.orEmpty() && replyId == saved?.replyToMessageId) return
-        val draft = if (text.isEmpty() && replyId == null) null else {
-            val content = TdApi.DraftMessageContentText(TdApi.FormattedText(text, emptyArray()), null)
+        if (text == (saved?.text ?: RichText.Empty) && replyId == saved?.replyToMessageId) return
+        val draft = if (text.isBlank() && replyId == null) null else {
+            val content = TdApi.DraftMessageContentText(text.toFormattedText(), null)
             val replyTo = replyId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
             TdApi.DraftMessage(replyTo, 0, content, 0, null)
         }
@@ -202,17 +208,23 @@ class ChatViewModel @Inject constructor(
             }
     }
 
+    /** Новый текст поля: оформление вне изменённого куска сохраняется. */
     fun onDraftChange(value: String) {
-        _draft.value = value
+        _draft.update { it.withEditedText(value) }
         _sendError.value = null
+    }
+
+    /** Кнопка оформления над полем: включает или снимает [kind] на выделенном. */
+    fun onFormat(kind: SpanKind, start: Int, end: Int) {
+        _draft.update { it.toggle(kind, start, end) }
     }
 
     fun send() {
         _editing.value?.let { return saveEdit(it) }
-        val text = _draft.value.trim()
-        if (text.isEmpty()) return
+        val text = _draft.value.trimmed()
+        if (text.isBlank()) return
         val reply = _replyTo.value
-        _draft.value = ""
+        _draft.value = RichText.Empty
         _replyTo.value = null
         viewModelScope.launch {
             runCatching { history.sendText(text, reply?.id) }.onFailure {
@@ -267,7 +279,7 @@ class ChatViewModel @Inject constructor(
         }
         _editing.value = message
         _replyTo.value = null
-        _draft.value = text.text
+        _draft.value = text
         _sendError.value = null
     }
 
@@ -276,16 +288,15 @@ class ChatViewModel @Inject constructor(
         _editing.value = null
         _draft.value = stashedDraft
         _replyTo.value = stashedReply
-        stashedDraft = ""
+        stashedDraft = RichText.Empty
         stashedReply = null
     }
 
     private fun saveEdit(message: Message) {
         val original = message.content.editableText() ?: return cancelEdit()
-        val text = _draft.value.trim()
+        val edited = _draft.value.trimmed()
         // Пустым можно сделать только подпись, текст сообщения — нет
-        if (text.isEmpty() && message.content is MessageBody.Text) return
-        val edited = original.withEditedText(text)
+        if (edited.isBlank() && message.content is MessageBody.Text) return
         val typed = _draft.value
         cancelEdit()
         if (edited == original) return

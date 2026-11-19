@@ -91,6 +91,17 @@
     <string name="message_action_forward">Переслать</string>
     <string name="message_action_select">Выбрать</string>
     <string name="selection_close">Отменить выделение</string>
+
+    <!-- Форматирование при вводе -->
+    <string name="format_bold">Жирный</string>
+    <string name="format_italic">Курсив</string>
+    <string name="format_underline">Подчёркнутый</string>
+    <string name="format_strikethrough">Зачёркнутый</string>
+    <string name="format_code">Моноширинный</string>
+    <string name="format_link">Ссылка</string>
+    <string name="format_link_title">Ссылка</string>
+    <string name="format_link_hint">https://…</string>
+    <string name="format_link_apply">Готово</string>
     <string name="forwarded_from">Переслано от %1$s</string>
     <string name="forward_title">Переслать в…</string>
     <string name="forward_search">Поиск</string>
