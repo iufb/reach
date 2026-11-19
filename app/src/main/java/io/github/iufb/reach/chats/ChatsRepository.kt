@@ -89,7 +89,10 @@ class ChatsRepository @Inject constructor(
                 )
             }
             is TdApi.UpdateChatDraftMessage -> edit(update.chatId) {
-                copy(positions = update.positions.fold(positions) { acc, p -> acc.with(p) })
+                copy(
+                    draft = update.draftMessage?.toDraft(),
+                    positions = update.positions.fold(positions) { acc, p -> acc.with(p) },
+                )
             }
             is TdApi.UpdateChatPhoto -> edit(update.chatId) { copy(photo = update.photo?.small?.toTdFile()) }
             is TdApi.UpdateChatAccentColors -> edit(update.chatId) { copy(accentColorId = update.accentColorId) }

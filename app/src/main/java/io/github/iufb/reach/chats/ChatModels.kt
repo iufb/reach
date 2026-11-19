@@ -40,6 +40,13 @@ data class LastMessage(
     val content: MessageBody,
 )
 
+/** Черновик: незаконченный текст в поле ввода, синхронизируется TDLib между клиентами. */
+data class Draft(
+    val text: RichText,
+    /** Unix-время, секунды. */
+    val date: Int,
+)
+
 /** Неизменяемый снимок чата, собранный из апдейтов. */
 data class Chat(
     val id: Long,
@@ -58,6 +65,7 @@ data class Chat(
     val accentColorId: Int,
     /** Общее разрешение участникам писать текст (`ChatPermissions.canSendBasicMessages`). */
     val canSendBasicMessages: Boolean,
+    val draft: Draft? = null,
 )
 
 internal fun TdApi.Chat.toModel() = Chat(
@@ -76,7 +84,14 @@ internal fun TdApi.Chat.toModel() = Chat(
     photo = photo?.small?.toTdFile(),
     accentColorId = accentColorId,
     canSendBasicMessages = permissions.canSendBasicMessages,
+    draft = draftMessage?.toDraft(),
 )
+
+/** Черновики голосовых и видеокружков клиент не показывает. */
+internal fun TdApi.DraftMessage.toDraft(): Draft? {
+    val text = (content as? TdApi.DraftMessageContentText)?.text?.toRichText() ?: return null
+    return Draft(text, date).takeUnless { text.isBlank() }
+}
 
 private fun TdApi.ChatType.toKind(): ChatKind = when (this) {
     is TdApi.ChatTypePrivate -> ChatKind.Private
