@@ -74,6 +74,7 @@ import io.github.iufb.reach.chats.ChatKind
 import io.github.iufb.reach.chats.ContentKind
 import io.github.iufb.reach.chats.GroupRef
 import io.github.iufb.reach.chats.MessageBody
+import io.github.iufb.reach.chats.PhotoInfo
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
 import io.github.iufb.reach.chats.TextSpan
@@ -125,6 +126,8 @@ fun ChatScreen(
         onPauseOrDispose { viewModel.onPause() }
     }
     deleting?.let { DeleteDialog(it, viewModel::confirmDelete, viewModel::cancelDelete) }
+    var viewer by remember { mutableStateOf<Pair<List<PhotoInfo>, Int>?>(null) }
+    viewer?.let { (photos, index) -> PhotoViewer(photos, index) { viewer = null } }
     CompositionLocalProvider(LocalMentionHandler provides mentionHandler) {
         ChatContent(
             chat, state, senders, onBack,
@@ -167,6 +170,7 @@ fun ChatScreen(
                 selection = selection,
                 onToggleSelect = viewModel::toggleSelection,
                 onStartSelection = viewModel::startSelection,
+                onOpenPhotos = { photos, index -> viewer = photos to index },
                 replied = replied,
                 onJumpTo = viewModel::jumpTo,
                 scrollTarget = scrollTarget,
@@ -239,6 +243,8 @@ private class MessageInteractions(
     val selection: Set<Long>,
     val onToggleSelect: (Message) -> Unit,
     val onStartSelection: (MessageMenu) -> Unit,
+    /** Тап по фото: полноэкранный просмотр с листанием по [photos]. */
+    val onOpenPhotos: (photos: List<PhotoInfo>, index: Int) -> Unit,
     /** Исходные сообщения ответов вне загруженного отрезка (см. [ChatHistory.replied]). */
     val replied: Map<Long, Message?>,
     val onJumpTo: (Long) -> Unit,
@@ -524,7 +530,7 @@ private fun MessageBubble(
                 )
             }
             reply()
-            MessageContent(message.content)
+            MessageContent(message, interactions)
             Row(
                 modifier = Modifier.align(Alignment.End),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -566,11 +572,15 @@ private fun Modifier.selectionHighlight(message: Message, interactions: MessageI
 
 /** Долгое нажатие на сообщение открывает меню действий. */
 @Composable
-private fun Modifier.messageLongPress(message: Message, interactions: MessageInteractions): Modifier {
+private fun Modifier.messageLongPress(
+    message: Message,
+    interactions: MessageInteractions,
+    onClick: () -> Unit = {},
+): Modifier {
     val haptics = LocalHapticFeedback.current
     val selecting = interactions.selection.isNotEmpty()
     return combinedClickable(
-        onClick = { if (selecting) interactions.onToggleSelect(message) },
+        onClick = { if (selecting) interactions.onToggleSelect(message) else onClick() },
         onLongClick = {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
             if (selecting) interactions.onToggleSelect(message) else interactions.onOpenMenu(message)
@@ -612,7 +622,7 @@ private fun ChannelPost(message: Message, interactions: MessageInteractions, rep
     ) {
         MessagePopup(message, interactions)
         reply()
-        MessageContent(message.content)
+        MessageContent(message, interactions)
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 message.authorSignature,
@@ -637,11 +647,21 @@ private fun ChannelPost(message: Message, interactions: MessageInteractions, rep
 }
 
 @Composable
-private fun MessageContent(body: MessageBody) {
-    when (body) {
+private fun MessageContent(message: Message, interactions: MessageInteractions) {
+    when (val body = message.content) {
         is MessageBody.Text -> {
             RichTextView(body.text)
             body.preview?.let { LinkPreviewCard(it) }
+        }
+        is MessageBody.Photo -> {
+            PhotoThumbnail(
+                body.photo,
+                Modifier
+                    .padding(vertical = 2.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .messageLongPress(message, interactions) { interactions.onOpenPhotos(listOf(body.photo), 0) },
+            )
+            if (!body.caption.isBlank()) RichTextView(body.caption)
         }
         is MessageBody.Unsupported -> {
             UnsupportedStub(body.kind)
@@ -731,7 +751,7 @@ private fun ChatPreview() {
             ChatHistory.State(messages, reachedOldest = true, reachedNewest = true, firstUnreadId = 3, opened = true),
             senders, onBack = {}, selectionBar = null, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
             composer = ComposerState(RichText("Как дела?"), null, null, null, {}, { _, _, _ -> }, {}, {}, {}),
-            interactions = MessageInteractions(null, {}, {}, {}, {}, {}, {}, {}, emptySet(), {}, {}, emptyMap(), {}, null, {}),
+            interactions = MessageInteractions(null, {}, {}, {}, {}, {}, {}, {}, emptySet(), {}, {}, { _, _ -> }, emptyMap(), {}, null, {}),
         )
     }
 }

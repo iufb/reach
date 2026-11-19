@@ -13,6 +13,8 @@ sealed interface MessageBody {
     /** [preview] — карточка ссылки из текста, если сервер её собрал. */
     data class Text(val text: RichText, val preview: LinkPreview? = null) : MessageBody
 
+    data class Photo(val photo: PhotoInfo, val caption: RichText) : MessageBody
+
     /** Сообщение, которое клиент ещё не умеет показать. [caption] — подпись или эмодзи, если есть. */
     data class Unsupported(val kind: ContentKind, val caption: RichText = RichText.Empty) : MessageBody
 
@@ -36,7 +38,7 @@ internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
     // Одиночный анимированный эмодзи — это текст
     is TdApi.MessageAnimatedEmoji -> MessageBody.Text(RichText(emoji))
 
-    is TdApi.MessagePhoto -> unsupported(ContentKind.Photo, caption)
+    is TdApi.MessagePhoto -> MessageBody.Photo(photo.toInfo(), caption.toRichText())
     is TdApi.MessageVideo -> unsupported(ContentKind.Video, caption)
     is TdApi.MessageDocument -> unsupported(ContentKind.Document, caption)
     is TdApi.MessageAudio -> unsupported(ContentKind.Audio, caption)
