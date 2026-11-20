@@ -32,6 +32,7 @@ import io.github.iufb.reach.auth.CodeScreen
 import io.github.iufb.reach.auth.LoadingScreen
 import io.github.iufb.reach.auth.PasswordScreen
 import io.github.iufb.reach.auth.PhoneScreen
+import io.github.iufb.reach.auth.RegistrationScreen
 import io.github.iufb.reach.auth.UnsupportedAuthScreen
 import io.github.iufb.reach.chat.ChatScreen
 import io.github.iufb.reach.chat.ScheduledScreen
@@ -58,6 +59,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object PhoneRoute
 @Serializable data object CodeRoute
 @Serializable data object PasswordRoute
+@Serializable data object RegistrationRoute
 @Serializable data class UnsupportedAuthRoute(val step: String)
 
 @Serializable data object MainGraph
@@ -137,6 +139,7 @@ fun ReachNavHost(
                 }
                 // В WaitPassword TDLib тоже принимает setAuthenticationPhoneNumber
                 composable<PasswordRoute> { PasswordScreen(onChangePhoneNumber = navController::backToPhone) }
+                composable<RegistrationRoute> { RegistrationScreen(onChangePhoneNumber = navController::backToPhone) }
                 composable<UnsupportedAuthRoute> { UnsupportedAuthScreen(it.toRoute<UnsupportedAuthRoute>().step) }
             }
             navigation<MainGraph>(startDestination = ChatsRoute()) {
@@ -320,6 +323,10 @@ private fun NavController.syncWith(state: AuthState) {
 
         is AuthState.WaitPassword -> if (current?.hasRoute<PasswordRoute>() != true) {
             navigate(PasswordRoute) { popUpTo<PhoneRoute>() }
+        }
+
+        is AuthState.WaitRegistration -> if (current?.hasRoute<RegistrationRoute>() != true) {
+            navigate(RegistrationRoute) { popUpTo<PhoneRoute>() }
         }
 
         is AuthState.Unsupported -> navigate(UnsupportedAuthRoute(state.step)) {

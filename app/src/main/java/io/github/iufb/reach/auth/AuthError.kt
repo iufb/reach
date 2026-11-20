@@ -9,6 +9,9 @@ sealed interface AuthError {
     data object InvalidCode : AuthError
     data object CodeExpired : AuthError
     data object InvalidPassword : AuthError
+    /** Telegram не даёт регистрироваться в сторонних приложениях с этим номером (ADR-0007). */
+    data object SignUpForbidden : AuthError
+    data object InvalidName : AuthError
     data class FloodWait(val seconds: Int) : AuthError
     data class Unknown(val message: String) : AuthError
 }
@@ -22,6 +25,8 @@ internal fun Throwable.toAuthError(): AuthError {
         "PHONE_CODE_INVALID" in message || "PHONE_CODE_EMPTY" in message -> AuthError.InvalidCode
         "PHONE_CODE_EXPIRED" in message -> AuthError.CodeExpired
         "PASSWORD_HASH_INVALID" in message -> AuthError.InvalidPassword
+        "SIGNUP_FORBIDDEN" in message -> AuthError.SignUpForbidden
+        "FIRSTNAME_INVALID" in message || "LASTNAME_INVALID" in message -> AuthError.InvalidName
         else -> AuthError.Unknown(message)
     }
 }
