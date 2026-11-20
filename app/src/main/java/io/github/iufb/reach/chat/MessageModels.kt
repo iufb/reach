@@ -73,7 +73,27 @@ data class Message(
     val forwardedFrom: MessageAuthor? = null,
     /** Общий id сообщений одного альбома; 0 — не альбом. */
     val mediaAlbumId: Long = 0,
+    val reactions: List<Reaction> = emptyList(),
 )
+
+/** Тип реакции. Кастомные эмодзи и платные (звёзды) пока рисуются заглушкой. */
+sealed interface ReactionKey {
+    data class Emoji(val emoji: String) : ReactionKey
+    data class Custom(val customEmojiId: Long) : ReactionKey
+    data object Paid : ReactionKey
+}
+
+/** Реакция под сообщением: сколько раз поставлена и стоит ли среди них своя. */
+data class Reaction(val key: ReactionKey, val count: Int, val isChosen: Boolean)
+
+internal fun TdApi.ReactionType.toKey(): ReactionKey = when (this) {
+    is TdApi.ReactionTypeEmoji -> ReactionKey.Emoji(emoji)
+    is TdApi.ReactionTypeCustomEmoji -> ReactionKey.Custom(customEmojiId)
+    else -> ReactionKey.Paid
+}
+
+internal fun TdApi.MessageInteractionInfo?.toReactions(): List<Reaction> =
+    this?.reactions?.reactions?.map { Reaction(it.type.toKey(), it.totalCount, it.isChosen) }.orEmpty()
 
 internal fun TdApi.Message.toModel() = Message(
     id = id,
@@ -96,6 +116,7 @@ internal fun TdApi.Message.toModel() = Message(
     editDate = editDate,
     forwardedFrom = forwardInfo?.origin?.toAuthor(),
     mediaAlbumId = mediaAlbumId,
+    reactions = interactionInfo.toReactions(),
 )
 
 /** Участник группы в подсказках упоминаний. */

@@ -626,6 +626,7 @@ private fun MessageBubble(
             }
             reply()
             if (album.size > 1) AlbumContent(album, interactions) else MessageContent(message, interactions)
+            ReactionChips(message.reactions)
             Row(
                 modifier = Modifier.align(Alignment.End),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -723,6 +724,7 @@ private fun ChannelPost(
         MessagePopup(message, interactions)
         reply()
         if (album.size > 1) AlbumContent(album, interactions) else MessageContent(message, interactions)
+        ReactionChips(message.reactions)
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 message.authorSignature,
