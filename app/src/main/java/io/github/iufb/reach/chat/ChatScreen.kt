@@ -228,7 +228,9 @@ fun ChatScreen(
                         onDelete = viewModel::requestDeleteSelected,
                     )
                 }
-            }, viewModel::loadOlder, viewModel::loadNewer,
+            },
+            onLoadOlder = viewModel::loadOlder,
+            onLoadNewer = viewModel::loadNewer,
             onVisibleMessagesChange = viewModel::onVisibleMessagesChange,
             pinned = pinned,
             onPinnedClick = viewModel::onPinnedClick,
