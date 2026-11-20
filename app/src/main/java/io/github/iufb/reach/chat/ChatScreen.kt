@@ -42,6 +42,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.gestures.scrollBy
@@ -164,6 +165,7 @@ fun ChatScreen(
     viewer?.let { (items, index) -> MediaViewer(items, index) { viewer = null } }
     val stickerSetTitle by viewModel.stickerSetTitle.collectAsStateWithLifecycle()
     val audio by viewModel.audio.collectAsStateWithLifecycle()
+    val reactionEffect by viewModel.reactionEffect.collectAsStateWithLifecycle()
     val recorderState by viewModel.recorderState.collectAsStateWithLifecycle()
     stickerSetTitle?.let { StickerSetDialog(it, viewModel::dismissStickerSet) }
     CompositionLocalProvider(LocalMentionHandler provides mentionHandler) {
@@ -238,6 +240,8 @@ fun ChatScreen(
                 audio = audio,
                 onAudioToggle = viewModel::onAudioToggle,
                 onAudioSeek = viewModel::onAudioSeek,
+                reactionEffect = reactionEffect,
+                onReactionEffectDone = viewModel::onReactionEffectDone,
                 replied = replied,
                 onJumpTo = viewModel::jumpTo,
                 scrollTarget = scrollTarget,
@@ -343,6 +347,9 @@ private class MessageInteractions(
     val audio: AudioState = AudioState(),
     val onAudioToggle: (Message) -> Unit = {},
     val onAudioSeek: (Float) -> Unit = {},
+    /** Эффект своей реакции: (сообщение, реакция). */
+    val reactionEffect: Pair<Long, ReactionKey>? = null,
+    val onReactionEffectDone: () -> Unit = {},
 ) {
     /** Меню, если оно открыто именно для [message]. */
     fun menuFor(message: Message): MessageMenu? = menu?.takeIf { it.message.id == message.id }
@@ -652,53 +659,66 @@ private fun MessageBubble(
             .padding(horizontal = 8.dp, vertical = 1.dp),
         horizontalArrangement = if (outgoing) Arrangement.End else Arrangement.Start,
     ) {
-        Column(
-            modifier = Modifier
-                .widthIn(max = 320.dp)
-                .clip(bubbleShape)
-                .background(
-                    when {
-                        bare -> Color.Transparent
-                        outgoing -> MaterialTheme.colorScheme.primaryContainer
-                        else -> MaterialTheme.colorScheme.surface
-                    },
-                )
-                .messageLongPress(message, interactions)
-                .padding(horizontal = if (bare) 0.dp else 12.dp, vertical = if (bare) 2.dp else 8.dp),
-        ) {
-            MessagePopup(message, interactions)
-            if (sender != null) {
-                Text(
-                    sender.name.ifBlank { stringResource(R.string.chat_deleted_account) },
-                    style = MaterialTheme.typography.labelLarge,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary,
-                )
-            }
-            reply()
-            if (album.size > 1) AlbumContent(album, interactions) else MessageContent(message, interactions)
-            ReactionChips(message.reactions, onClick = reactionClick(message, interactions))
-            Row(
+        Box(contentAlignment = Alignment.Center) {
+            Column(
                 modifier = Modifier
-                    .align(Alignment.End)
-                    .then(
-                        if (bare) {
-                            Modifier
-                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), RoundedCornerShape(8.dp))
-                                .padding(horizontal = 6.dp, vertical = 1.dp)
-                        } else {
-                            Modifier
+                    .widthIn(max = 320.dp)
+                    .clip(bubbleShape)
+                    .background(
+                        when {
+                            bare -> Color.Transparent
+                            outgoing -> MaterialTheme.colorScheme.primaryContainer
+                            else -> MaterialTheme.colorScheme.surface
                         },
-                    ),
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                    )
+                    .messageLongPress(message, interactions)
+                    .padding(horizontal = if (bare) 0.dp else 12.dp, vertical = if (bare) 2.dp else 8.dp),
             ) {
-                Text(
-                    messageTimeLabel(message),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                MessagePopup(message, interactions)
+                if (sender != null) {
+                    Text(
+                        sender.name.ifBlank { stringResource(R.string.chat_deleted_account) },
+                        style = MaterialTheme.typography.labelLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
+                reply()
+                if (album.size > 1) AlbumContent(album, interactions) else MessageContent(message, interactions)
+                ReactionChips(message.reactions, onClick = reactionClick(message, interactions))
+                Row(
+                    modifier = Modifier
+                        .align(Alignment.End)
+                        .then(
+                            if (bare) {
+                                Modifier
+                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), RoundedCornerShape(8.dp))
+                                    .padding(horizontal = 6.dp, vertical = 1.dp)
+                            } else {
+                                Modifier
+                            },
+                        ),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Text(
+                        messageTimeLabel(message),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                    if (outgoing) SendingStatus(message.sendingState)
+                }
+            }
+            // Эффект своей реакции — поверх пузыря, не меняя его размер
+            interactions.reactionEffect?.takeIf { it.first == message.id }?.let { (_, key) ->
+                ReactionEffect(
+                    key,
+                    onDone = interactions.onReactionEffectDone,
+                    modifier = Modifier
+                        .matchParentSize()
+                        .wrapContentSize(unbounded = true)
+                        .size(180.dp),
                 )
-                if (outgoing) SendingStatus(message.sendingState)
             }
         }
     }

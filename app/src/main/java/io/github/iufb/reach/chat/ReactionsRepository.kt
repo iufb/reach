@@ -8,11 +8,19 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import io.github.iufb.reach.files.TdFile
+import io.github.iufb.reach.files.toTdFile
 import org.drinkless.tdlib.TdApi
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /** Реакции, доступные на сообщении: первые — в ряд меню, [all] — по кнопке «ещё». */
+/**
+ * TGS-анимации реакции: [appear] — появление в меню, [select] — выбор в меню,
+ * [center] — в чипе при новой реакции, [effect] — эффект поверх сообщения при своей.
+ */
+data class ReactionAnimations(val appear: TdFile?, val select: TdFile?, val center: TdFile?, val effect: TdFile?)
+
 data class AvailableReactions(val top: List<ReactionKey>, val all: List<ReactionKey>) {
     val isEmpty: Boolean get() = all.isEmpty()
 
@@ -62,6 +70,24 @@ class ReactionsRepository @Inject constructor(
         val type = key.toType() ?: return
         td.send(TdApi.RemoveMessageReaction(chatId, messageId, type))
     }
+
+    private val animationCache = HashMap<String, ReactionAnimations>()
+
+    /** Анимации эмодзи-реакции (`getEmojiReaction`); `null` — TDLib не отдал. Кэшируется на всё время работы. */
+    suspend fun animations(emoji: String): ReactionAnimations? {
+        synchronized(animationCache) { animationCache[emoji] }?.let { return it }
+        val reaction = runCatching { td.send(TdApi.GetEmojiReaction(emoji)) }.getOrNull() ?: return null
+        val animations = ReactionAnimations(
+            appear = reaction.appearAnimation.tgs(),
+            select = reaction.selectAnimation.tgs(),
+            center = reaction.centerAnimation.tgs() ?: reaction.activateAnimation.tgs(),
+            effect = reaction.effectAnimation.tgs(),
+        )
+        synchronized(animationCache) { animationCache[emoji] = animations }
+        return animations
+    }
+
+    private fun TdApi.Sticker?.tgs(): TdFile? = this?.takeIf { it.format is TdApi.StickerFormatTgs }?.sticker?.toTdFile()
 
     private companion object {
         const val TOP_ROW = 7
