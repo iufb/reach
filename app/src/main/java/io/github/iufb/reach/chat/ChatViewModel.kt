@@ -287,9 +287,9 @@ class ChatViewModel @Inject constructor(
             val group = opened.group as? GroupRef.Super
             group != null && runCatching { !td.send(TdApi.GetSupergroup(group.id)).joinToSendMessages }.getOrDefault(false)
         }
-        return when (scope) {
+        return when (val current = scope) {
             ChatScope.Whole -> null
-            is ChatScope.Thread -> runCatching { td.send(TdApi.GetMessageThread(chatId, scope.threadId)) }
+            is ChatScope.Thread -> runCatching { td.send(TdApi.GetMessageThread(chatId, current.threadId)) }
                 .onFailure { Log.w(TAG, "getMessageThread failed", it) }
                 .getOrNull()
                 ?.let { info ->
@@ -301,7 +301,7 @@ class ChatViewModel @Inject constructor(
                     )
                     info.replyInfo?.lastReadInboxMessageId?.takeIf { info.unreadMessageCount > 0 }
                 }
-            is ChatScope.Topic -> runCatching { td.send(TdApi.GetForumTopic(chatId, scope.topicId)) }
+            is ChatScope.Topic -> runCatching { td.send(TdApi.GetForumTopic(chatId, current.topicId)) }
                 .onFailure { Log.w(TAG, "getForumTopic failed", it) }
                 .getOrNull()
                 ?.let { topic ->
