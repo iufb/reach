@@ -293,7 +293,7 @@ private fun VideoPlayback(video: VideoInfo, gif: Boolean) {
 
 /** Кадры плеера. TextureView, а не SurfaceView: двигается вместе со свайпом и клипается по пузырю. */
 @Composable
-private fun VideoSurface(player: Player, modifier: Modifier) {
+internal fun VideoSurface(player: Player, modifier: Modifier) {
     AndroidView(
         factory = { TextureView(it) },
         modifier = modifier,

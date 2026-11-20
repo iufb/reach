@@ -62,6 +62,7 @@ internal fun MessageBody.copyableText(): String? = when (this) {
     is MessageBody.AnimatedEmoji -> emoji
     is MessageBody.Poll -> null
     is MessageBody.Voice -> caption.text.ifBlank { null }
+    is MessageBody.VideoNote -> null
     is MessageBody.Audio -> caption.text.ifBlank { null }
     is MessageBody.Document -> caption.text.ifBlank { null }
     is MessageBody.Service -> null
@@ -98,6 +99,7 @@ internal fun MessageBody.editableText(): RichText? = when (this) {
     is MessageBody.AnimatedEmoji -> null
     is MessageBody.Poll -> null
     is MessageBody.Voice -> caption
+    is MessageBody.VideoNote -> null
     is MessageBody.Audio -> caption
     is MessageBody.Document -> caption
     is MessageBody.Service -> null

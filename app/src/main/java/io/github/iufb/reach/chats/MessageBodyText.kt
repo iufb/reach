@@ -115,6 +115,7 @@ inline fun summarize(body: MessageBody, string: (Int) -> String): String {
             body.caption.masked(),
         )
         is MessageBody.Voice -> joinParts(string(ContentKind.VoiceNote.labelRes()), body.caption.masked())
+        is MessageBody.VideoNote -> string(ContentKind.VideoNote.labelRes())
         is MessageBody.AnimatedEmoji -> body.emoji
         is MessageBody.Poll -> joinParts(
             string(if (body.poll.quiz != null) R.string.content_quiz else ContentKind.Poll.labelRes()),

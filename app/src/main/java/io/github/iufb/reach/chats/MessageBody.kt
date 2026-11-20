@@ -25,6 +25,9 @@ sealed interface MessageBody {
     /** Голосовое; [isListened] — собеседник (или мы) уже прослушал. */
     data class Voice(val voice: VoiceInfo, val caption: RichText, val isListened: Boolean) : MessageBody
 
+    /** Видеокружок; [isViewed] — уже просмотрен (нами или собеседником). */
+    data class VideoNote(val note: VideoNoteInfo, val isViewed: Boolean) : MessageBody
+
     /** Музыка (`MessageAudio`). */
     data class Audio(val audio: AudioInfo, val caption: RichText) : MessageBody
 
@@ -75,7 +78,8 @@ internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
     is TdApi.MessageVoiceNote -> MessageBody.Voice(voiceNote.toInfo(), caption.toRichText(), isListened)
     is TdApi.MessageAnimation -> MessageBody.Animation(toInfo(), caption.toRichText(), hasSpoiler)
     is TdApi.MessagePaidMedia -> unsupported(ContentKind.PaidMedia, caption)
-    is TdApi.MessageVideoNote -> MessageBody.Unsupported(ContentKind.VideoNote)
+    // Самоуничтожающиеся кружки — заглушкой
+    is TdApi.MessageVideoNote -> if (isSecret) MessageBody.Unsupported(ContentKind.VideoNote) else MessageBody.VideoNote(videoNote.toInfo(), isViewed)
     is TdApi.MessageSticker -> MessageBody.Sticker(sticker.toInfo())
     is TdApi.MessagePoll -> MessageBody.Poll(poll.toInfo())
     is TdApi.MessageChecklist -> unsupported(ContentKind.Checklist, list.title)
