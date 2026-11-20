@@ -186,10 +186,6 @@ private fun ResultRow(option: PollOptionInfo, poll: PollInfo, onClick: (() -> Un
     }
 }
 
-private fun Modifier.clip(RoundedCornerShape(8.dp)): Modifier = this.then(Modifier.clipToRounded())
-
-private fun Modifier.clipToRounded(): Modifier = androidx.compose.ui.draw.clip(this, RoundedCornerShape(8.dp))
-
 private val CORRECT = Color(0xFF2E7D32)
 
 /** Кто проголосовал за вариант. */

@@ -48,7 +48,7 @@ internal fun TdApi.Poll.toInfo(): PollInfo {
     val all = options.mapIndexed { i, o ->
         PollOptionInfo(i, o.text.toRichText(), o.voterCount, o.votePercentage, o.isChosen, o.isBeingChosen)
     }
-    val ordered = optionOrder?.takeIf { it.size == all.size }?.mapNotNull { all.getOrNull(it) } ?: all
+    val ordered = optionOrder?.takeIf { it.size == all.size }?.toList()?.mapNotNull { all.getOrNull(it) } ?: all
     return PollInfo(
         id = id,
         question = question.toRichText(),
