@@ -1,6 +1,19 @@
 package io.github.iufb.reach
 
+import android.Manifest
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.platform.LocalContext
+import androidx.core.content.ContextCompat
+import io.github.iufb.reach.auth.AuthState
+import kotlinx.coroutines.flow.MutableStateFlow
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -25,21 +38,61 @@ import io.github.iufb.reach.ui.theme.ReachTheme
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    /** Чат, который просили открыть из уведомления; `null` — запроса нет или он уже выполнен. */
+    private val openChatRequest = MutableStateFlow<Long?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // После пересоздания активити запрос уже выполнен
+        if (savedInstanceState == null) openChatRequest.value = intent.chatIdExtra()
         enableEdgeToEdge()
         setContent {
             ReachTheme {
-                if (hasApiCredentials()) ReachRoot() else MissingCredentialsScreen()
+                if (hasApiCredentials()) {
+                    val openChatId by openChatRequest.collectAsStateWithLifecycle()
+                    ReachRoot(openChatId, onOpenChatHandled = { openChatRequest.value = null })
+                } else {
+                    MissingCredentialsScreen()
+                }
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        intent.chatIdExtra()?.let { openChatRequest.value = it }
+    }
+
+    private fun Intent.chatIdExtra(): Long? = getLongExtra(EXTRA_CHAT_ID, 0).takeIf { it != 0L }
+
+    companion object {
+        /** Открыть этот чат: тап по уведомлению. */
+        const val EXTRA_CHAT_ID = "io.github.iufb.reach.extra.CHAT_ID"
     }
 }
 
 @Composable
-private fun ReachRoot(viewModel: AppViewModel = hiltViewModel()) {
+private fun ReachRoot(openChatId: Long?, onOpenChatHandled: () -> Unit, viewModel: AppViewModel = hiltViewModel()) {
     val authState by viewModel.authState.collectAsStateWithLifecycle()
-    ReachNavHost(authState)
+    if (authState == AuthState.Ready) NotificationPermissionRequest()
+    ReachNavHost(authState, openChatId, onOpenChatHandled)
+}
+
+/** Один раз за запуск просим разрешение на уведомления, если его нет (Android 13+). */
+@Composable
+private fun NotificationPermissionRequest() {
+    val context = LocalContext.current
+    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
+    var asked by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(Unit) {
+        val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
+            PackageManager.PERMISSION_GRANTED
+        if (!granted && !asked) {
+            asked = true
+            launcher.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
 }
 
 /** Ключи пробрасываются из GitHub Secrets только при сборке в CI (ADR-0003). */
