@@ -69,6 +69,7 @@
     <string name="chat_action_archive">В архив</string>
     <string name="chat_action_unarchive">Из архива</string>
     <string name="archive_title">Архив</string>
+    <string name="folder_all_chats">Все чаты</string>
     <string name="archive_empty">В архиве пусто</string>
     <plurals name="archive_chats">
         <item quantity="one">%d чат</item>
