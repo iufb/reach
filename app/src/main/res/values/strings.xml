@@ -81,6 +81,10 @@
     <string name="archive_title">Архив</string>
     <string name="folder_all_chats">Все чаты</string>
     <string name="saved_messages">Избранное</string>
+    <string name="message_action_pin">Закрепить</string>
+    <string name="message_action_unpin">Открепить</string>
+    <string name="pinned_message">Закреплённое сообщение</string>
+    <string name="pinned_message_numbered">Закреплённое сообщение #%d</string>
     <string name="search_title">Поиск</string>
     <string name="search_hint">Поиск</string>
     <string name="search_clear">Очистить</string>

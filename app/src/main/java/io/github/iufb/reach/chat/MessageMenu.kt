@@ -32,9 +32,11 @@ data class MessageActions(
     val canDeleteForAll: Boolean,
     val canDeleteForSelf: Boolean,
     val canForward: Boolean,
+    /** Можно закрепить или открепить (`canBePinned`); что именно — по `Message.isPinned`. */
+    val canPin: Boolean = false,
 ) {
     val canDelete: Boolean get() = canDeleteForAll || canDeleteForSelf
-    val isEmpty: Boolean get() = copyText == null && !canReply && !canEdit && !canDelete && !canForward
+    val isEmpty: Boolean get() = copyText == null && !canReply && !canEdit && !canDelete && !canForward && !canPin
 }
 
 /** Открытое меню действий над [message]; [reactions] — ряд реакций сверху. */
@@ -65,6 +67,7 @@ internal fun messageActions(message: Message, properties: TdApi.MessagePropertie
         canDeleteForAll = properties?.canBeDeletedForAllUsers == true,
         canDeleteForSelf = properties?.canBeDeletedOnlyForSelf == true,
         canForward = properties?.canBeForwarded == true,
+        canPin = properties?.canBePinned == true,
     )
 }
 
@@ -97,6 +100,7 @@ internal fun MessageMenuPopup(
     onForward: (Message) -> Unit,
     onSelect: (MessageMenu) -> Unit,
     onReact: (Message, ReactionKey) -> Unit,
+    onPin: (Message, Boolean) -> Unit,
 ) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
@@ -126,6 +130,14 @@ internal fun MessageMenuPopup(
                 text = { Text(stringResource(R.string.message_action_forward)) },
                 leadingIcon = { Icon(painterResource(R.drawable.ic_forward), contentDescription = null) },
                 onClick = { onForward(current.message) },
+            )
+        }
+        if (actions.canPin) {
+            val pinned = current.message.isPinned
+            DropdownMenuItem(
+                text = { Text(stringResource(if (pinned) R.string.message_action_unpin else R.string.message_action_pin)) },
+                leadingIcon = { Icon(painterResource(R.drawable.ic_pin), contentDescription = null) },
+                onClick = { onPin(current.message, !pinned) },
             )
         }
         // Выбрать можно любое сообщение, у которого открылось меню

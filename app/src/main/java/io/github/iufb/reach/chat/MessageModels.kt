@@ -74,6 +74,7 @@ data class Message(
     /** Общий id сообщений одного альбома; 0 — не альбом. */
     val mediaAlbumId: Long = 0,
     val reactions: List<Reaction> = emptyList(),
+    val isPinned: Boolean = false,
 )
 
 /** Тип реакции. Кастомные эмодзи и платные (звёзды) пока рисуются заглушкой. */
@@ -117,6 +118,7 @@ internal fun TdApi.Message.toModel() = Message(
     forwardedFrom = forwardInfo?.origin?.toAuthor(),
     mediaAlbumId = mediaAlbumId,
     reactions = interactionInfo.toReactions(),
+    isPinned = isPinned,
 )
 
 /** Участник группы в подсказках упоминаний. */
@@ -142,3 +144,6 @@ data class HeaderInfo(
     /** В сети сейчас (только для открытой группы). */
     val onlineCount: Int = 0,
 )
+
+/** Плашка закреплённого: показанное сообщение, его номер (0 — самое новое) и сколько всего. */
+data class PinnedBanner(val message: Message, val index: Int, val count: Int)

@@ -121,6 +121,7 @@ fun ChatScreen(
     val draft by viewModel.draft.collectAsStateWithLifecycle()
     val sendError by viewModel.sendError.collectAsStateWithLifecycle()
     val menu by viewModel.menu.collectAsStateWithLifecycle()
+    val pinned by viewModel.pinned.collectAsStateWithLifecycle()
     val replyTo by viewModel.replyTo.collectAsStateWithLifecycle()
     val editing by viewModel.editing.collectAsStateWithLifecycle()
     val deleting by viewModel.deleting.collectAsStateWithLifecycle()
@@ -179,6 +180,8 @@ fun ChatScreen(
                 }
             }, viewModel::loadOlder, viewModel::loadNewer,
             onVisibleMessagesChange = viewModel::onVisibleMessagesChange,
+            pinned = pinned,
+            onPinnedClick = viewModel::onPinnedClick,
             composer = if (canWrite) {
                 ComposerState(
                     draft, sendError, replyTo, editing,
@@ -198,6 +201,7 @@ fun ChatScreen(
                 onOpenMenu = viewModel::openMenu,
                 onDismissMenu = viewModel::closeMenu,
                 onReact = viewModel::toggleReaction,
+                onPin = viewModel::setPinned,
                 onDoubleTap = viewModel::reactDefault,
                 onReply = if (canWrite) viewModel::startReply else null,
                 onEdit = viewModel::startEdit,
@@ -240,23 +244,28 @@ private fun ChatContent(
     onVisibleMessagesChange: (List<Long>) -> Unit,
     composer: ComposerState?,
     interactions: MessageInteractions,
+    pinned: PinnedBanner? = null,
+    onPinnedClick: () -> Unit = {},
 ) {
     Scaffold(
         modifier = Modifier.imePadding(),
         bottomBar = { if (composer != null && chat != null) Composer(composer, senders) },
         topBar = {
-            if (selectionBar != null) {
-                selectionBar()
-            } else {
-                TopAppBar(
-                    colors = reachBarColors(),
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
-                        }
-                    },
-                    title = { if (chat != null) ChatHeader(chat, header, senders, onOpenProfile) },
-                )
+            Column {
+                if (selectionBar != null) {
+                    selectionBar()
+                } else {
+                    TopAppBar(
+                        colors = reachBarColors(),
+                        navigationIcon = {
+                            IconButton(onClick = onBack) {
+                                Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
+                            }
+                        },
+                        title = { if (chat != null) ChatHeader(chat, header, senders, onOpenProfile) },
+                    )
+                }
+                if (pinned != null) PinnedBar(pinned, onPinnedClick)
             }
         },
     ) { padding ->
@@ -282,6 +291,8 @@ private class MessageInteractions(
     val onReact: (Message, ReactionKey) -> Unit,
     /** Двойной тап по сообщению — реакция по умолчанию. */
     val onDoubleTap: (Message) -> Unit,
+    /** Закрепить (`true`) или открепить сообщение. */
+    val onPin: (Message, Boolean) -> Unit,
     /** `null` — писать нельзя, ответить тоже. */
     val onReply: ((Message) -> Unit)?,
     val onEdit: (Message) -> Unit,
@@ -660,6 +671,7 @@ private fun MessagePopup(message: Message, interactions: MessageInteractions) {
         onForward = interactions.onForward,
         onSelect = interactions.onStartSelection,
         onReact = interactions.onReact,
+        onPin = interactions.onPin,
     )
 }
 
@@ -959,7 +971,7 @@ private fun ChatPreview() {
             senders, onBack = {}, header = HeaderInfo(), onOpenProfile = {}, selectionBar = null, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
             composer = ComposerState(RichText("Как дела?"), null, null, null, {}, { _, _, _ -> }, {}, {}, {}),
             interactions = MessageInteractions(
-                null, {}, {}, { _, _ -> }, {}, {}, {}, {}, {}, {}, emptySet(), {}, {}, { _, _ -> }, { emptyFlow() }, {}, emptyMap(), {},
+                null, {}, {}, { _, _ -> }, {}, { _, _ -> }, {}, {}, {}, {}, {}, emptySet(), {}, {}, { _, _ -> }, { emptyFlow() }, {}, emptyMap(), {},
                 emptyMap(), {}, null, {},
             ),
         )

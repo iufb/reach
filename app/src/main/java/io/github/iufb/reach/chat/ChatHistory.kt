@@ -165,6 +165,9 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
                     val body = update.newContent.toBody()
                     edit(update.messageId) { copy(content = body) }
                 }
+                is TdApi.UpdateMessageIsPinned -> if (update.chatId == chatId) {
+                    edit(update.messageId) { copy(isPinned = update.isPinned) }
+                }
                 is TdApi.UpdateMessageEdited -> if (update.chatId == chatId) {
                     edit(update.messageId) { copy(editDate = update.editDate) }
                 }
