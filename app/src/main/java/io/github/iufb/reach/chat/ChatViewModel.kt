@@ -29,6 +29,8 @@ import io.github.iufb.reach.files.FileState
 import io.github.iufb.reach.files.FilesRepository
 import io.github.iufb.reach.files.MediaImporter
 import io.github.iufb.reach.files.TdFile
+import io.github.iufb.reach.files.toTdFile
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import io.github.iufb.reach.chats.LinkPreview
 import io.github.iufb.reach.chats.toModel
@@ -82,6 +84,12 @@ data class ScopeInfo(
     /** Писать можно, не вступая в группу. */
     val openToNonMembers: Boolean = false,
 )
+
+/**
+ * Эффект по тапу на большой эмодзи (PRODUCT.md §4.5): TGS поверх чата рядом с сообщением.
+ * [fromPeer] — тапнул собеседник (`updateAnimatedEmojiMessageClicked`), [key] — для повторов.
+ */
+data class EmojiEffect(val key: Long, val messageId: Long, val animation: TdFile, val emoji: String, val fromPeer: Boolean)
 
 /** Имя и аватарка автора сообщения в группе. */
 data class SenderInfo(val name: String, val photo: io.github.iufb.reach.files.TdFile?, val accentColorId: Int)
@@ -242,6 +250,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch { history.followReplies() }
         viewModelScope.launch { followMemberCount() }
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { followPinned() }
+        viewModelScope.launch { followEmojiClicks() }
         viewModelScope.launch { loadPinned() }
         viewModelScope.launch {
             val opened = chat.mapNotNull { it }.first()
@@ -1027,8 +1036,56 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch { history.loadNewer() }
     }
 
+    private val _emojiEffects = MutableStateFlow<List<EmojiEffect>>(emptyList())
+    /** Играющие эффекты больших эмодзи. */
+    val emojiEffects: StateFlow<List<EmojiEffect>> = _emojiEffects.asStateFlow()
+    private var lastEffectKey = 0L
+
+    /** Тап по большому эмодзи: TDLib отдаёт эффект и сам сообщает о тапе собеседнику; 404 — эффекта нет. */
+    fun onAnimatedEmojiClick(message: Message) {
+        if (message.sendingState != null) return
+        viewModelScope.launch {
+            runCatching { td.send(TdApi.ClickAnimatedEmojiMessage(chatId, message.id)) }
+                .onSuccess { addEmojiEffect(message.id, it, fromPeer = false) }
+        }
+    }
+
+    /** Эффект появился на экране; за тапом собеседника отвечаем «смотрит анимацию», как просит TDLib. */
+    fun onEmojiEffectShown(effect: EmojiEffect) {
+        if (!effect.fromPeer) return
+        viewModelScope.launch {
+            runCatching { td.send(TdApi.SendChatAction(chatId, scope.toTd(), "", TdApi.ChatActionWatchingAnimations(effect.emoji))) }
+                .onFailure { Log.w(TAG, "watching animations failed", it) }
+        }
+    }
+
+    fun onEmojiEffectDone(effect: EmojiEffect) {
+        _emojiEffects.update { it - effect }
+    }
+
+    private fun addEmojiEffect(messageId: Long, sticker: TdApi.Sticker, fromPeer: Boolean) {
+        if (sticker.format !is TdApi.StickerFormatTgs) return
+        val effect = EmojiEffect(++lastEffectKey, messageId, sticker.sticker.toTdFile(), sticker.emoji, fromPeer)
+        _emojiEffects.update { (it + effect).takeLast(MAX_EMOJI_EFFECTS) }
+        // Сообщение не на экране — эффект никто не доиграет; убираем сами
+        viewModelScope.launch {
+            delay(EMOJI_EFFECT_TIMEOUT_MS)
+            onEmojiEffectDone(effect)
+        }
+    }
+
+    private suspend fun followEmojiClicks() {
+        td.updates.collect { update ->
+            if (update is TdApi.UpdateAnimatedEmojiMessageClicked && update.chatId == chatId) {
+                addEmojiEffect(update.messageId, update.sticker, fromPeer = true)
+            }
+        }
+    }
+
     private companion object {
         const val TAG = "ChatViewModel"
+        const val MAX_EMOJI_EFFECTS = 4
+        const val EMOJI_EFFECT_TIMEOUT_MS = 6_000L
         const val PINNED_LIMIT = 100
         const val STOP_TIMEOUT_MS = 5_000L
         const val VIEW_DEBOUNCE_MS = 300L
