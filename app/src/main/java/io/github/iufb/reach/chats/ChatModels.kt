@@ -106,6 +106,8 @@ data class Chat(
     val canChangeInfoByDefault: Boolean = false,
     /** Форум, который показывается списком топиков. */
     val viewAsTopics: Boolean = false,
+    /** Собеседник (или чат) в чёрном списке. */
+    val isBlocked: Boolean = false,
 ) {
     /** Есть что читать: непрочитанные сообщения или ручная пометка. */
     val hasUnread: Boolean get() = unreadCount > 0 || isMarkedAsUnread
@@ -163,6 +165,7 @@ internal fun TdApi.Chat.toModel() = Chat(
     autoDeleteTime = messageAutoDeleteTime,
     canChangeInfoByDefault = permissions.canChangeInfo,
     viewAsTopics = viewAsTopics,
+    isBlocked = blockList is TdApi.BlockListMain,
 )
 
 /** Черновики голосовых и видеокружков клиент не показывает. */

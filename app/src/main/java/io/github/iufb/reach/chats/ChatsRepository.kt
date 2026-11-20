@@ -151,6 +151,7 @@ class ChatsRepository @Inject constructor(
                 _chats.update { all -> all.mapValues { (_, chat) -> chat.withMute(scopeMute) } }
             }
             is TdApi.UpdateChatTitle -> edit(update.chatId) { copy(title = update.title) }
+            is TdApi.UpdateChatBlockList -> edit(update.chatId) { copy(isBlocked = update.blockList is TdApi.BlockListMain) }
             is TdApi.UpdateChatViewAsTopics -> edit(update.chatId) { copy(viewAsTopics = update.viewAsTopics) }
             is TdApi.UpdateChatMessageAutoDeleteTime -> edit(update.chatId) { copy(autoDeleteTime = update.messageAutoDeleteTime) }
             is TdApi.UpdateChatHasScheduledMessages -> edit(update.chatId) {

@@ -69,6 +69,7 @@ fun ProfileScreen(
     var viewingPhoto by remember { mutableStateOf(false) }
     var choosingAutoDelete by remember { mutableStateOf(false) }
     var editingContact by remember { mutableStateOf(false) }
+    var confirmBlock by remember { mutableStateOf(false) }
     var menuOpen by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) { viewModel.error.collect { snackbar.showSnackbar(it) } }
@@ -106,6 +107,20 @@ fun ProfileScreen(
                                         onClick = {
                                             menuOpen = false
                                             viewModel.removeContact()
+                                        },
+                                    )
+                                }
+                                current?.isBlocked?.let { blocked ->
+                                    DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                stringResource(if (blocked) R.string.unblock else R.string.block),
+                                                color = if (blocked) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.error,
+                                            )
+                                        },
+                                        onClick = {
+                                            menuOpen = false
+                                            if (blocked) viewModel.setBlocked(false) else confirmBlock = true
                                         },
                                     )
                                 }
@@ -193,6 +208,19 @@ fun ProfileScreen(
             }
         }
         if (viewingPhoto) current.fullPhoto?.let { PhotoViewer(listOf(it), 0) { viewingPhoto = false } }
+        if (confirmBlock) {
+            AlertDialog(
+                onDismissRequest = { confirmBlock = false },
+                text = { Text(stringResource(R.string.block_confirm, current.title)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmBlock = false
+                        viewModel.setBlocked(true)
+                    }) { Text(stringResource(R.string.block), color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = { TextButton(onClick = { confirmBlock = false }) { Text(stringResource(R.string.cancel)) } },
+            )
+        }
         if (editingContact) {
             ContactNameDialog(
                 title = stringResource(if (current.isContact == true) R.string.contact_edit else R.string.contact_add),
