@@ -70,6 +70,8 @@ data class Profile(
     val isMember: Boolean = false,
     /** Владелец: можно удалить чат целиком. */
     val isOwner: Boolean = false,
+    /** Группа, где можно менять общие разрешения участников. */
+    val canEditPermissions: Boolean = false,
 )
 
 /** Полная информация, которую TDLib отдаёт отдельным запросом. */
@@ -148,6 +150,9 @@ class ProfileViewModel @Inject constructor(
                 canOpenMembers = info.canGetMembers,
                 isMember = chat.group?.let(statuses::get).let { it != null && it != MemberStatus.Left && !(it is MemberStatus.Creator && !it.isMember) },
                 isOwner = chat.group?.let(statuses::get) is MemberStatus.Creator,
+                canEditPermissions = chat.kind == ChatKind.Group && chat.group?.let(statuses::get).let {
+                    it is MemberStatus.Creator || (it is MemberStatus.Administrator && it.canRestrictMembers)
+                },
             )
             else -> null
         }
