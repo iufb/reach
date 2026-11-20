@@ -74,6 +74,8 @@ data class Profile(
     val canEditPermissions: Boolean = false,
     /** Владелец или админ с правом приглашать: экран ссылок. */
     val canManageInvites: Boolean = false,
+    /** Статистика доступна (`supergroupFullInfo.can_get_statistics`). */
+    val canGetStatistics: Boolean = false,
 )
 
 /** Полная информация, которую TDLib отдаёт отдельным запросом. */
@@ -84,6 +86,7 @@ private data class FullInfo(
     val username: String = "",
     val isBlocked: Boolean = false,
     val canGetMembers: Boolean = false,
+    val canGetStatistics: Boolean = false,
 )
 
 /**
@@ -152,6 +155,7 @@ class ProfileViewModel @Inject constructor(
                 canOpenMembers = info.canGetMembers,
                 isMember = chat.group?.let(statuses::get).let { it != null && it != MemberStatus.Left && !(it is MemberStatus.Creator && !it.isMember) },
                 isOwner = chat.group?.let(statuses::get) is MemberStatus.Creator,
+                canGetStatistics = info.canGetStatistics && chat.kind == ChatKind.Channel,
                 canManageInvites = chat.group?.let(statuses::get).let {
                     it is MemberStatus.Creator || (it is MemberStatus.Administrator && it.canInviteUsers)
                 },
@@ -247,6 +251,7 @@ class ProfileViewModel @Inject constructor(
                         memberCount = info.memberCount.takeIf { it > 0 } ?: supergroup.memberCount,
                         username = supergroup.usernames?.activeUsernames?.firstOrNull().orEmpty(),
                         canGetMembers = info.canGetMembers,
+                        canGetStatistics = info.canGetStatistics,
                     )
                 }
                 group is GroupRef.Basic -> {
