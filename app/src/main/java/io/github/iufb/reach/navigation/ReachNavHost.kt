@@ -42,6 +42,7 @@ import io.github.iufb.reach.members.MembersScreen
 import io.github.iufb.reach.rights.AdminRightsScreen
 import io.github.iufb.reach.rights.PermissionsScreen
 import io.github.iufb.reach.invites.InviteLinksScreen
+import io.github.iufb.reach.stats.StatisticsScreen
 import io.github.iufb.reach.blocked.BlockedScreen
 import io.github.iufb.reach.contacts.ContactSyncScreen
 import io.github.iufb.reach.settings.SettingsScreen
@@ -83,6 +84,7 @@ import kotlinx.serialization.Serializable
 /** [userId] = 0 — общие разрешения группы. */
 @Serializable data class PermissionsRoute(val chatId: Long, val userId: Long = 0)
 @Serializable data class InviteLinksRoute(val chatId: Long)
+@Serializable data class StatisticsRoute(val chatId: Long)
 
 /**
  * Два графа: вход и основной. Какой экран показан, решает [AuthState]:
@@ -198,6 +200,7 @@ fun ReachNavHost(
                         onOpenMembers = { navController.navigate(MembersRoute(it)) },
                         onOpenPermissions = { navController.navigate(PermissionsRoute(it)) },
                         onOpenInviteLinks = { navController.navigate(InviteLinksRoute(it)) },
+                        onOpenStatistics = { navController.navigate(StatisticsRoute(it)) },
                         // Вышли из группы — её чата больше нет: назад к списку
                         onLeft = { navController.popBackStack<ChatsRoute>(inclusive = false) },
                     )
@@ -213,6 +216,13 @@ fun ReachNavHost(
                 composable<AdminRightsRoute> { AdminRightsScreen(onBack = { navController.popBackStack() }) }
                 composable<PermissionsRoute> { PermissionsScreen(onBack = { navController.popBackStack() }) }
                 composable<InviteLinksRoute> { InviteLinksScreen(onBack = { navController.popBackStack() }) }
+                composable<StatisticsRoute> {
+                    val chatId = it.toRoute<StatisticsRoute>().chatId
+                    StatisticsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenPost = { messageId -> navController.navigate(ChatRoute(chatId, messageId)) },
+                    )
+                }
                 composable<SettingsRoute> {
                     SettingsScreen(
                         onBack = { navController.popBackStack() },

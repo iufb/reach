@@ -71,6 +71,18 @@
         <item quantity="many">%d заявок</item>
         <item quantity="other">%d заявки</item>
     </plurals>
+    <plurals name="stats_shares">
+        <item quantity="one">%d репост</item>
+        <item quantity="few">%d репоста</item>
+        <item quantity="many">%d репостов</item>
+        <item quantity="other">%d репоста</item>
+    </plurals>
+    <plurals name="stats_reactions">
+        <item quantity="one">%d реакция</item>
+        <item quantity="few">%d реакции</item>
+        <item quantity="many">%d реакций</item>
+        <item quantity="other">%d реакции</item>
+    </plurals>
     <plurals name="comments">
         <item quantity="one">%d комментарий</item>
         <item quantity="few">%d комментария</item>
@@ -545,6 +557,26 @@
     <string name="invite_request">Отправить заявку</string>
     <string name="invite_request_sent">Заявка отправлена, дождитесь одобрения админа</string>
     <string name="invite_invalid">Ссылка недействительна или устарела</string>
+    <string name="stats_title">Статистика</string>
+    <string name="stats_unavailable">Статистика для этого канала пока недоступна: Telegram показывает её для каналов с достаточным числом подписчиков.</string>
+    <string name="stats_period">Период: %1$s — %2$s</string>
+    <string name="stats_followers">Подписчики</string>
+    <string name="stats_views_per_post">Просмотры на пост</string>
+    <string name="stats_shares_per_post">Репосты на пост</string>
+    <string name="stats_reactions_per_post">Реакции на пост</string>
+    <string name="stats_notifications_enabled">С уведомлениями</string>
+    <string name="stats_graph_growth">Рост</string>
+    <string name="stats_graph_followers">Подписки и отписки</string>
+    <string name="stats_graph_notifications">Уведомления</string>
+    <string name="stats_graph_views_by_hour">Просмотры по часам</string>
+    <string name="stats_graph_views_by_source">Источники просмотров</string>
+    <string name="stats_graph_followers_by_source">Источники подписчиков</string>
+    <string name="stats_graph_languages">Языки</string>
+    <string name="stats_graph_interactions">Взаимодействия</string>
+    <string name="stats_graph_reactions">Реакции</string>
+    <string name="stats_graph_error">Нет данных за этот период</string>
+    <string name="stats_recent_posts">Последние посты</string>
+    <string name="stats_post">Пост</string>
     <string name="contacts_title">Контакты</string>
     <string name="contacts_search">Поиск контактов</string>
     <string name="contacts_empty">Контактов пока нет</string>
