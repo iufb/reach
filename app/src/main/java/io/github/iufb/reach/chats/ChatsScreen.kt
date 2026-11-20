@@ -143,51 +143,54 @@ private fun ChatsContent(
     Scaffold(
         snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
-            TopAppBar(
-                colors = reachBarColors(),
-                navigationIcon = {
-                    if (isArchive) {
-                        IconButton(onClick = onBack) {
-                            Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
+            Column {
+                TopAppBar(
+                    colors = reachBarColors(),
+                    navigationIcon = {
+                        if (isArchive) {
+                            IconButton(onClick = onBack) {
+                                Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
+                            }
                         }
-                    }
-                },
-                title = {
-                    Text(
-                        stringResource(if (isArchive) R.string.archive_title else R.string.chats_title),
-                        fontWeight = FontWeight.Medium,
-                    )
-                },
-                actions = {
-                    if (!isArchive) {
-                        IconButton(onClick = onOpenSearch) {
-                            Icon(painterResource(R.drawable.ic_search), stringResource(R.string.search_title))
+                    },
+                    title = {
+                        Text(
+                            stringResource(if (isArchive) R.string.archive_title else R.string.chats_title),
+                            fontWeight = FontWeight.Medium,
+                        )
+                    },
+                    actions = {
+                        if (!isArchive) {
+                            IconButton(onClick = onOpenSearch) {
+                                Icon(painterResource(R.drawable.ic_search), stringResource(R.string.search_title))
+                            }
                         }
-                    }
-                    if (!isArchive) Box {
-                        IconButton(onClick = { menuOpen = true }, enabled = !loggingOut) {
-                            Icon(painterResource(R.drawable.ic_more), stringResource(R.string.chat_list_menu))
+                        if (!isArchive) Box {
+                            IconButton(onClick = { menuOpen = true }, enabled = !loggingOut) {
+                                Icon(painterResource(R.drawable.ic_more), stringResource(R.string.chat_list_menu))
+                            }
+                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.saved_messages)) },
+                                    leadingIcon = { Icon(painterResource(R.drawable.ic_bookmark), contentDescription = null) },
+                                    onClick = {
+                                        menuOpen = false
+                                        onOpenSaved()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.logout)) },
+                                    onClick = {
+                                        menuOpen = false
+                                        confirmLogOut = true
+                                    },
+                                )
+                            }
                         }
-                        DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.saved_messages)) },
-                                leadingIcon = { Icon(painterResource(R.drawable.ic_bookmark), contentDescription = null) },
-                                onClick = {
-                                    menuOpen = false
-                                    onOpenSaved()
-                                },
-                            )
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.logout)) },
-                                onClick = {
-                                    menuOpen = false
-                                    confirmLogOut = true
-                                },
-                            )
-                        }
-                    }
-                },
-            )
+                    },
+                )
+                io.github.iufb.reach.chat.NowPlayingBar()
+            }
         },
     ) { padding ->
         val modifier = Modifier.fillMaxSize().padding(padding)

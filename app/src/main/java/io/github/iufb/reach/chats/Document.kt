@@ -4,7 +4,7 @@ import io.github.iufb.reach.files.TdFile
 import io.github.iufb.reach.files.toTdFile
 import org.drinkless.tdlib.TdApi
 
-/** Документ (и аудио — до плеера в v0.4): имя, тип, размер и состояние файла на момент получения. */
+/** Документ: имя, тип, размер и состояние файла на момент получения. */
 data class DocumentInfo(
     val fileName: String,
     val mimeType: String,
@@ -26,8 +26,3 @@ internal fun TdApi.File.toDocumentInfo(fileName: String, mimeType: String) = Doc
 )
 
 internal fun TdApi.Document.toInfo() = document.toDocumentInfo(fileName, mimeType)
-
-internal fun TdApi.Audio.toInfo() = audio.toDocumentInfo(
-    fileName.ifBlank { listOf(performer, title).filter { it.isNotBlank() }.joinToString(" — ") },
-    mimeType,
-)

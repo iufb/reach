@@ -50,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
+import io.github.iufb.reach.chat.AudioRow
 import io.github.iufb.reach.chat.DocumentRow
 import io.github.iufb.reach.chat.MediaViewer
 import io.github.iufb.reach.chat.Message
@@ -203,7 +204,7 @@ private fun MessageList(
                 onClick = {
                     when (val body = message.content) {
                         is MessageBody.Document -> onDocumentClick(body.document)
-                        is MessageBody.Voice -> onAudioToggle(message)
+                        is MessageBody.Voice, is MessageBody.Audio -> onAudioToggle(message)
                         else -> onShowInChat(message)
                     }
                 },
@@ -215,6 +216,12 @@ private fun MessageList(
                         is MessageBody.Voice -> VoiceNoteView(
                             body.voice,
                             isListened = true,
+                            playback = audio.takeIf { it.track?.messageId == message.id },
+                            onToggle = { onAudioToggle(message) },
+                            onSeek = onAudioSeek,
+                        )
+                        is MessageBody.Audio -> AudioRow(
+                            body.audio,
                             playback = audio.takeIf { it.track?.messageId == message.id },
                             onToggle = { onAudioToggle(message) },
                             onSeek = onAudioSeek,

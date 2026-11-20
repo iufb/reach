@@ -1,5 +1,6 @@
 package io.github.iufb.reach.media
 
+import android.content.ComponentName
 import android.content.Context
 import androidx.annotation.OptIn
 import androidx.media3.common.AudioAttributes
@@ -10,7 +11,12 @@ import androidx.media3.common.Player
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.ProgressiveMediaSource
+import androidx.media3.session.MediaController
+import androidx.media3.session.SessionToken
+import com.google.common.util.concurrent.ListenableFuture
 import dagger.hilt.android.qualifiers.ApplicationContext
+import io.github.iufb.reach.R
+import io.github.iufb.reach.chats.PhotoInfo
 import io.github.iufb.reach.core.td.TdClient
 import io.github.iufb.reach.di.ApplicationScope
 import io.github.iufb.reach.files.TdFile
@@ -38,6 +44,8 @@ data class AudioTrack(
     val performer: String = "",
     /** Длительность из сообщения, секунды — пока плеер не узнал точную. */
     val duration: Int = 0,
+    /** Обложка альбома для мини-плеера. */
+    val cover: PhotoInfo? = null,
 ) {
     val key: String get() = "$chatId:$messageId"
 }
@@ -74,6 +82,8 @@ class AudioPlayer @Inject constructor(
 
     private var queue: List<AudioTrack> = emptyList()
     private var ticker: Job? = null
+    /** Подключение к [PlaybackService]: пока оно есть, сервис жив и показывает уведомление. */
+    private var controller: ListenableFuture<MediaController>? = null
 
     /** Создаётся при первом воспроизведении, чтобы не держать декодеры зря. */
     @get:OptIn(UnstableApi::class)
@@ -123,6 +133,7 @@ class AudioPlayer @Inject constructor(
     fun play(tracks: List<AudioTrack>, index: Int) {
         if (tracks.isEmpty()) return
         queue = tracks
+        connectService()
         player.setMediaItems(tracks.map { it.toMediaItem() }, index.coerceIn(0, tracks.lastIndex), 0L)
         player.prepare()
         player.play()
@@ -160,6 +171,24 @@ class AudioPlayer @Inject constructor(
         queue = emptyList()
         ticker?.cancel()
         _state.value = AudioState()
+        controller?.let(MediaController::releaseFuture)
+        controller = null
+    }
+
+    /** Играет [tracks] с [index]; если этот трек уже текущий — пауза/продолжить. */
+    fun toggleIn(tracks: List<AudioTrack>, index: Int) {
+        val track = tracks.getOrNull(index) ?: return
+        if (_state.value.track?.key == track.key) {
+            if (player.isPlaying) player.pause() else player.play()
+            return
+        }
+        play(tracks, index)
+    }
+
+    private fun connectService() {
+        if (controller != null) return
+        val token = SessionToken(context, ComponentName(context, PlaybackService::class.java))
+        controller = MediaController.Builder(context, token).buildAsync()
     }
 
     private fun publish() {
@@ -199,7 +228,7 @@ class AudioPlayer @Inject constructor(
         .setUri(TdFileDataSource.uriFor(file.id))
         .setMediaMetadata(
             MediaMetadata.Builder()
-                .setTitle(title.ifBlank { null })
+                .setTitle(title.ifBlank { if (isVoice) context.getString(R.string.content_voice_note) else null })
                 .setArtist(performer.ifBlank { null })
                 .build(),
         )
