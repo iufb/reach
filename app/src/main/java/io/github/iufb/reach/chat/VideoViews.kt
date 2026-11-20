@@ -33,6 +33,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -53,6 +54,7 @@ import coil3.compose.AsyncImage
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.VideoInfo
 import io.github.iufb.reach.chats.formatDuration
+import io.github.iufb.reach.media.PlaybackSlots
 import io.github.iufb.reach.media.rememberVideoPlayers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -95,7 +97,7 @@ private fun PlayBadge() {
  * и освобождается при уходе с неё; вертикальный свайп закрывает просмотр.
  */
 @Composable
-internal fun VideoPage(video: VideoInfo, active: Boolean, onDismiss: () -> Unit) {
+internal fun VideoPage(video: VideoInfo, active: Boolean, onDismiss: () -> Unit, gif: Boolean = false) {
     val dismiss by rememberUpdatedState(onDismiss)
     val dismissY = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
@@ -118,10 +120,10 @@ internal fun VideoPage(video: VideoInfo, active: Boolean, onDismiss: () -> Unit)
         contentAlignment = Alignment.Center,
     ) {
         if (active) {
-            VideoPlayback(video)
+            VideoPlayback(video, gif)
         } else {
             Poster(video, Modifier.aspectRatio(video.ratio()))
-            PlayBadge()
+            if (!gif) PlayBadge()
         }
     }
 }
@@ -136,15 +138,16 @@ private fun Poster(video: VideoInfo, modifier: Modifier) {
     )
 }
 
-/** Плеер с управлением: тап показывает/прячет панель, ползунок перематывает. */
+/** Плеер с управлением: тап показывает/прячет панель, ползунок перематывает. [gif] — по кругу и без звука. */
 @Composable
-private fun VideoPlayback(video: VideoInfo) {
+private fun VideoPlayback(video: VideoInfo, gif: Boolean) {
     val players = rememberVideoPlayers()
-    val player = remember(video.file) { players.create(video.file) }
+    val player = remember(video.file) { players.create(video.file, muted = gif, loop = gif) }
     DisposableEffect(player) {
         onDispose {
             player.release()
-            players.stopDownload(video.file)
+            // GIF маленькие — пусть докачаются в кэш, а длинное видео дальше не качаем
+            if (!gif) players.stopDownload(video.file)
         }
     }
     // Свернули приложение — пауза
@@ -213,12 +216,7 @@ private fun VideoPlayback(video: VideoInfo) {
         contentAlignment = Alignment.Center,
     ) {
         Box(Modifier.aspectRatio(ratio)) {
-            AndroidView(
-                factory = { TextureView(it) },
-                modifier = Modifier.fillMaxSize(),
-                update = { player.setVideoTextureView(it) },
-                onRelease = { player.clearVideoTextureView(it) },
-            )
+            VideoSurface(player, Modifier.fillMaxSize())
             // До первого кадра — постер, чтобы не мигал чёрный экран
             if (!firstFrame) Poster(video, Modifier.fillMaxSize())
         }
@@ -226,7 +224,7 @@ private fun VideoPlayback(video: VideoInfo) {
             failed -> Text(stringResource(R.string.video_play_error), color = Color.White)
             buffering -> CircularProgressIndicator(color = Color.White)
         }
-        if (controls) {
+        if (controls && !gif) {
             Row(
                 modifier = Modifier
                     .align(Alignment.BottomCenter)
@@ -282,6 +280,70 @@ private fun VideoPlayback(video: VideoInfo) {
             }
         }
     }
+}
+
+/** Кадры плеера. TextureView, а не SurfaceView: двигается вместе со свайпом и клипается по пузырю. */
+@Composable
+private fun VideoSurface(player: Player, modifier: Modifier) {
+    AndroidView(
+        factory = { TextureView(it) },
+        modifier = modifier,
+        update = { player.setVideoTextureView(it) },
+        onRelease = { player.clearVideoTextureView(it) },
+    )
+}
+
+/**
+ * GIF в пузыре: постер, а поверх — беззвучный плеер по кругу. Плеер живёт, только пока элемент
+ * в ленте (LazyColumn убирает ушедшие с экрана), и только если досталось место в [PlaybackSlots].
+ */
+@Composable
+internal fun AnimationThumbnail(animation: VideoInfo, modifier: Modifier = Modifier) {
+    val players = rememberVideoPlayers()
+    val slots = players.inlineSlots
+    val owner = remember { Any() }
+    LaunchedEffect(owner) {
+        // Повторяем попытку каждый раз, когда кто-то освобождает место
+        snapshotFlow { slots.taken }.collect { slots.tryAcquire(owner) }
+    }
+    DisposableEffect(owner) { onDispose { slots.release(owner) } }
+    Box(modifier, contentAlignment = Alignment.Center) {
+        PhotoThumbnail(animation.poster)
+        if (slots.holds(owner)) InlineAnimationPlayer(animation, Modifier.matchParentSize())
+        Text(
+            stringResource(R.string.content_animation),
+            modifier = Modifier
+                .align(Alignment.BottomStart)
+                .padding(6.dp)
+                .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(4.dp))
+                .padding(horizontal = 4.dp, vertical = 1.dp),
+            color = Color.White,
+            style = MaterialTheme.typography.labelSmall,
+        )
+    }
+}
+
+@Composable
+private fun InlineAnimationPlayer(animation: VideoInfo, modifier: Modifier) {
+    val players = rememberVideoPlayers()
+    val player = remember(animation.file) { players.create(animation.file, muted = true, loop = true) }
+    DisposableEffect(player) { onDispose { player.release() } }
+    LifecycleStartEffect(player) {
+        player.play()
+        onStopOrDispose { player.pause() }
+    }
+    var firstFrame by remember { mutableStateOf(false) }
+    DisposableEffect(player) {
+        val listener = object : Player.Listener {
+            override fun onRenderedFirstFrame() {
+                firstFrame = true
+            }
+        }
+        player.addListener(listener)
+        onDispose { player.removeListener(listener) }
+    }
+    // Пока нет кадра, плеер прозрачен — виден постер под ним
+    VideoSurface(player, modifier.graphicsLayer { alpha = if (firstFrame) 1f else 0f })
 }
 
 /** Пропорции кадра для разметки до старта плеера; неизвестные — 16:9. */

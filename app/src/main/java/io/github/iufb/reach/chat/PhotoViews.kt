@@ -96,6 +96,7 @@ internal fun PhotoThumbnail(photo: PhotoInfo, modifier: Modifier = Modifier, squ
 sealed interface ViewerItem {
     data class Photo(val photo: PhotoInfo) : ViewerItem
     data class Video(val video: VideoInfo) : ViewerItem
+    data class Animation(val animation: VideoInfo) : ViewerItem
 }
 
 /** Просмотр одних фото (аватарки в профиле). */
@@ -120,6 +121,7 @@ internal fun MediaViewer(items: List<ViewerItem>, initial: Int, onDismiss: () ->
                 when (val item = items[page]) {
                     is ViewerItem.Photo -> ZoomableImage(item.photo, onDismiss)
                     is ViewerItem.Video -> VideoPage(item.video, active = page == pager.settledPage, onDismiss)
+                    is ViewerItem.Animation -> VideoPage(item.animation, active = page == pager.settledPage, onDismiss, gif = true)
                 }
             }
             IconButton(onClick = onDismiss, modifier = Modifier.statusBarsPadding().padding(8.dp)) {

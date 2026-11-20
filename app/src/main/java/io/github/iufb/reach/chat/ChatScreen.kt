@@ -804,6 +804,16 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
             }
             if (!body.caption.isBlank()) RichTextView(body.caption)
         }
+        is MessageBody.Animation -> {
+            AnimationThumbnail(
+                body.animation,
+                Modifier
+                    .padding(vertical = 2.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .messageLongPress(message, interactions) { interactions.onOpenMedia(listOf(ViewerItem.Animation(body.animation)), 0) },
+            )
+            if (!body.caption.isBlank()) RichTextView(body.caption)
+        }
         is MessageBody.Document -> {
             Box(contentAlignment = Alignment.CenterStart) {
                 DocumentRow(
@@ -889,6 +899,7 @@ private fun AlbumContent(album: List<Message>, interactions: MessageInteractions
         when (val body = m.content) {
             is MessageBody.Photo -> body.caption
             is MessageBody.Video -> body.caption
+            is MessageBody.Animation -> body.caption
             is MessageBody.Unsupported -> body.caption
             is MessageBody.Document -> body.caption
             else -> null

@@ -72,6 +72,7 @@ inline fun summarize(body: MessageBody, string: (Int) -> String): String {
         is MessageBody.Document -> joinParts(body.document.fileName.ifBlank { string(ContentKind.Document.labelRes()) }, body.caption.text)
         is MessageBody.Photo -> joinParts(string(ContentKind.Photo.labelRes()), body.caption.text)
         is MessageBody.Video -> joinParts(string(ContentKind.Video.labelRes()), body.caption.text)
+        is MessageBody.Animation -> joinParts(string(ContentKind.Animation.labelRes()), body.caption.text)
         is MessageBody.Service -> string(body.kind.labelRes())
     }
 }
