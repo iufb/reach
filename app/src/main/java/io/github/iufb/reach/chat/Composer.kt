@@ -99,6 +99,8 @@ internal class ComposerState(
     /** Скрепка слева от поля: фото или файл; `null` — вложения недоступны. */
     val onAttachPhoto: (() -> Unit)? = null,
     val onAttachFile: (() -> Unit)? = null,
+    /** «Опрос» в меню скрепки; `null` — опросы здесь недоступны (личка). */
+    val onAttachPoll: (() -> Unit)? = null,
     /** Голосовые; `null` — записывать нельзя. */
     val voice: VoiceInput? = null,
     /** Меню по долгому нажатию на «отправить»; `null` — меню нет. */
@@ -184,7 +186,7 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
                     RecordingBar(voice!!, Modifier.weight(1f))
                 } else {
                     if (state.editing == null && (state.onAttachPhoto != null || state.onAttachFile != null)) {
-                        AttachButton(state.onAttachPhoto, state.onAttachFile)
+                        AttachButton(state.onAttachPhoto, state.onAttachFile, state.onAttachPoll)
                     }
                     TextField(
                         colors = TextFieldDefaults.colors(
@@ -392,7 +394,7 @@ private fun MentionSuggestions(candidates: List<MentionCandidate>, onPick: (Ment
 
 /** Скрепка с выбором: фото из галереи или любой файл. */
 @Composable
-private fun AttachButton(onPhoto: (() -> Unit)?, onFile: (() -> Unit)?) {
+private fun AttachButton(onPhoto: (() -> Unit)?, onFile: (() -> Unit)?, onPoll: (() -> Unit)?) {
     var open by remember { mutableStateOf(false) }
     Box {
         IconButton(onClick = { open = true }) {
@@ -408,6 +410,9 @@ private fun AttachButton(onPhoto: (() -> Unit)?, onFile: (() -> Unit)?) {
             }
             onFile?.let { pick ->
                 DropdownMenuItem(text = { Text(stringResource(R.string.attach_file)) }, onClick = { open = false; pick() })
+            }
+            onPoll?.let { create ->
+                DropdownMenuItem(text = { Text(stringResource(R.string.attach_poll)) }, onClick = { open = false; create() })
             }
         }
     }

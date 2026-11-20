@@ -487,6 +487,94 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /** Сколько вариантов можно в новом опросе (`poll_answer_count_max`). */
+    val pollMaxOptions: StateFlow<Int> = kotlinx.coroutines.flow.flow {
+        val max = runCatching { td.send(TdApi.GetOption("poll_answer_count_max")) }.getOrNull()
+        emit((max as? TdApi.OptionValueInteger)?.value?.toInt() ?: DEFAULT_POLL_OPTIONS)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), DEFAULT_POLL_OPTIONS)
+
+    fun sendPoll(draft: PollDraft) {
+        val reply = _replyTo.value
+        _replyTo.value = null
+        viewModelScope.launch {
+            runCatching { history.sendPoll(draft, reply?.id, sendOptions()) }.onFailure {
+                Log.e(TAG, "send poll failed", it)
+                _replyTo.value = reply
+                _sendError.value = it.message
+            }
+        }
+    }
+
+    fun vote(message: Message, optionIds: List<Int>) = setPollAnswer(message, optionIds)
+
+    fun retractVote(message: Message) {
+        _menu.value = null
+        setPollAnswer(message, emptyList())
+    }
+
+    private fun setPollAnswer(message: Message, optionIds: List<Int>) {
+        viewModelScope.launch {
+            runCatching { td.send(TdApi.SetPollAnswer(chatId, message.id, optionIds.toIntArray())) }.onFailure {
+                Log.w(TAG, "setPollAnswer failed", it)
+                _sendError.value = it.message
+            }
+        }
+    }
+
+    fun stopPoll(message: Message) {
+        _menu.value = null
+        viewModelScope.launch {
+            runCatching { td.send(TdApi.StopPoll(chatId, message.id, null)) }.onFailure {
+                Log.w(TAG, "stopPoll failed", it)
+                _sendError.value = it.message
+            }
+        }
+    }
+
+    private val _pollVoters = MutableStateFlow<PollVoters?>(null)
+    private var votersMessageId = 0L
+
+    /** Открытый список проголосовавших за вариант. */
+    internal val pollVoters: StateFlow<PollVoters?> = _pollVoters.asStateFlow()
+
+    fun showPollVoters(message: Message, option: io.github.iufb.reach.chats.PollOptionInfo) {
+        votersMessageId = message.id
+        _pollVoters.value = PollVoters(option, emptyList(), option.voterCount, loading = true)
+        loadMoreVoters()
+    }
+
+    fun loadMoreVoters() {
+        val current = _pollVoters.value ?: return
+        val messageId = votersMessageId
+        _pollVoters.value = current.copy(loading = true)
+        viewModelScope.launch {
+            val page = runCatching {
+                td.send(TdApi.GetPollVoters(chatId, messageId, current.option.id, current.voters.size, VOTERS_PAGE))
+            }.onFailure { Log.w(TAG, "getPollVoters failed", it) }.getOrNull()
+            _pollVoters.update { state ->
+                if (state == null || state.option.id != current.option.id) return@update state
+                val rows = page?.voters.orEmpty().map { voter ->
+                    val sender = when (val id = voter.voterId) {
+                        is TdApi.MessageSenderUser -> Sender.User(id.userId)
+                        is TdApi.MessageSenderChat -> Sender.Chat(id.chatId)
+                        else -> Sender.Chat(0)
+                    }
+                    val info = senders.value[sender]
+                    PollVoterRow(sender, info?.name.orEmpty(), info?.photo, info?.accentColorId ?: 0)
+                }
+                state.copy(
+                    voters = (state.voters + rows).distinctBy { it.sender },
+                    totalCount = page?.totalCount ?: state.voters.size,
+                    loading = false,
+                )
+            }
+        }
+    }
+
+    fun closePollVoters() {
+        _pollVoters.value = null
+    }
+
     private val _stickerSetTitle = MutableStateFlow<String?>(null)
 
     /** Название пака стикера, по которому тапнули; `null` — диалог закрыт. */
@@ -858,5 +946,7 @@ class ChatViewModel @Inject constructor(
         const val MENTION_LIMIT = 20
         const val LINK_PREVIEW_DEBOUNCE_MS = 600L
         const val TYPING_INTERVAL_MS = 5_000L
+        const val DEFAULT_POLL_OPTIONS = 12
+        const val VOTERS_PAGE = 50
     }
 }

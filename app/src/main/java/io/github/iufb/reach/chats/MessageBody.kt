@@ -43,6 +43,8 @@ sealed interface MessageBody {
     data class Unsupported(val kind: ContentKind, val caption: RichText = RichText.Empty) : MessageBody
 
     /** Служебное событие чата: вступление, смена названия, закреп… */
+    data class Poll(val poll: PollInfo) : MessageBody
+
     /** [value] — число для части видов (секунды автоудаления), [text] — строка (название топика). */
     data class Service(val kind: ServiceKind, val value: Int = 0, val text: String = "") : MessageBody
 }
@@ -74,7 +76,7 @@ internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
     is TdApi.MessagePaidMedia -> unsupported(ContentKind.PaidMedia, caption)
     is TdApi.MessageVideoNote -> MessageBody.Unsupported(ContentKind.VideoNote)
     is TdApi.MessageSticker -> MessageBody.Sticker(sticker.toInfo())
-    is TdApi.MessagePoll -> unsupported(ContentKind.Poll, poll.question)
+    is TdApi.MessagePoll -> MessageBody.Poll(poll.toInfo())
     is TdApi.MessageChecklist -> unsupported(ContentKind.Checklist, list.title)
     is TdApi.MessageLocation, is TdApi.MessageVenue -> MessageBody.Unsupported(ContentKind.Location)
     is TdApi.MessageLiveLocation -> MessageBody.Unsupported(ContentKind.LiveLocation)

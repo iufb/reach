@@ -11,6 +11,7 @@ import kotlinx.coroutines.sync.Mutex
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.toBody
+import io.github.iufb.reach.chats.toInfo
 import io.github.iufb.reach.chats.toFormattedText
 import org.drinkless.tdlib.TdApi
 
@@ -173,6 +174,21 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
                         if (body is MessageBody.Voice) copy(content = body.copy(isListened = true)) else this
                     }
                 }
+                // Голоса в опросе: апдейт по id опроса, без id сообщения
+                is TdApi.UpdatePoll -> {
+                    val poll = update.poll.toInfo()
+                    _state.update { s ->
+                        if (s.messages.none { (it.content as? MessageBody.Poll)?.poll?.id == poll.id }) {
+                            s
+                        } else {
+                            s.copy(
+                                messages = s.messages.map { m ->
+                                    if ((m.content as? MessageBody.Poll)?.poll?.id == poll.id) m.copy(content = MessageBody.Poll(poll)) else m
+                                },
+                            )
+                        }
+                    }
+                }
                 is TdApi.UpdateMessageIsPinned -> if (update.chatId == chatId) {
                     edit(update.messageId) { copy(isPinned = update.isPinned) }
                 }
@@ -265,6 +281,35 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         val voice = TdApi.InputVoiceNote(TdApi.InputFileLocal(path), duration, waveform)
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
         val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, options.toTd(), null, TdApi.InputMessageVoiceNote(voice, null, null)))
+        mergeSent(listOf(pending))
+    }
+
+    /** Опрос или викторина из [PollDraft]. */
+    suspend fun sendPoll(draft: PollDraft, replyToMessageId: Long? = null, options: SendOptions = SendOptions()) {
+        if (!_state.value.reachedNewest) open(lastReadInboxId = null)
+        val type = draft.correctOptionIds?.let { correct ->
+            TdApi.InputPollTypeQuiz(correct.toIntArray(), RichText(draft.explanation).toFormattedText(), null)
+        } ?: TdApi.InputPollTypeRegular(false)
+        val content = TdApi.InputMessagePoll(
+            RichText(draft.question).toFormattedText(),
+            draft.options.map { TdApi.InputPollOption(RichText(it).toFormattedText(), null) }.toTypedArray(),
+            null,
+            null,
+            draft.isAnonymous,
+            draft.allowsMultipleAnswers,
+            // Переголосовать можно в обычных опросах; ответ в викторине окончательный
+            draft.correctOptionIds == null,
+            false,
+            emptyArray(),
+            false,
+            false,
+            type,
+            0,
+            0,
+            false,
+        )
+        val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
+        val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, options.toTd(), null, content))
         mergeSent(listOf(pending))
     }
 

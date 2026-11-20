@@ -110,6 +110,10 @@ inline fun summarize(body: MessageBody, string: (Int) -> String): String {
         )
         is MessageBody.Voice -> joinParts(string(ContentKind.VoiceNote.labelRes()), body.caption.masked())
         is MessageBody.AnimatedEmoji -> body.emoji
+        is MessageBody.Poll -> joinParts(
+            string(if (body.poll.quiz != null) R.string.content_quiz else ContentKind.Poll.labelRes()),
+            body.poll.question.masked(),
+        )
         is MessageBody.Sticker -> joinParts(body.sticker.emoji, string(ContentKind.Sticker.labelRes()))
         is MessageBody.Service -> string(body.kind.labelRes())
     }

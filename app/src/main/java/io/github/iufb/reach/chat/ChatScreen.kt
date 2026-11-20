@@ -170,6 +170,34 @@ fun ChatScreen(
     val reactionEffect by viewModel.reactionEffect.collectAsStateWithLifecycle()
     val recorderState by viewModel.recorderState.collectAsStateWithLifecycle()
     stickerSetTitle?.let { StickerSetDialog(it, viewModel::dismissStickerSet) }
+    var creatingPoll by remember { mutableStateOf(false) }
+    val pollMaxOptions by viewModel.pollMaxOptions.collectAsStateWithLifecycle()
+    if (creatingPoll) {
+        CreatePollDialog(
+            forceAnonymous = chat?.kind == ChatKind.Channel,
+            maxOptions = pollMaxOptions,
+            onCreate = {
+                creatingPoll = false
+                viewModel.sendPoll(it)
+            },
+            onDismiss = { creatingPoll = false },
+        )
+    }
+    val pollVoters by viewModel.pollVoters.collectAsStateWithLifecycle()
+    pollVoters?.let { voters ->
+        PollVotersDialog(
+            voters,
+            onLoadMore = viewModel::loadMoreVoters,
+            onOpen = { sender ->
+                viewModel.closePollVoters()
+                when (sender) {
+                    is Sender.User -> onOpenUserProfile(sender.id)
+                    is Sender.Chat -> onOpenChat(sender.id)
+                }
+            },
+            onDismiss = viewModel::closePollVoters,
+        )
+    }
     CompositionLocalProvider(LocalMentionHandler provides mentionHandler) {
         ChatContent(
             chat, state, senders, onBack,
@@ -202,6 +230,8 @@ fun ChatScreen(
                         photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                     },
                     onAttachFile = { filePicker.launch(arrayOf("*/*")) },
+                    // В личных чатах опросов нет
+                    onAttachPoll = if (chat?.kind == ChatKind.Group || chat?.kind == ChatKind.Channel) ({ creatingPoll = true }) else null,
                     voice = VoiceInput(
                         state = recorderState,
                         onStart = viewModel::startRecording,
@@ -256,6 +286,10 @@ fun ChatScreen(
                 onJumpTo = viewModel::jumpTo,
                 scrollTarget = scrollTarget,
                 onScrolledToTarget = viewModel::onScrolledToTarget,
+                onVote = viewModel::vote,
+                onShowVoters = viewModel::showPollVoters,
+                onRetractVote = viewModel::retractVote,
+                onStopPoll = viewModel::stopPoll,
             ),
         )
     }
@@ -369,6 +403,11 @@ private class MessageInteractions(
     /** Эффект своей реакции: (сообщение, реакция). */
     val reactionEffect: Pair<Long, ReactionKey>? = null,
     val onReactionEffectDone: () -> Unit = {},
+    /** Голос в опросе: номера вариантов. */
+    val onVote: (Message, List<Int>) -> Unit = { _, _ -> },
+    val onShowVoters: (Message, io.github.iufb.reach.chats.PollOptionInfo) -> Unit = { _, _ -> },
+    val onRetractVote: (Message) -> Unit = {},
+    val onStopPoll: (Message) -> Unit = {},
 ) {
     /** Меню, если оно открыто именно для [message]. */
     fun menuFor(message: Message): MessageMenu? = menu?.takeIf { it.message.id == message.id }
@@ -771,6 +810,8 @@ private fun MessagePopup(message: Message, interactions: MessageInteractions) {
         onSelect = interactions.onStartSelection,
         onReact = interactions.onReact,
         onPin = interactions.onPin,
+        onRetractVote = interactions.onRetractVote,
+        onStopPoll = interactions.onStopPoll,
     )
 }
 
@@ -976,6 +1017,12 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
             }
             if (!body.caption.isBlank()) RichTextView(body.caption)
         }
+        is MessageBody.Poll -> PollView(
+            body.poll,
+            onVote = { ids -> if (interactions.selection.isEmpty()) interactions.onVote(message, ids) },
+            onShowVoters = { option -> interactions.onShowVoters(message, option) },
+            modifier = Modifier.messageLongPress(message, interactions),
+        )
         is MessageBody.Unsupported -> {
             UnsupportedStub(body.kind)
             if (!body.caption.isBlank()) RichTextView(body.caption)
