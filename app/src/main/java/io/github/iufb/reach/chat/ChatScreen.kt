@@ -88,6 +88,7 @@ import io.github.iufb.reach.chats.ChatKind
 import io.github.iufb.reach.chats.ContentKind
 import io.github.iufb.reach.chats.GroupRef
 import io.github.iufb.reach.chats.MessageBody
+import io.github.iufb.reach.chats.StickerInfo
 import io.github.iufb.reach.presence.activityText
 import io.github.iufb.reach.presence.userStatusText
 import io.github.iufb.reach.chats.RichText
@@ -160,6 +161,8 @@ fun ChatScreen(
     val context = LocalContext.current
     LaunchedEffect(viewModel) { viewModel.openFile.collect { openFile(context, it) } }
     viewer?.let { (items, index) -> MediaViewer(items, index) { viewer = null } }
+    val stickerSetTitle by viewModel.stickerSetTitle.collectAsStateWithLifecycle()
+    stickerSetTitle?.let { StickerSetDialog(it, viewModel::dismissStickerSet) }
     CompositionLocalProvider(LocalMentionHandler provides mentionHandler) {
         ChatContent(
             chat, state, senders, onBack,
@@ -218,6 +221,7 @@ fun ChatScreen(
                 onCancelSending = viewModel::cancelSending,
                 downloads = downloads,
                 onDocumentClick = viewModel::onDocumentClick,
+                onStickerClick = viewModel::onStickerClick,
                 replied = replied,
                 onJumpTo = viewModel::jumpTo,
                 scrollTarget = scrollTarget,
@@ -316,6 +320,8 @@ private class MessageInteractions(
     val onJumpTo: (Long) -> Unit,
     val scrollTarget: Long?,
     val onScrolledToTarget: () -> Unit,
+    /** Тап по стикеру: название пака. */
+    val onStickerClick: (StickerInfo) -> Unit = {},
 ) {
     /** Меню, если оно открыто именно для [message]. */
     fun menuFor(message: Message): MessageMenu? = menu?.takeIf { it.message.id == message.id }
@@ -610,6 +616,8 @@ private fun MessageBubble(
     reply: @Composable () -> Unit,
 ) {
     val outgoing = message.isOutgoing
+    // Стикер рисуется без пузыря: прозрачный фон, время — на плашке
+    val bare = album.size <= 1 && message.content.isBare()
     val bubbleShape = RoundedCornerShape(
         topStart = 16.dp, topEnd = 16.dp,
         bottomStart = if (outgoing) 16.dp else 4.dp,
@@ -627,9 +635,15 @@ private fun MessageBubble(
             modifier = Modifier
                 .widthIn(max = 320.dp)
                 .clip(bubbleShape)
-                .background(if (outgoing) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surface)
+                .background(
+                    when {
+                        bare -> Color.Transparent
+                        outgoing -> MaterialTheme.colorScheme.primaryContainer
+                        else -> MaterialTheme.colorScheme.surface
+                    },
+                )
                 .messageLongPress(message, interactions)
-                .padding(horizontal = 12.dp, vertical = 8.dp),
+                .padding(horizontal = if (bare) 0.dp else 12.dp, vertical = if (bare) 2.dp else 8.dp),
         ) {
             MessagePopup(message, interactions)
             if (sender != null) {
@@ -644,7 +658,17 @@ private fun MessageBubble(
             if (album.size > 1) AlbumContent(album, interactions) else MessageContent(message, interactions)
             ReactionChips(message.reactions, onClick = reactionClick(message, interactions))
             Row(
-                modifier = Modifier.align(Alignment.End),
+                modifier = Modifier
+                    .align(Alignment.End)
+                    .then(
+                        if (bare) {
+                            Modifier
+                                .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), RoundedCornerShape(8.dp))
+                                .padding(horizontal = 6.dp, vertical = 1.dp)
+                        } else {
+                            Modifier
+                        },
+                    ),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
@@ -804,6 +828,10 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
             }
             if (!body.caption.isBlank()) RichTextView(body.caption)
         }
+        is MessageBody.Sticker -> StickerView(
+            body.sticker,
+            Modifier.messageLongPress(message, interactions) { interactions.onStickerClick(body.sticker) },
+        )
         is MessageBody.Animation -> {
             AnimationThumbnail(
                 body.animation,
@@ -1018,3 +1046,6 @@ private fun MessageBody.viewerItem(): ViewerItem? = when (this) {
     is MessageBody.Video -> ViewerItem.Video(video)
     else -> null
 }
+
+/** Содержимое без пузыря: стикеры. */
+private fun MessageBody.isBare(): Boolean = this is MessageBody.Sticker

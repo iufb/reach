@@ -9,6 +9,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.iufb.reach.chats.Chat
 import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.chats.MessageBody
+import io.github.iufb.reach.chats.StickerInfo
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
 import io.github.iufb.reach.chats.toFormattedText
@@ -367,6 +368,23 @@ class ChatViewModel @Inject constructor(
     /** Состояние документов, которые качаются или скачаны в этом экране; по id файла. */
     val downloads: StateFlow<Map<Int, FileState>> = _downloads.asStateFlow()
     private val downloadJobs = HashMap<Int, Job>()
+
+    private val _stickerSetTitle = MutableStateFlow<String?>(null)
+
+    /** Название пака стикера, по которому тапнули; `null` — диалог закрыт. */
+    val stickerSetTitle: StateFlow<String?> = _stickerSetTitle.asStateFlow()
+
+    fun onStickerClick(sticker: StickerInfo) {
+        if (sticker.setId == 0L) return
+        viewModelScope.launch {
+            runCatching { td.send(TdApi.GetStickerSet(sticker.setId)).title }
+                .onSuccess { _stickerSetTitle.value = it }
+        }
+    }
+
+    fun dismissStickerSet() {
+        _stickerSetTitle.value = null
+    }
 
     private val _openFile = MutableSharedFlow<OpenFile>(extraBufferCapacity = 1)
     /** Открыть скачанный файл во внешнем приложении. */

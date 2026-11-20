@@ -20,6 +20,9 @@ sealed interface MessageBody {
     /** GIF — в Telegram это беззвучный MP4; модель та же, что у видео. */
     data class Animation(val animation: VideoInfo, val caption: RichText) : MessageBody
 
+    /** Стикер — без пузыря и без подписи. */
+    data class Sticker(val sticker: StickerInfo) : MessageBody
+
     data class Document(val document: DocumentInfo, val caption: RichText) : MessageBody
 
     /** Сообщение, которое клиент ещё не умеет показать. [caption] — подпись или эмодзи, если есть. */
@@ -54,7 +57,7 @@ internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
     is TdApi.MessageAnimation -> MessageBody.Animation(toInfo(), caption.toRichText())
     is TdApi.MessagePaidMedia -> unsupported(ContentKind.PaidMedia, caption)
     is TdApi.MessageVideoNote -> MessageBody.Unsupported(ContentKind.VideoNote)
-    is TdApi.MessageSticker -> unsupported(ContentKind.Sticker, sticker.emoji)
+    is TdApi.MessageSticker -> MessageBody.Sticker(sticker.toInfo())
     is TdApi.MessagePoll -> unsupported(ContentKind.Poll, poll.question)
     is TdApi.MessageChecklist -> unsupported(ContentKind.Checklist, list.title)
     is TdApi.MessageLocation, is TdApi.MessageVenue -> MessageBody.Unsupported(ContentKind.Location)
