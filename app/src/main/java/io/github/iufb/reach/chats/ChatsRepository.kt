@@ -43,6 +43,8 @@ class ChatsRepository @Inject constructor(
     private val _allLoaded = MutableStateFlow<Set<ChatListType>>(emptySet())
     private val loadLock = Mutex()
 
+    private val _counts = MutableStateFlow<Map<ChatListType, ChatListCounts>>(emptyMap())
+
     init {
         // UNDISPATCHED: подписка на апдейты регистрируется сразу, до того как TDLib начнёт слать чаты
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
@@ -64,6 +66,9 @@ class ChatsRepository @Inject constructor(
     /** Все чаты списка уже загружены: дальше `loadChats` вернёт 404. */
     fun allLoaded(list: ChatListType): Flow<Boolean> = _allLoaded.map { list in it }.distinctUntilChanged()
 
+    /** Счётчики списка; `null` — TDLib их ещё не присылал. */
+    fun counts(list: ChatListType): Flow<ChatListCounts?> = _counts.map { it[list] }.distinctUntilChanged()
+
     /** Просит TDLib прислать следующую порцию чатов. Параллельные вызовы схлопываются. */
     suspend fun loadMore(list: ChatListType) {
         if (!loadLock.tryLock()) return
@@ -80,6 +85,11 @@ class ChatsRepository @Inject constructor(
     /** Закрепляет или открепляет чат в списке [list]. Позиция придёт апдейтом `UpdateChatPosition`. */
     suspend fun setPinned(chatId: Long, list: ChatListType, pinned: Boolean) {
         td.send(TdApi.ToggleChatIsPinned(list.toTd(), chatId, pinned))
+    }
+
+    /** Переносит чат в список [list] (архив ↔ основной). Позиции придут апдейтами. */
+    suspend fun moveToList(chatId: Long, list: ChatListType) {
+        td.send(TdApi.AddChatToList(chatId, list.toTd()))
     }
 
     private fun onUpdate(update: TdApi.Object) {
@@ -105,10 +115,14 @@ class ChatsRepository @Inject constructor(
                 copy(canSendBasicMessages = update.permissions.canSendBasicMessages)
             }
             is TdApi.UpdateChatReadInbox -> edit(update.chatId) { copy(unreadCount = update.unreadCount, lastReadInboxMessageId = update.lastReadInboxMessageId) }
+            is TdApi.UpdateUnreadChatCount -> update.chatList.toModel()?.let { list ->
+                _counts.update { it + (list to ChatListCounts(update.totalCount, update.unreadCount, update.unreadUnmutedCount)) }
+            }
             is TdApi.UpdateAuthorizationState -> if (update.authorizationState is TdApi.AuthorizationStateClosed) {
                 // Выход из аккаунта: чужие чаты новому входу не нужны
                 _chats.value = emptyMap()
                 _allLoaded.value = emptySet()
+                _counts.value = emptyMap()
             }
         }
     }

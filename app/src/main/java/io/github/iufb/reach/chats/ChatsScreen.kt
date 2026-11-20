@@ -1,6 +1,8 @@
 package io.github.iufb.reach.chats
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
@@ -70,21 +72,30 @@ import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 
 @Composable
-fun ChatsScreen(onChatClick: (Long) -> Unit, viewModel: ChatsViewModel = hiltViewModel()) {
+fun ChatsScreen(
+    onChatClick: (Long) -> Unit,
+    onOpenArchive: () -> Unit,
+    onBack: () -> Unit,
+    viewModel: ChatsViewModel = hiltViewModel(),
+) {
     val chats by viewModel.chats.collectAsStateWithLifecycle()
     val allLoaded by viewModel.allLoaded.collectAsStateWithLifecycle()
     val loggingOut by viewModel.loggingOut.collectAsStateWithLifecycle()
     val activities by viewModel.activities.collectAsStateWithLifecycle()
     val menuChat by viewModel.menuChat.collectAsStateWithLifecycle()
+    val archive by viewModel.archive.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
     ChatsContent(
         viewModel.list, chats, allLoaded, loggingOut, onChatClick, viewModel::loadMore, viewModel::logOut, activities,
         onChatLongClick = viewModel::openMenu,
         snackbar = snackbar,
+        archive = archive,
+        onOpenArchive = onOpenArchive,
+        onBack = onBack,
     )
     menuChat?.let { chat ->
-        ChatMenuSheet(chat, viewModel.list, ChatMenuActions(onSetPinned = viewModel::setPinned), onDismiss = viewModel::dismissMenu)
+        ChatMenuSheet(chat, viewModel.list, ChatMenuActions(onSetPinned = viewModel::setPinned, onSetArchived = viewModel::setArchived), onDismiss = viewModel::dismissMenu)
     }
 }
 
@@ -101,7 +112,11 @@ private fun ChatsContent(
     activities: Map<Long, Map<Sender, ActivityKind>> = emptyMap(),
     onChatLongClick: (Long) -> Unit = {},
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
+    archive: ArchiveSummary? = null,
+    onOpenArchive: () -> Unit = {},
+    onBack: () -> Unit = {},
 ) {
+    val isArchive = list == ChatListType.Archive
     var confirmLogOut by rememberSaveable { mutableStateOf(false) }
     var menuOpen by rememberSaveable { mutableStateOf(false) }
     Scaffold(
@@ -109,9 +124,21 @@ private fun ChatsContent(
         topBar = {
             TopAppBar(
                 colors = reachBarColors(),
-                title = { Text(stringResource(R.string.chats_title), fontWeight = FontWeight.Medium) },
+                navigationIcon = {
+                    if (isArchive) {
+                        IconButton(onClick = onBack) {
+                            Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
+                        }
+                    }
+                },
+                title = {
+                    Text(
+                        stringResource(if (isArchive) R.string.archive_title else R.string.chats_title),
+                        fontWeight = FontWeight.Medium,
+                    )
+                },
                 actions = {
-                    Box {
+                    if (!isArchive) Box {
                         IconButton(onClick = { menuOpen = true }, enabled = !loggingOut) {
                             Icon(painterResource(R.drawable.ic_more), stringResource(R.string.chat_list_menu))
                         }
@@ -132,14 +159,14 @@ private fun ChatsContent(
         val modifier = Modifier.fillMaxSize().padding(padding)
         when {
             loggingOut || chats == null -> Box(modifier, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            chats.isEmpty() && allLoaded -> Box(modifier.padding(24.dp), contentAlignment = Alignment.Center) {
+            chats.isEmpty() && allLoaded && archive == null -> Box(modifier.padding(24.dp), contentAlignment = Alignment.Center) {
                 Text(
-                    stringResource(R.string.chats_empty),
+                    stringResource(if (isArchive) R.string.archive_empty else R.string.chats_empty),
                     style = MaterialTheme.typography.bodyLarge,
                     textAlign = TextAlign.Center,
                 )
             }
-            else -> ChatList(list, chats, allLoaded, onChatClick, onChatLongClick, onLoadMore, modifier, activities)
+            else -> ChatList(list, chats, allLoaded, onChatClick, onChatLongClick, onLoadMore, modifier, activities, archive, onOpenArchive)
         }
     }
     if (confirmLogOut) {
@@ -163,10 +190,18 @@ private fun ChatList(
     onLoadMore: () -> Unit,
     modifier: Modifier,
     activities: Map<Long, Map<Sender, ActivityKind>>,
+    archive: ArchiveSummary?,
+    onOpenArchive: () -> Unit,
 ) {
     val listState = rememberLazyListState()
     LoadMoreEffect(listState, enabled = !allLoaded, onLoadMore)
     LazyColumn(state = listState, modifier = modifier) {
+        if (archive != null) {
+            item(key = "archive") {
+                ArchiveRow(archive, onOpenArchive)
+                HorizontalDivider(Modifier.padding(start = 80.dp), thickness = Dp.Hairline, color = MaterialTheme.colorScheme.outlineVariant)
+            }
+        }
         items(chats, key = { it.id }) { chat ->
             ChatRow(
                 chat,
@@ -268,19 +303,61 @@ private fun ChatRow(chat: Chat, isPinned: Boolean, activity: String?, onClick: (
     }
 }
 
+/** Строка «Архив»: сколько чатов и чьи, счётчик непрочитанных — серый, архив без звука. */
 @Composable
-private fun UnreadBadge(count: Int) {
+private fun ArchiveRow(archive: ArchiveSummary, onClick: () -> Unit) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(
+            Modifier.size(56.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(R.drawable.ic_archive), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+            Text(
+                stringResource(R.string.archive_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    archive.titles.filter { it.isNotBlank() }.joinToString(", ")
+                        .ifEmpty { pluralStringResource(R.plurals.archive_chats, archive.total, archive.total) },
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (archive.unreadChats > 0) {
+                    Spacer(Modifier.width(8.dp))
+                    UnreadBadge(archive.unreadChats, muted = true)
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UnreadBadge(count: Int, muted: Boolean = false) {
     Box(
         modifier = Modifier
             .defaultMinSize(minWidth = 22.dp, minHeight = 22.dp)
-            .background(MaterialTheme.colorScheme.primary, CircleShape)
+            .background(if (muted) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary, CircleShape)
             .padding(horizontal = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
         Text(
             if (count > MAX_BADGE) "$MAX_BADGE+" else count.toString(),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onPrimary,
+            color = if (muted) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onPrimary,
         )
     }
 }

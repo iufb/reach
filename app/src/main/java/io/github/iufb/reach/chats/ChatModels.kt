@@ -27,6 +27,9 @@ internal fun TdApi.ChatList.toModel(): ChatListType? = when (this) {
     else -> null
 }
 
+/** Счётчики списка из `UpdateUnreadChatCount`: всего чатов и сколько из них непрочитанных. */
+data class ChatListCounts(val total: Int, val unread: Int, val unreadUnmuted: Int)
+
 enum class ChatKind { Private, Secret, Group, Channel }
 
 /** Место чата в одном списке. `order` больше — выше; закреплённые TDLib уже ставит наверх через `order`. */
