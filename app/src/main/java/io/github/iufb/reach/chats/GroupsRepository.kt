@@ -22,7 +22,13 @@ sealed interface GroupRef {
 /** Статус текущего пользователя в группе или канале — только то, что нужно для права писать. */
 sealed interface MemberStatus {
     data class Creator(val isMember: Boolean) : MemberStatus
-    data class Administrator(val canPostMessages: Boolean, val canChangeInfo: Boolean = false) : MemberStatus
+    data class Administrator(
+        val canPostMessages: Boolean,
+        val canChangeInfo: Boolean = false,
+        val canInviteUsers: Boolean = false,
+        val canRestrictMembers: Boolean = false,
+        val canPromoteMembers: Boolean = false,
+    ) : MemberStatus
     data object Member : MemberStatus
     data class Restricted(val isMember: Boolean, val canSendText: Boolean) : MemberStatus
     data object Left : MemberStatus
@@ -55,7 +61,13 @@ class GroupsRepository @Inject constructor(td: TdClient, @ApplicationScope scope
 
 private fun TdApi.ChatMemberStatus.toModel(): MemberStatus = when (this) {
     is TdApi.ChatMemberStatusCreator -> MemberStatus.Creator(isMember)
-    is TdApi.ChatMemberStatusAdministrator -> MemberStatus.Administrator(rights.canPostMessages, rights.canChangeInfo)
+    is TdApi.ChatMemberStatusAdministrator -> MemberStatus.Administrator(
+        rights.canPostMessages,
+        rights.canChangeInfo,
+        rights.canInviteUsers,
+        rights.canRestrictMembers,
+        rights.canPromoteMembers,
+    )
     is TdApi.ChatMemberStatusMember -> MemberStatus.Member
     is TdApi.ChatMemberStatusRestricted -> MemberStatus.Restricted(isMember, permissions.canSendBasicMessages)
     else -> MemberStatus.Left

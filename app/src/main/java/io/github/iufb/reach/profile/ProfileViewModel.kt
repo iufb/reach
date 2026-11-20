@@ -10,6 +10,7 @@ import io.github.iufb.reach.chats.ChatKind
 import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.chats.GroupRef
 import io.github.iufb.reach.chats.GroupsRepository
+import io.github.iufb.reach.chats.MemberStatus
 import io.github.iufb.reach.contacts.ContactsRepository
 import io.github.iufb.reach.chats.canChangeInfo
 import io.github.iufb.reach.chats.PhotoInfo
@@ -63,6 +64,12 @@ data class Profile(
     val lastName: String = "",
     /** Пользователь в чёрном списке; `null` — не пользователь или это ты сам. */
     val isBlocked: Boolean? = null,
+    /** Группа или канал: есть экран участников. */
+    val canOpenMembers: Boolean = false,
+    /** Состоишь в группе / канале: можно выйти. */
+    val isMember: Boolean = false,
+    /** Владелец: можно удалить чат целиком. */
+    val isOwner: Boolean = false,
 )
 
 /** Полная информация, которую TDLib отдаёт отдельным запросом. */
@@ -72,6 +79,7 @@ private data class FullInfo(
     val memberCount: Int = 0,
     val username: String = "",
     val isBlocked: Boolean = false,
+    val canGetMembers: Boolean = false,
 )
 
 /**
@@ -137,6 +145,9 @@ class ProfileViewModel @Inject constructor(
                 isMuted = chat.isMuted,
                 autoDeleteTime = chat.autoDeleteTime,
                 canChangeAutoDelete = canChangeInfo,
+                canOpenMembers = info.canGetMembers,
+                isMember = chat.group?.let(statuses::get).let { it != null && it != MemberStatus.Left && !(it is MemberStatus.Creator && !it.isMember) },
+                isOwner = chat.group?.let(statuses::get) is MemberStatus.Creator,
             )
             else -> null
         }
@@ -182,6 +193,23 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    private val _left = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    /** Вышли из группы или удалили её — закрыть профиль и чат. */
+    val left: SharedFlow<Unit> = _left.asSharedFlow()
+
+    fun leave() = leaveOrDelete(delete = false)
+
+    fun deleteChat() = leaveOrDelete(delete = true)
+
+    private fun leaveOrDelete(delete: Boolean) {
+        if (route.chatId == 0L) return
+        viewModelScope.launch {
+            runCatching { td.send(if (delete) TdApi.DeleteChat(route.chatId) else TdApi.LeaveChat(route.chatId)) }
+                .onSuccess { _left.emit(Unit) }
+                .onFailure { _error.emit(it.message.orEmpty()) }
+        }
+    }
+
     fun removeContact() {
         val id = userId ?: return
         viewModelScope.launch {
@@ -208,11 +236,17 @@ class ProfileViewModel @Inject constructor(
                         about = RichText(info.description),
                         memberCount = info.memberCount.takeIf { it > 0 } ?: supergroup.memberCount,
                         username = supergroup.usernames?.activeUsernames?.firstOrNull().orEmpty(),
+                        canGetMembers = info.canGetMembers,
                     )
                 }
                 group is GroupRef.Basic -> {
                     val info = td.send(TdApi.GetBasicGroupFullInfo(group.id))
-                    FullInfo(photo = info.photo?.toInfo(), about = RichText(info.description), memberCount = info.members.size)
+                    FullInfo(
+                        photo = info.photo?.toInfo(),
+                        about = RichText(info.description),
+                        memberCount = info.members.size,
+                        canGetMembers = true,
+                    )
                 }
                 else -> FullInfo()
             }

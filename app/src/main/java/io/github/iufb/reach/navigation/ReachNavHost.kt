@@ -26,6 +26,7 @@ import io.github.iufb.reach.chat.ScheduledScreen
 import io.github.iufb.reach.topics.TopicsScreen
 import io.github.iufb.reach.contacts.ContactsScreen
 import io.github.iufb.reach.newchat.NewChatScreen
+import io.github.iufb.reach.members.MembersScreen
 import io.github.iufb.reach.blocked.BlockedScreen
 import io.github.iufb.reach.contacts.ContactSyncScreen
 import io.github.iufb.reach.settings.SettingsScreen
@@ -62,6 +63,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object ContactSyncRoute
 @Serializable data object BlockedRoute
 @Serializable data class NewChatRoute(val channel: Boolean)
+@Serializable data class MembersRoute(val chatId: Long)
 
 /**
  * Два графа: вход и основной. Какой экран показан, решает [AuthState]:
@@ -157,6 +159,15 @@ fun ReachNavHost(authState: AuthState, openChatId: Long? = null, onOpenChatHandl
                     onBack = { navController.popBackStack() },
                     onOpenChat = { navController.navigate(ChatRoute(it)) },
                     onOpenGallery = { navController.navigate(GalleryRoute(it)) },
+                    onOpenMembers = { navController.navigate(MembersRoute(it)) },
+                    // Вышли из группы — её чата больше нет: назад к списку
+                    onLeft = { navController.popBackStack<ChatsRoute>(inclusive = false) },
+                )
+            }
+            composable<MembersRoute> {
+                MembersScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenUser = { navController.navigate(ProfileRoute(userId = it)) },
                 )
             }
             composable<SettingsRoute> {
