@@ -25,6 +25,20 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.graphics.Color
+import androidx.compose.foundation.layout.requiredSize
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.produceState
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.ui.platform.LocalContext
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.rememberLottieAnimatable
+import dagger.hilt.EntryPoint
+import dagger.hilt.InstallIn
+import dagger.hilt.android.EntryPointAccessors
+import dagger.hilt.components.SingletonComponent
+import io.github.iufb.reach.media.rememberTgsComposition
+import kotlinx.coroutines.delay
 
 /** Чипы реакций под содержимым сообщения. [onClick] `null` — чипы не нажимаются. */
 @Composable
@@ -56,7 +70,7 @@ private fun ReactionChip(reaction: Reaction, onClick: ((ReactionKey) -> Unit)?) 
             .padding(horizontal = 8.dp, vertical = 3.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Text(reactionSymbol(reaction.key), style = MaterialTheme.typography.bodyMedium)
+        ChipIcon(reaction)
         Text(
             formatCount(reaction.count),
             modifier = Modifier.padding(start = 4.dp),
@@ -90,7 +104,7 @@ internal fun ReactionPicker(available: AvailableReactions, current: List<Reactio
                     .clickable { onPick(key) },
                 contentAlignment = Alignment.Center,
             ) {
-                Text(reactionSymbol(key), fontSize = 22.sp)
+                PickerIcon(key)
             }
         }
         if (!expanded && available.all.size > available.top.size) {
@@ -123,3 +137,86 @@ private fun compact(tenths: Int, suffix: String): String {
     val fraction = tenths % 10
     return if (fraction == 0 || whole >= 100) "$whole$suffix" else "$whole,$fraction$suffix"
 }
+
+@EntryPoint
+@InstallIn(SingletonComponent::class)
+internal interface ReactionsEntryPoint {
+    fun reactionsRepository(): ReactionsRepository
+}
+
+/** Анимации эмодзи-реакции; `null` — кастомная/платная реакция, ещё грузится или анимаций нет. */
+@Composable
+private fun rememberReactionAnimations(key: ReactionKey): ReactionAnimations? {
+    val emoji = (key as? ReactionKey.Emoji)?.emoji ?: return null
+    val context = LocalContext.current.applicationContext
+    val repository = remember(context) {
+        EntryPointAccessors.fromApplication(context, ReactionsEntryPoint::class.java).reactionsRepository()
+    }
+    val animations by produceState<ReactionAnimations?>(null, emoji) { value = repository.animations(emoji) }
+    return animations
+}
+
+/**
+ * Значок в чипе. Обычно — эмодзи; когда реакция только что появилась или выросла у видимого
+ * сообщения (а не при открытии истории), один раз проигрывается центральная анимация.
+ */
+@Composable
+private fun ChipIcon(reaction: Reaction) {
+    var previous by remember { mutableStateOf(reaction) }
+    var plays by remember { mutableIntStateOf(0) }
+    LaunchedEffect(reaction.count, reaction.isChosen) {
+        val before = previous
+        previous = reaction
+        if (reaction.count > before.count || (reaction.isChosen && !before.isChosen)) plays++
+    }
+    val composition = rememberTgsComposition(if (plays > 0) rememberReactionAnimations(reaction.key)?.center else null)
+    var playing by remember { mutableStateOf(false) }
+    Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) {
+        if (composition != null && playing) {
+            val animatable = rememberLottieAnimatable()
+            LaunchedEffect(composition, plays) {
+                animatable.animate(composition, iterations = 1)
+                playing = false
+            }
+            LottieAnimation(composition, progress = { animatable.progress }, modifier = Modifier.requiredSize(32.dp))
+        } else {
+            Text(reactionSymbol(reaction.key), style = MaterialTheme.typography.bodyMedium)
+        }
+    }
+    LaunchedEffect(plays) { if (plays > 0) playing = true }
+}
+
+/** Значок в меню: анимация появления один раз, дальше — её последний кадр; без анимации — эмодзи. */
+@Composable
+private fun PickerIcon(key: ReactionKey) {
+    val composition = rememberTgsComposition(rememberReactionAnimations(key)?.appear)
+    if (composition == null) {
+        Text(reactionSymbol(key), fontSize = 22.sp)
+        return
+    }
+    val animatable = rememberLottieAnimatable()
+    LaunchedEffect(composition) { animatable.animate(composition, iterations = 1) }
+    LottieAnimation(composition, progress = { animatable.progress }, modifier = Modifier.size(32.dp))
+}
+
+/** Эффект своей реакции поверх сообщения; по окончании — [onDone]. Без анимации — сразу [onDone]. */
+@Composable
+internal fun ReactionEffect(key: ReactionKey, onDone: () -> Unit, modifier: Modifier = Modifier) {
+    val animations = rememberReactionAnimations(key)
+    val composition = rememberTgsComposition(animations?.effect)
+    val done by rememberUpdatedState(onDone)
+    // Ничего не загрузилось за разумное время — не держим эффект вечно
+    LaunchedEffect(key) {
+        delay(EFFECT_TIMEOUT_MS)
+        done()
+    }
+    if (composition == null) return
+    val animatable = rememberLottieAnimatable()
+    LaunchedEffect(composition) {
+        animatable.animate(composition, iterations = 1)
+        done()
+    }
+    LottieAnimation(composition, progress = { animatable.progress }, modifier = modifier)
+}
+
+private const val EFFECT_TIMEOUT_MS = 5000L

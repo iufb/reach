@@ -731,10 +731,20 @@ class ChatViewModel @Inject constructor(
     }
 
     /** Тап по чипу или выбор в меню: своя реакция снимается, чужая — ставится. */
+    private val _reactionEffect = MutableStateFlow<Pair<Long, ReactionKey>?>(null)
+
+    /** Своя реакция только что поставлена: (сообщение, реакция) — эффект поверх сообщения. */
+    val reactionEffect: StateFlow<Pair<Long, ReactionKey>?> = _reactionEffect.asStateFlow()
+
+    fun onReactionEffectDone() {
+        _reactionEffect.value = null
+    }
+
     fun toggleReaction(message: Message, key: ReactionKey) {
         _menu.value = null
         if (key == ReactionKey.Paid) return
         val chosen = message.reactions.any { it.key == key && it.isChosen }
+        if (!chosen) _reactionEffect.value = message.id to key
         viewModelScope.launch {
             runCatching {
                 if (chosen) reactions.remove(chatId, message.id, key) else reactions.add(chatId, message.id, key)
@@ -747,6 +757,7 @@ class ChatViewModel @Inject constructor(
         if (message.content is MessageBody.Service || message.sendingState != null) return
         val key = reactions.default.value ?: return
         if (message.reactions.any { it.key == key && it.isChosen }) return
+        _reactionEffect.value = message.id to key
         viewModelScope.launch {
             runCatching { reactions.add(chatId, message.id, key) }.onFailure { Log.w(TAG, "default reaction failed", it) }
         }
