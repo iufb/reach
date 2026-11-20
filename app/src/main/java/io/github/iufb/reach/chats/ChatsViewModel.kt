@@ -8,7 +8,12 @@ import io.github.iufb.reach.auth.AuthRepository
 import io.github.iufb.reach.chat.Sender
 import io.github.iufb.reach.presence.ActivityKind
 import io.github.iufb.reach.presence.PresenceRepository
+import io.github.iufb.reach.core.td.TdException
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.receiveAsFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -35,6 +40,17 @@ class ChatsViewModel @Inject constructor(
     val allLoaded: StateFlow<Boolean> = chatsRepository.allLoaded(list)
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), false)
 
+    private val menuChatId = MutableStateFlow<Long?>(null)
+
+    /** Чат, для которого открыто меню действий; `null` — меню закрыто. Берётся свежим из списка. */
+    val menuChat: StateFlow<Chat?> = combine(menuChatId, chatsRepository.chats) { id, all -> id?.let(all::get) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
+
+    private val _errors = Channel<String>(Channel.BUFFERED)
+
+    /** Ошибки действий над чатами — показываются один раз снекбаром. */
+    val errors: Flow<String> = _errors.receiveAsFlow()
+
     private val _loggingOut = MutableStateFlow(false)
 
     /** Выход запрошен: ждём, пока TDLib закроет сессию и навигация уведёт на экран входа. */
@@ -47,6 +63,29 @@ class ChatsViewModel @Inject constructor(
     /** Список докрутили до конца — просим следующую порцию. */
     fun loadMore() {
         viewModelScope.launch { chatsRepository.loadMore(list) }
+    }
+
+    fun openMenu(chatId: Long) {
+        menuChatId.value = chatId
+    }
+
+    fun dismissMenu() {
+        menuChatId.value = null
+    }
+
+    fun setPinned(chat: Chat, pinned: Boolean) = chatAction { chatsRepository.setPinned(chat.id, list, pinned) }
+
+    /** Действие из меню: меню закрывается сразу, ошибка TDLib уходит в [errors]. */
+    private fun chatAction(action: suspend () -> Unit) {
+        dismissMenu()
+        viewModelScope.launch {
+            try {
+                action()
+            } catch (e: TdException) {
+                Log.e(TAG, "chat action failed", e)
+                _errors.send(e.message)
+            }
+        }
     }
 
     fun logOut() {

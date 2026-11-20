@@ -77,6 +77,11 @@ class ChatsRepository @Inject constructor(
         }
     }
 
+    /** Закрепляет или открепляет чат в списке [list]. Позиция придёт апдейтом `UpdateChatPosition`. */
+    suspend fun setPinned(chatId: Long, list: ChatListType, pinned: Boolean) {
+        td.send(TdApi.ToggleChatIsPinned(list.toTd(), chatId, pinned))
+    }
+
     private fun onUpdate(update: TdApi.Object) {
         when (update) {
             is TdApi.UpdateNewChat -> _chats.update { it + (update.chat.id to update.chat.toModel()) }
