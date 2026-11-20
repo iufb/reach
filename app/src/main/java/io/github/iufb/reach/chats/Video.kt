@@ -38,6 +38,25 @@ internal fun TdApi.MessageVideo.toInfo(): VideoInfo {
     )
 }
 
+internal fun TdApi.MessageAnimation.toInfo(): VideoInfo {
+    val thumbnail = animation.thumbnail?.takeIf { it.format.isImage() }
+    val width = animation.width.takeIf { it > 0 } ?: thumbnail?.width ?: 0
+    val height = animation.height.takeIf { it > 0 } ?: thumbnail?.height ?: 0
+    return VideoInfo(
+        width = width,
+        height = height,
+        duration = animation.duration,
+        poster = PhotoInfo(
+            width = width,
+            height = height,
+            minithumbnail = animation.minithumbnail?.data,
+            preview = thumbnail?.file?.toTdFile(),
+            full = thumbnail?.file?.toTdFile(),
+        ),
+        file = animation.animation.toTdFile(),
+    )
+}
+
 private fun TdApi.ThumbnailFormat.isImage() =
     this is TdApi.ThumbnailFormatJpeg || this is TdApi.ThumbnailFormatPng || this is TdApi.ThumbnailFormatWebp
 
