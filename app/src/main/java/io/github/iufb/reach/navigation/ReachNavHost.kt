@@ -49,7 +49,7 @@ import kotlinx.serialization.Serializable
  * навигация только догоняет состояние TDLib, сама переходов не придумывает.
  */
 @Composable
-fun ReachNavHost(authState: AuthState) {
+fun ReachNavHost(authState: AuthState, openChatId: Long? = null, onOpenChatHandled: () -> Unit = {}) {
     // Стартовый граф — по первому известному состоянию: при повторном запуске
     // с сохранённой сессией экран входа не мелькает.
     var startGraph by remember { mutableStateOf<Any?>(null) }
@@ -121,6 +121,13 @@ fun ReachNavHost(authState: AuthState) {
         }
     }
     LaunchedEffect(authState) { navController.syncWith(authState) }
+    // Тап по уведомлению: открываем чат поверх списка, когда вход уже выполнен
+    LaunchedEffect(openChatId, authState) {
+        if (openChatId != null && authState == AuthState.Ready) {
+            navController.navigate(ChatRoute(openChatId)) { popUpTo(ChatsRoute()) }
+            onOpenChatHandled()
+        }
+    }
 }
 
 /** Назад к уже введённому номеру. */

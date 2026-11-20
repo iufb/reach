@@ -9,6 +9,7 @@ import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import dagger.hilt.android.HiltAndroidApp
 import io.github.iufb.reach.chat.ReactionsRepository
+import io.github.iufb.reach.notifications.Notifier
 import io.github.iufb.reach.push.PushRegistrar
 import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.chats.GroupsRepository
@@ -38,12 +39,15 @@ class ReachApp : Application(), SingletonImageLoader.Factory {
 
     @Inject lateinit var pushRegistrar: PushRegistrar
 
+    @Inject lateinit var notifier: Notifier
+
     override fun onCreate() {
         super.onCreate()
         // Единые эмодзи (PRODUCT.md §4.5): шрифт Noto из APK вместо системного, на любом устройстве.
         // Compose-текст подхватывает EmojiCompat сам, как только шрифт загружен.
         EmojiCompat.init(BundledEmojiCompatConfig(this).setReplaceAll(true))
         Log.i("Reach", "TDLib ${TdLibInfo.version()}")
+        notifier.start()
         pushRegistrar.start()
     }
 

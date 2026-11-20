@@ -81,6 +81,13 @@
     <string name="archive_title">Архив</string>
     <string name="folder_all_chats">Все чаты</string>
     <string name="saved_messages">Избранное</string>
+    <string name="notification_me">Вы</string>
+    <string name="notification_new_message">Новое сообщение</string>
+    <string name="notification_mark_read">Прочитано</string>
+    <string name="notification_reply">Ответить</string>
+    <string name="notification_channel_private">Личные чаты</string>
+    <string name="notification_channel_groups">Группы</string>
+    <string name="notification_channel_channels">Каналы</string>
     <string name="message_action_pin">Закрепить</string>
     <string name="message_action_unpin">Открепить</string>
     <string name="pinned_message">Закреплённое сообщение</string>
