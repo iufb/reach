@@ -72,6 +72,7 @@ dependencies {
     implementation(libs.firebase.messaging)
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
+    implementation(libs.lottie.compose)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
