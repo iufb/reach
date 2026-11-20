@@ -105,8 +105,9 @@ fun SearchScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-                else -> LazyColumn(Modifier.fillMaxSize()) {
-                    section(stringResource(if (results.isRecent) R.string.search_recent else R.string.search_chats), results.chats, open)
+                else -> {
+                    val title = stringResource(if (results.isRecent) R.string.search_recent else R.string.search_chats)
+                    LazyColumn(Modifier.fillMaxSize()) { section(title, results.chats, open) }
                 }
             }
         }
