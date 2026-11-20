@@ -35,6 +35,7 @@ import io.github.iufb.reach.ui.components.Avatar
  */
 class ChatMenuActions(
     val onSetPinned: (Chat, Boolean) -> Unit,
+    val onSetArchived: (Chat, Boolean) -> Unit,
 )
 
 /** Меню действий над [chat] в списке [list], открывается долгим тапом. */
@@ -60,6 +61,11 @@ internal fun ChatMenuSheet(chat: Chat, list: ChatListType, actions: ChatMenuActi
                 if (pinned) stringResource(R.string.chat_action_unpin) else stringResource(R.string.chat_action_pin),
                 painterResource(R.drawable.ic_pin),
             ) { actions.onSetPinned(chat, !pinned) }
+            val archived = ChatListType.Archive in chat.positions
+            ChatMenuItem(
+                if (archived) stringResource(R.string.chat_action_unarchive) else stringResource(R.string.chat_action_archive),
+                painterResource(if (archived) R.drawable.ic_unarchive else R.drawable.ic_archive),
+            ) { actions.onSetArchived(chat, !archived) }
         }
     }
 }

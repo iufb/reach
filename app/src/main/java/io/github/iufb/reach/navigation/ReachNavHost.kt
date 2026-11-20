@@ -34,7 +34,8 @@ import kotlinx.serialization.Serializable
 @Serializable data class UnsupportedAuthRoute(val step: String)
 
 @Serializable data object MainGraph
-@Serializable data object ChatsRoute
+/** Список чатов: основной или архив. */
+@Serializable data class ChatsRoute(val archive: Boolean = false)
 @Serializable data class ChatRoute(val chatId: Long)
 @Serializable data class ForwardRoute(val fromChatId: Long, val messageIds: List<Long>)
 /** Профиль чата ([chatId]) или пользователя ([userId]); второй — 0. */
@@ -76,8 +77,14 @@ fun ReachNavHost(authState: AuthState) {
             composable<PasswordRoute> { PasswordScreen(onChangePhoneNumber = navController::backToPhone) }
             composable<UnsupportedAuthRoute> { UnsupportedAuthScreen(it.toRoute<UnsupportedAuthRoute>().step) }
         }
-        navigation<MainGraph>(startDestination = ChatsRoute) {
-            composable<ChatsRoute> { ChatsScreen(onChatClick = { navController.navigate(ChatRoute(it)) }) }
+        navigation<MainGraph>(startDestination = ChatsRoute()) {
+            composable<ChatsRoute> {
+                ChatsScreen(
+                    onChatClick = { navController.navigate(ChatRoute(it)) },
+                    onOpenArchive = { navController.navigate(ChatsRoute(archive = true)) },
+                    onBack = { navController.popBackStack() },
+                )
+            }
             composable<ChatRoute> {
                 ChatScreen(
                     onBack = { navController.popBackStack() },
@@ -97,7 +104,7 @@ fun ReachNavHost(authState: AuthState) {
                 ForwardScreen(
                     onBack = { navController.popBackStack() },
                     // После пересылки — в целевой чат; «назад» из него ведёт в список чатов
-                    onForwarded = { navController.navigate(ChatRoute(it)) { popUpTo<ChatsRoute>() } },
+                    onForwarded = { navController.navigate(ChatRoute(it)) { popUpTo(ChatsRoute()) } },
                 )
             }
         }
