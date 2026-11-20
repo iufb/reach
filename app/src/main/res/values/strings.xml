@@ -292,6 +292,13 @@
     <string name="player_previous">Предыдущий трек</string>
     <string name="player_next">Следующий трек</string>
     <string name="voice_record">Записать голосовое</string>
+    <string name="photo_edit">Редактировать</string>
+    <string name="photo_edit_reset">Сбросить</string>
+    <string name="photo_edit_done">Готово</string>
+    <string name="photo_edit_rotate">Повернуть</string>
+    <string name="photo_edit_flip">Отразить</string>
+    <string name="photo_edit_aspect_free">Свободно</string>
+    <string name="photo_edit_aspect_original">Исходные</string>
     <string name="video_note_record">Записать видеосообщение</string>
     <string name="video_note_flip">Сменить камеру</string>
     <string name="video_note_permission">Для видеосообщений нужен доступ к камере и микрофону</string>

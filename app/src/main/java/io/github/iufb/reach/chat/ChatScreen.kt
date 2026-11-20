@@ -11,6 +11,7 @@ import io.github.iufb.reach.media.RecorderState
 import kotlinx.coroutines.delay
 import android.os.SystemClock
 import io.github.iufb.reach.media.VideoNoteCamera
+import io.github.iufb.reach.photoedit.PhotoEditorDialog
 import androidx.compose.runtime.collectAsState
 import io.github.iufb.reach.files.TdFile
 import io.github.iufb.reach.files.FileState
@@ -171,7 +172,18 @@ fun ChatScreen(
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_PICKED_PHOTOS)) {
         viewModel.onPhotosPicked(it)
     }
-    if (pickedPhotos.isNotEmpty()) SendPhotosDialog(pickedPhotos, viewModel::sendPhotos, viewModel::cancelPhotos)
+    val editingPhoto by viewModel.editingPhoto.collectAsStateWithLifecycle()
+    if (pickedPhotos.isNotEmpty()) SendPhotosDialog(pickedPhotos, viewModel::sendPhotos, viewModel::editPhoto, viewModel::cancelPhotos)
+    editingPhoto?.let { index ->
+        pickedPhotos.getOrNull(index)?.let { photo ->
+            PhotoEditorDialog(
+                initial = photo.edit,
+                load = { viewModel.loadPhotoForEdit(index) },
+                onDone = { viewModel.applyPhotoEdit(index, it) },
+                onCancel = viewModel::cancelPhotoEdit,
+            )
+        }
+    }
     val filePicker = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         uri?.let(viewModel::sendFile)
     }
