@@ -153,6 +153,16 @@
     <string name="video_pause">Пауза</string>
     <string name="video_play_error">Не удалось воспроизвести видео</string>
     <string name="sticker_set">Стикерпак</string>
+    <string name="profile_gallery">Медиа, ссылки и файлы</string>
+    <string name="gallery_title">Медиа и файлы</string>
+    <string name="gallery_media">Медиа</string>
+    <string name="gallery_files">Файлы</string>
+    <string name="gallery_links">Ссылки</string>
+    <string name="gallery_voice">Голосовые</string>
+    <string name="gallery_music">Музыка</string>
+    <string name="gallery_gifs">GIF</string>
+    <string name="gallery_empty">Здесь пока пусто</string>
+    <string name="gallery_show_in_chat">Показать в чате</string>
     <string name="voice_record">Записать голосовое</string>
     <string name="voice_slide_to_cancel">‹ Влево — отмена</string>
     <string name="voice_lock">Зафиксировать запись</string>

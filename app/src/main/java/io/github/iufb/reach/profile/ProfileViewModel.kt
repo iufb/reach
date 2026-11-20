@@ -74,6 +74,9 @@ class ProfileViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val route = savedStateHandle.toRoute<ProfileRoute>()
+
+    /** Чат профиля; у пользователя без открытого чата — личный (его id совпадает с id пользователя). */
+    val chatId: Long = route.chatId.takeIf { it != 0L } ?: route.userId
     private val routeChat = chats.chats.value[route.chatId]
     /** Пользователь: из маршрута или собеседник личного чата. */
     private val userId: Long? = route.userId.takeIf { it != 0L } ?: routeChat?.userId

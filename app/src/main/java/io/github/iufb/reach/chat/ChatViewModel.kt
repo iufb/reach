@@ -10,6 +10,7 @@ import io.github.iufb.reach.chats.Chat
 import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.StickerInfo
+import io.github.iufb.reach.files.DocumentDownloads
 import io.github.iufb.reach.media.AudioPlayer
 import io.github.iufb.reach.media.AudioState
 import io.github.iufb.reach.media.AudioTrack
@@ -26,7 +27,6 @@ import io.github.iufb.reach.presence.PresenceRepository
 import io.github.iufb.reach.chats.DocumentInfo
 import io.github.iufb.reach.files.FileState
 import io.github.iufb.reach.files.FilesRepository
-import kotlinx.coroutines.Job
 import io.github.iufb.reach.files.MediaImporter
 import io.github.iufb.reach.files.TdFile
 import kotlinx.coroutines.flow.Flow
@@ -373,10 +373,9 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private val _downloads = MutableStateFlow<Map<Int, FileState>>(emptyMap())
+    private val documents = DocumentDownloads(files, viewModelScope)
     /** Состояние документов, которые качаются или скачаны в этом экране; по id файла. */
-    val downloads: StateFlow<Map<Int, FileState>> = _downloads.asStateFlow()
-    private val downloadJobs = HashMap<Int, Job>()
+    val downloads: StateFlow<Map<Int, FileState>> = documents.states
 
     /** Аудиоплеер, если играет что-то из этого чата; иначе пустое состояние. */
     val audio: StateFlow<AudioState> = audioPlayer.state
@@ -463,33 +462,11 @@ class ChatViewModel @Inject constructor(
         _stickerSetTitle.value = null
     }
 
-    private val _openFile = MutableSharedFlow<OpenFile>(extraBufferCapacity = 1)
     /** Открыть скачанный файл во внешнем приложении. */
-    val openFile: SharedFlow<OpenFile> = _openFile.asSharedFlow()
+    val openFile: SharedFlow<OpenFile> = documents.open
 
     /** Тап по документу: скачан — открыть, качается — остановить, иначе — скачать. */
-    fun onDocumentClick(document: DocumentInfo) {
-        val id = document.file.id
-        val state = _downloads.value[id]
-        val path = state?.takeIf { it.isDownloaded }?.path ?: document.localPath.takeIf { document.downloaded && state == null }
-        when {
-            path != null -> _openFile.tryEmit(OpenFile(path, document.mimeType))
-            downloadJobs[id]?.isActive == true -> {
-                downloadJobs.remove(id)?.cancel()
-                _downloads.update { it - id }
-                viewModelScope.launch { runCatching { files.cancelDownload(id) } }
-            }
-            else -> downloadJobs[id] = viewModelScope.launch {
-                runCatching {
-                    files.download(id, FilesRepository.PRIORITY_DOCUMENT).collect { s -> _downloads.update { it + (id to s) } }
-                }.onFailure {
-                    if (it is kotlinx.coroutines.CancellationException) throw it
-                    Log.e(TAG, "download $id failed", it)
-                    _downloads.update { map -> map - id }
-                }
-            }
-        }
-    }
+    fun onDocumentClick(document: DocumentInfo) = documents.onClick(document)
 
     /** Отправка файла, выбранного через системный выбор. */
     fun sendFile(uri: Uri) {
