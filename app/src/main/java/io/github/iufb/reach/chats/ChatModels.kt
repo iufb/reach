@@ -94,6 +94,8 @@ data class Chat(
     val isMuted: Boolean = false,
     /** Пользователь вручную пометил чат непрочитанным. */
     val isMarkedAsUnread: Boolean = false,
+    /** Чат с самим собой — Избранное. */
+    val isSavedMessages: Boolean = false,
 ) {
     /** Есть что читать: непрочитанные сообщения или ручная пометка. */
     val hasUnread: Boolean get() = unreadCount > 0 || isMarkedAsUnread

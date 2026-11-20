@@ -91,6 +91,23 @@ class ChatsViewModel @Inject constructor(
     /** Ошибки действий над чатами — показываются один раз снекбаром. */
     val errors: Flow<String> = _errors.receiveAsFlow()
 
+    private val _openChat = Channel<Long>(Channel.BUFFERED)
+
+    /** Чат, который нужно открыть (например, Избранное после `createPrivateChat`). */
+    val openChat: Flow<Long> = _openChat.receiveAsFlow()
+
+    /** Открыть Избранное — чат с самим собой. */
+    fun openSavedMessages() {
+        viewModelScope.launch {
+            try {
+                _openChat.send(chatsRepository.savedMessagesChatId())
+            } catch (e: TdException) {
+                Log.e(TAG, "open saved messages failed", e)
+                _errors.send(e.message)
+            }
+        }
+    }
+
     private val _loggingOut = MutableStateFlow(false)
 
     /** Выход запрошен: ждём, пока TDLib закроет сессию и навигация уведёт на экран входа. */
