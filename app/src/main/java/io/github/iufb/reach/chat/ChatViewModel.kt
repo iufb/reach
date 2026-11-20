@@ -57,6 +57,7 @@ import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.mapLatest
+import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -74,6 +75,7 @@ class ChatViewModel @Inject constructor(
     private val importer: MediaImporter,
     private val files: FilesRepository,
     presence: PresenceRepository,
+    private val reactions: ReactionsRepository,
 ) : ViewModel() {
 
     private val chatId: Long = savedStateHandle.toRoute<ChatRoute>().chatId
@@ -576,9 +578,40 @@ class ChatViewModel @Inject constructor(
     fun openMenu(message: Message) {
         if (message.content is MessageBody.Service) return
         viewModelScope.launch {
+            val available = async { loadReactions(message) }
             val actions = loadActions(message)
-            if (!actions.isEmpty) _menu.value = MessageMenu(message, actions)
+            val reactionsRow = available.await()
+            if (!actions.isEmpty || !reactionsRow.isEmpty) _menu.value = MessageMenu(message, actions, reactionsRow)
         }
+    }
+
+    /** Тап по чипу или выбор в меню: своя реакция снимается, чужая — ставится. */
+    fun toggleReaction(message: Message, key: ReactionKey) {
+        _menu.value = null
+        if (key == ReactionKey.Paid) return
+        val chosen = message.reactions.any { it.key == key && it.isChosen }
+        viewModelScope.launch {
+            runCatching {
+                if (chosen) reactions.remove(chatId, message.id, key) else reactions.add(chatId, message.id, key)
+            }.onFailure { Log.w(TAG, "toggle reaction failed", it) }
+        }
+    }
+
+    /** Двойной тап: реакция по умолчанию, если её ещё нет. */
+    fun reactDefault(message: Message) {
+        if (message.content is MessageBody.Service || message.sendingState != null) return
+        val key = reactions.default.value ?: return
+        if (message.reactions.any { it.key == key && it.isChosen }) return
+        viewModelScope.launch {
+            runCatching { reactions.add(chatId, message.id, key) }.onFailure { Log.w(TAG, "default reaction failed", it) }
+        }
+    }
+
+    private suspend fun loadReactions(message: Message): AvailableReactions {
+        if (message.sendingState != null) return AvailableReactions.None
+        return runCatching { reactions.available(chatId, message.id) }
+            .onFailure { Log.w(TAG, "getMessageAvailableReactions failed", it) }
+            .getOrDefault(AvailableReactions.None)
     }
 
     private suspend fun loadActions(message: Message): MessageActions {

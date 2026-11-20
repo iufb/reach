@@ -8,6 +8,7 @@ import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import dagger.hilt.android.HiltAndroidApp
+import io.github.iufb.reach.chat.ReactionsRepository
 import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.chats.GroupsRepository
 import io.github.iufb.reach.core.td.TdClient
@@ -31,6 +32,8 @@ class ReachApp : Application(), SingletonImageLoader.Factory {
     @Inject lateinit var groupsRepository: GroupsRepository
 
     @Inject lateinit var filesRepository: FilesRepository
+
+    @Inject lateinit var reactionsRepository: ReactionsRepository
 
     override fun onCreate() {
         super.onCreate()

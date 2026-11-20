@@ -15,6 +15,16 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.graphics.Color
 
 /** Чипы реакций под содержимым сообщения. [onClick] `null` — чипы не нажимаются. */
 @Composable
@@ -54,6 +64,43 @@ private fun ReactionChip(reaction: Reaction, onClick: ((ReactionKey) -> Unit)?) 
             fontWeight = FontWeight.SemiBold,
             color = content,
         )
+    }
+}
+
+/**
+ * Ряд реакций в меню сообщения; «▾» раскрывает все доступные. Поставленные отмечены фоном,
+ * повторный выбор снимает реакцию.
+ */
+@Composable
+internal fun ReactionPicker(available: AvailableReactions, current: List<Reaction>, onPick: (ReactionKey) -> Unit) {
+    var expanded by remember { mutableStateOf(false) }
+    val chosen = current.filter { it.isChosen }.mapTo(HashSet()) { it.key }
+    val shown = if (expanded) available.all else available.top
+    FlowRow(
+        modifier = Modifier.widthIn(max = 280.dp).padding(horizontal = 8.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        shown.forEach { key ->
+            Box(
+                Modifier
+                    .size(40.dp)
+                    .clip(CircleShape)
+                    .background(if (key in chosen) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.Transparent)
+                    .clickable { onPick(key) },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(reactionSymbol(key), fontSize = 22.sp)
+            }
+        }
+        if (!expanded && available.all.size > available.top.size) {
+            Box(
+                Modifier.size(40.dp).clip(CircleShape).clickable { expanded = true },
+                contentAlignment = Alignment.Center,
+            ) {
+                Text("▾", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
     }
 }
 
