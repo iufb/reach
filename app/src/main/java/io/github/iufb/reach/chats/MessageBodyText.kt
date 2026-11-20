@@ -67,18 +67,18 @@ internal fun joinParts(vararg parts: String): String = parts.filter { it.isNotBl
 /** То же превью вне Compose (уведомления): строки берутся через [string]. */
 inline fun summarize(body: MessageBody, string: (Int) -> String): String {
     return when (body) {
-        is MessageBody.Text -> body.text.text
-        is MessageBody.Unsupported -> joinParts(string(body.kind.labelRes()), body.caption.text)
-        is MessageBody.Document -> joinParts(body.document.fileName.ifBlank { string(ContentKind.Document.labelRes()) }, body.caption.text)
-        is MessageBody.Photo -> joinParts(string(ContentKind.Photo.labelRes()), body.caption.text)
-        is MessageBody.Video -> joinParts(string(ContentKind.Video.labelRes()), body.caption.text)
-        is MessageBody.Animation -> joinParts(string(ContentKind.Animation.labelRes()), body.caption.text)
+        is MessageBody.Text -> body.text.masked()
+        is MessageBody.Unsupported -> joinParts(string(body.kind.labelRes()), body.caption.masked())
+        is MessageBody.Document -> joinParts(body.document.fileName.ifBlank { string(ContentKind.Document.labelRes()) }, body.caption.masked())
+        is MessageBody.Photo -> joinParts(string(ContentKind.Photo.labelRes()), body.caption.masked())
+        is MessageBody.Video -> joinParts(string(ContentKind.Video.labelRes()), body.caption.masked())
+        is MessageBody.Animation -> joinParts(string(ContentKind.Animation.labelRes()), body.caption.masked())
         is MessageBody.Audio -> joinParts(
             listOf(body.audio.performer, body.audio.displayTitle).filter { it.isNotBlank() }.joinToString(" — ")
                 .ifBlank { string(ContentKind.Audio.labelRes()) },
-            body.caption.text,
+            body.caption.masked(),
         )
-        is MessageBody.Voice -> joinParts(string(ContentKind.VoiceNote.labelRes()), body.caption.text)
+        is MessageBody.Voice -> joinParts(string(ContentKind.VoiceNote.labelRes()), body.caption.masked())
         is MessageBody.AnimatedEmoji -> body.emoji
         is MessageBody.Sticker -> joinParts(body.sticker.emoji, string(ContentKind.Sticker.labelRes()))
         is MessageBody.Service -> string(body.kind.labelRes())

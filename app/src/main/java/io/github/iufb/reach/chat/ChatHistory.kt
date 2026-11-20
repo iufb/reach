@@ -226,13 +226,14 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         caption: RichText,
         replyToMessageId: Long? = null,
         options: SendOptions = SendOptions(),
+        spoiler: Boolean = false,
     ) {
         if (images.isEmpty()) return
         if (!_state.value.reachedNewest) open(lastReadInboxId = null)
         val contents = images.mapIndexed { i, image ->
             val photo = TdApi.InputPhoto(TdApi.InputFileLocal(image.path), null, null, IntArray(0), image.width, image.height)
             val text = if (i == 0) caption.toFormattedText() else null
-            TdApi.InputMessagePhoto(photo, text, false, null, false)
+            TdApi.InputMessagePhoto(photo, text, false, null, spoiler)
         }
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
         val pending = if (contents.size == 1) {

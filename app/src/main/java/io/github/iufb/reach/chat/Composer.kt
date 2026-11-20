@@ -424,6 +424,7 @@ private fun FormatBar(onFormat: (SpanKind) -> Unit, onLink: () -> Unit) {
             onFormat(SpanKind.Strikethrough)
         }
         FormatButton("</>", R.string.format_code, fontFamily = FontFamily.Monospace) { onFormat(SpanKind.Code) }
+        FormatButton("▒", R.string.format_spoiler) { onFormat(SpanKind.Spoiler) }
         IconButton(onClick = onLink) {
             Icon(painterResource(R.drawable.ic_link), contentDescription = stringResource(R.string.format_link))
         }
@@ -486,7 +487,7 @@ private fun LinkDialog(onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
  */
 private class RichVisualTransformation(private val rich: RichText, private val colors: RichTextColors) : VisualTransformation {
     override fun filter(text: AnnotatedString): TransformedText {
-        val styled = if (text.text == rich.text) rich.toAnnotatedString(colors, clickableLinks = false) else text
+        val styled = if (text.text == rich.text) rich.toAnnotatedString(colors, clickableLinks = false, spoilers = Spoilers.Marked) else text
         return TransformedText(styled, OffsetMapping.Identity)
     }
 

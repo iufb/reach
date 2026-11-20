@@ -15,12 +15,12 @@ sealed interface MessageBody {
     /** [preview] — карточка ссылки из текста, если сервер её собрал. */
     data class Text(val text: RichText, val preview: LinkPreview? = null) : MessageBody
 
-    data class Photo(val photo: PhotoInfo, val caption: RichText) : MessageBody
+    data class Photo(val photo: PhotoInfo, val caption: RichText, val hasSpoiler: Boolean = false) : MessageBody
 
-    data class Video(val video: VideoInfo, val caption: RichText) : MessageBody
+    data class Video(val video: VideoInfo, val caption: RichText, val hasSpoiler: Boolean = false) : MessageBody
 
     /** GIF — в Telegram это беззвучный MP4; модель та же, что у видео. */
-    data class Animation(val animation: VideoInfo, val caption: RichText) : MessageBody
+    data class Animation(val animation: VideoInfo, val caption: RichText, val hasSpoiler: Boolean = false) : MessageBody
 
     /** Голосовое; [isListened] — собеседник (или мы) уже прослушал. */
     data class Voice(val voice: VoiceInfo, val caption: RichText, val isListened: Boolean) : MessageBody
@@ -64,12 +64,12 @@ internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
         animatedEmoji.sticker?.takeIf { it.format is TdApi.StickerFormatTgs }?.sticker?.toTdFile(),
     )
 
-    is TdApi.MessagePhoto -> MessageBody.Photo(photo.toInfo(), caption.toRichText())
-    is TdApi.MessageVideo -> MessageBody.Video(toInfo(), caption.toRichText())
+    is TdApi.MessagePhoto -> MessageBody.Photo(photo.toInfo(), caption.toRichText(), hasSpoiler)
+    is TdApi.MessageVideo -> MessageBody.Video(toInfo(), caption.toRichText(), hasSpoiler)
     is TdApi.MessageDocument -> MessageBody.Document(document.toInfo(), caption.toRichText())
     is TdApi.MessageAudio -> MessageBody.Audio(audio.toAudioInfo(), caption.toRichText())
     is TdApi.MessageVoiceNote -> MessageBody.Voice(voiceNote.toInfo(), caption.toRichText(), isListened)
-    is TdApi.MessageAnimation -> MessageBody.Animation(toInfo(), caption.toRichText())
+    is TdApi.MessageAnimation -> MessageBody.Animation(toInfo(), caption.toRichText(), hasSpoiler)
     is TdApi.MessagePaidMedia -> unsupported(ContentKind.PaidMedia, caption)
     is TdApi.MessageVideoNote -> MessageBody.Unsupported(ContentKind.VideoNote)
     is TdApi.MessageSticker -> MessageBody.Sticker(sticker.toInfo())

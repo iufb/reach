@@ -378,7 +378,7 @@ class ChatViewModel @Inject constructor(
     }
 
     /** Отправка выбранных фото с подписью; ответ, если он начат, уходит вместе с ними. */
-    fun sendPhotos(caption: String, silent: Boolean) {
+    fun sendPhotos(caption: String, silent: Boolean, spoiler: Boolean) {
         val uris = _pickedPhotos.value
         if (uris.isEmpty()) return
         _pickedPhotos.value = emptyList()
@@ -387,7 +387,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 val images = uris.map { importer.importImage(it) }
-                history.sendPhotos(images, RichText(caption.trim()), reply?.id, sendOptions(silent))
+                history.sendPhotos(images, RichText(caption.trim()), reply?.id, sendOptions(silent), spoiler)
             }.onFailure {
                 Log.e(TAG, "send photos failed", it)
                 _replyTo.value = reply
