@@ -49,6 +49,11 @@ class ChatsRepository @Inject constructor(
     /** Папки пользователя; обновляются по `UpdateChatFolders`. */
     val folders: StateFlow<ChatFolders> = _folders.asStateFlow()
 
+    /** Id текущего пользователя из опции `my_id`; 0 — ещё неизвестен. */
+    @Volatile
+    var myUserId: Long = 0
+        private set
+
     /** «Без звука» по умолчанию для типов чатов, секунды. */
     private var scopeMute: Map<NotificationScope, Int> = emptyMap()
 
@@ -130,7 +135,13 @@ class ChatsRepository @Inject constructor(
 
     private fun onUpdate(update: TdApi.Object) {
         when (update) {
-            is TdApi.UpdateNewChat -> _chats.update { it + (update.chat.id to update.chat.toModel().withMute(scopeMute)) }
+            is TdApi.UpdateNewChat -> _chats.update {
+                it + (update.chat.id to update.chat.toModel().withMute(scopeMute).withSaved(myUserId))
+            }
+            is TdApi.UpdateOption -> if (update.name == "my_id") {
+                myUserId = (update.value as? TdApi.OptionValueInteger)?.value ?: 0
+                _chats.update { all -> all.mapValues { (_, chat) -> chat.withSaved(myUserId) } }
+            }
             is TdApi.UpdateChatIsMarkedAsUnread -> edit(update.chatId) { copy(isMarkedAsUnread = update.isMarkedAsUnread) }
             is TdApi.UpdateChatNotificationSettings -> edit(update.chatId) {
                 copy(muteFor = update.notificationSettings.ownMuteFor).withMute(scopeMute)
@@ -173,8 +184,17 @@ class ChatsRepository @Inject constructor(
                 _counts.value = emptyMap()
                 _folders.value = ChatFolders.Empty
                 scopeMute = emptyMap()
+                myUserId = 0
             }
         }
+    }
+
+    private fun Chat.withSaved(myId: Long) = copy(isSavedMessages = myId != 0L && kind == ChatKind.Private && userId == myId)
+
+    /** Открывает (создаёт при необходимости) чат с собой. */
+    suspend fun savedMessagesChatId(): Long {
+        val me = myUserId.takeIf { it != 0L } ?: td.send(TdApi.GetMe()).id
+        return td.send(TdApi.CreatePrivateChat(me, false)).id
     }
 
     private inline fun edit(chatId: Long, crossinline change: Chat.() -> Chat) {

@@ -64,10 +64,10 @@ internal fun ChatMenuSheet(chat: Chat, list: ChatListType, actions: ChatMenuActi
     ModalBottomSheet(onDismissRequest = onDismiss) {
         Column(Modifier.navigationBarsPadding().padding(bottom = 8.dp)) {
             Row(Modifier.padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                Avatar(chat.title, chat.photo, chat.accentColorId, size = 40.dp)
+                ChatAvatar(chat, size = 40.dp)
                 Spacer(Modifier.width(12.dp))
                 Text(
-                    chat.title.ifBlank { stringResource(R.string.chat_deleted_account) },
+                    chatTitle(chat),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.SemiBold,
                     maxLines = 1,

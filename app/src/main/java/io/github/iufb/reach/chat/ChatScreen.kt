@@ -82,6 +82,8 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.Chat
+import io.github.iufb.reach.chats.ChatAvatar
+import io.github.iufb.reach.chats.chatTitle
 import io.github.iufb.reach.chats.ChatKind
 import io.github.iufb.reach.chats.ContentKind
 import io.github.iufb.reach.chats.GroupRef
@@ -316,10 +318,12 @@ private fun ChatHeader(chat: Chat, header: HeaderInfo, senders: Map<Sender, Send
         modifier = Modifier.clickable(onClickLabel = stringResource(R.string.open_profile), onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Avatar(chat.title, chat.photo, chat.accentColorId, size = 40.dp)
+        ChatAvatar(chat, size = 40.dp)
         Spacer(Modifier.width(12.dp))
         Column {
-            Text(chat.title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(chatTitle(chat), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            // У Избранного нет статуса и «печатает»
+            if (chat.isSavedMessages) return@Column
             val activity = activityText(header.activities, withNames = chat.kind == ChatKind.Group) { sender ->
                 senders[sender]?.name?.substringBefore(' ').orEmpty()
             }

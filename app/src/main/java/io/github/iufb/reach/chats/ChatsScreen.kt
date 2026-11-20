@@ -92,6 +92,8 @@ fun ChatsScreen(
     val tabs by viewModel.tabs.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
+    val openChat by rememberUpdatedState(onChatClick)
+    LaunchedEffect(viewModel) { viewModel.openChat.collect { openChat(it) } }
     ChatsContent(
         list, chats, allLoaded, loggingOut, onChatClick, viewModel::loadMore, viewModel::logOut, activities,
         onChatLongClick = viewModel::openMenu,
@@ -100,6 +102,7 @@ fun ChatsScreen(
         onOpenArchive = onOpenArchive,
         onBack = onBack,
         onOpenSearch = onOpenSearch,
+        onOpenSaved = viewModel::openSavedMessages,
         tabs = tabs,
         onSelectList = viewModel::selectList,
     )
@@ -130,6 +133,7 @@ private fun ChatsContent(
     onOpenArchive: () -> Unit = {},
     onBack: () -> Unit = {},
     onOpenSearch: () -> Unit = {},
+    onOpenSaved: () -> Unit = {},
     tabs: List<FolderTab> = emptyList(),
     onSelectList: (ChatListType) -> Unit = {},
 ) {
@@ -165,6 +169,14 @@ private fun ChatsContent(
                             Icon(painterResource(R.drawable.ic_more), stringResource(R.string.chat_list_menu))
                         }
                         DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                            DropdownMenuItem(
+                                text = { Text(stringResource(R.string.saved_messages)) },
+                                leadingIcon = { Icon(painterResource(R.drawable.ic_bookmark), contentDescription = null) },
+                                onClick = {
+                                    menuOpen = false
+                                    onOpenSaved()
+                                },
+                            )
                             DropdownMenuItem(
                                 text = { Text(stringResource(R.string.logout)) },
                                 onClick = {
@@ -323,14 +335,14 @@ private fun ChatRow(chat: Chat, isPinned: Boolean, activity: String?, onClick: (
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Avatar(chat.title, chat.photo, chat.accentColorId, size = 56.dp)
+        ChatAvatar(chat, size = 56.dp)
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 // Иконка «без звука» сразу за названием, а не у края
                 Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        chat.title.ifBlank { stringResource(R.string.chat_deleted_account) },
+                        chatTitle(chat),
                         modifier = Modifier.weight(1f, fill = false),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold,
