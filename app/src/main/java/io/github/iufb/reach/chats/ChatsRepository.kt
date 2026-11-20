@@ -178,6 +178,7 @@ class ChatsRepository @Inject constructor(
             is TdApi.UpdateChatPermissions -> edit(update.chatId) {
                 copy(
                     canSendBasicMessages = update.permissions.canSendBasicMessages,
+                    canSendVideoNotes = update.permissions.canSendVideoNotes,
                     canChangeInfoByDefault = update.permissions.canChangeInfo,
                     canInviteByDefault = update.permissions.canInviteUsers,
                 )

@@ -8,6 +8,8 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.gestures.awaitEachGesture
 import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
@@ -61,18 +63,27 @@ internal class VoiceInput(
     /** Свайп влево или «удалить». */
     val onDiscard: () -> Unit,
     val onTogglePreview: () -> Unit,
+    /** Кнопка записывает видеокружок, а не голосовое. */
+    val videoMode: Boolean = false,
+    /** Короткий тап — сменить голосовое ↔ кружок; `null` — кружки недоступны, запись сразу по касанию. */
+    val onToggleMode: (() -> Unit)? = null,
 )
 
 /**
- * Микрофон: удержание — запись, отпустить — отправить, влево — отмена, вверх — фиксация.
- * Без разрешения `RECORD_AUDIO` нажатие только запрашивает его.
+ * Микрофон или камера: удержание — запись, отпустить — отправить, влево — отмена, вверх — фиксация,
+ * короткий тап — смена голосовое ↔ кружок ([VoiceInput.onToggleMode]).
+ * Без разрешений (`RECORD_AUDIO`, для кружка ещё `CAMERA`) нажатие только запрашивает их.
  */
 @Composable
 internal fun MicButton(voice: VoiceInput) {
     val context = LocalContext.current
-    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     val current by rememberUpdatedState(voice)
-    val description = stringResource(R.string.voice_record)
+    val permission = rememberLauncherForActivityResult(ActivityResultContracts.RequestMultiplePermissions()) { result ->
+        if (current.videoMode && !result.values.all { it }) {
+            Toast.makeText(context, R.string.video_note_permission, Toast.LENGTH_LONG).show()
+        }
+    }
+    val description = stringResource(if (voice.videoMode) R.string.video_note_record else R.string.voice_record)
     Box(
         modifier = Modifier
             .size(48.dp)
@@ -84,10 +95,23 @@ internal fun MicButton(voice: VoiceInput) {
                 awaitEachGesture {
                     val down = awaitFirstDown()
                     down.consume()
-                    val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) ==
-                        PackageManager.PERMISSION_GRANTED
-                    if (!granted) {
-                        permission.launch(Manifest.permission.RECORD_AUDIO)
+                    val toggle = current.onToggleMode
+                    if (toggle != null) {
+                        // null — держат дольше порога (запись), true — отпустили раньше (смена режима)
+                        val released = withTimeoutOrNull(HOLD_MS) { waitForUpOrCancellation() != null }
+                        if (released == true) toggle()
+                        if (released != null) return@awaitEachGesture
+                    }
+                    val needed = if (current.videoMode) {
+                        arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO)
+                    } else {
+                        arrayOf(Manifest.permission.RECORD_AUDIO)
+                    }
+                    val missing = needed.filter {
+                        ContextCompat.checkSelfPermission(context, it) != PackageManager.PERMISSION_GRANTED
+                    }
+                    if (missing.isNotEmpty()) {
+                        permission.launch(missing.toTypedArray())
                         return@awaitEachGesture
                     }
                     current.onStart()
@@ -116,7 +140,7 @@ internal fun MicButton(voice: VoiceInput) {
     ) {
         val recording = voice.state is RecorderState.Recording
         Icon(
-            painterResource(R.drawable.ic_mic),
+            painterResource(if (voice.videoMode) R.drawable.ic_videocam else R.drawable.ic_mic),
             contentDescription = null,
             tint = if (recording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
         )
@@ -221,5 +245,7 @@ private fun LevelBar(level: Float, modifier: Modifier) {
 }
 
 private val CANCEL_DISTANCE = 120.dp
+/** Дольше — запись, короче — тап. */
+private const val HOLD_MS = 250L
 private val LOCK_DISTANCE = 80.dp
 private const val TIMER_TICK_MS = 200L

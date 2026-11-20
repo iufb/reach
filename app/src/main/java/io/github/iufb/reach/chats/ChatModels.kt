@@ -85,6 +85,8 @@ data class Chat(
     val accentColorId: Int,
     /** Общее разрешение участникам писать текст (`ChatPermissions.canSendBasicMessages`). */
     val canSendBasicMessages: Boolean,
+    /** Общее разрешение на видеокружки (`ChatPermissions.canSendVideoNotes`). */
+    val canSendVideoNotes: Boolean = true,
     val draft: Draft? = null,
     /** Собеседник личного (и секретного) чата. */
     val userId: Long? = null,
@@ -154,6 +156,7 @@ internal fun TdApi.Chat.toModel() = Chat(
     photo = photo?.small?.toTdFile(),
     accentColorId = accentColorId,
     canSendBasicMessages = permissions.canSendBasicMessages,
+    canSendVideoNotes = permissions.canSendVideoNotes,
     draft = draftMessage?.toDraft(),
     userId = when (val t = type) {
         is TdApi.ChatTypePrivate -> t.userId

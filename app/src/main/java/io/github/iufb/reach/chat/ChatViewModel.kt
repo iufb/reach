@@ -30,6 +30,7 @@ import io.github.iufb.reach.files.FilesRepository
 import io.github.iufb.reach.files.MediaImporter
 import io.github.iufb.reach.files.TdFile
 import io.github.iufb.reach.files.toTdFile
+import io.github.iufb.reach.media.describeVideoNote
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import io.github.iufb.reach.chats.LinkPreview
@@ -573,6 +574,42 @@ class ChatViewModel @Inject constructor(
     }
 
     fun discardRecording() = recorder.discard()
+
+    /** Видеокружки разрешены: по правам чата, админам — всегда. Сервер всё равно проверит. */
+    val canSendVideoNotes: StateFlow<Boolean> = combine(chat, groups.statuses) { chat, statuses ->
+        val status = chat?.group?.let(statuses::get)
+        chat != null && (chat.canSendVideoNotes || status is MemberStatus.Creator || status is MemberStatus.Administrator)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), true)
+
+    /** Началась запись кружка: играющее аудио — на паузу. */
+    fun onVideoNoteRecordingStarted() {
+        audioPlayer.pause()
+    }
+
+    /** Пока идёт запись кружка — «записывает видеосообщение» раз в несколько секунд. */
+    fun sendRecordingVideoNoteAction() {
+        viewModelScope.launch {
+            runCatching { td.send(TdApi.SendChatAction(chatId, scope.toTd(), "", TdApi.ChatActionRecordingVideoNote())) }
+        }
+    }
+
+    /** Записанный кружок: прочитать длительность и сторону, отправить. Короче секунды — не отправляется. */
+    fun sendVideoNote(path: String) {
+        val reply = _replyTo.value
+        _replyTo.value = null
+        viewModelScope.launch {
+            val note = describeVideoNote(path)
+            if (note == null) {
+                _replyTo.value = reply
+                return@launch
+            }
+            runCatching { history.sendVideoNote(note, reply?.id, sendOptions()) }.onFailure {
+                Log.e(TAG, "send video note failed", it)
+                _replyTo.value = reply
+                _sendError.value = it.message
+            }
+        }
+    }
 
     private fun sendVoice(recording: VoiceRecording) {
         val reply = _replyTo.value
