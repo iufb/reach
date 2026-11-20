@@ -42,7 +42,8 @@ import kotlinx.serialization.Serializable
 @Serializable data class ChatsRoute(val archive: Boolean = false)
 @Serializable data object SearchRoute
 /** Чат; [messageId] не 0 — открыть на этом сообщении (например, из поиска). */
-@Serializable data class ChatRoute(val chatId: Long, val messageId: Long = 0)
+/** [threadId] — комментарии к посту (в группе обсуждения), [topicId] — топик форума; 0 — весь чат. */
+@Serializable data class ChatRoute(val chatId: Long, val messageId: Long = 0, val threadId: Long = 0, val topicId: Int = 0)
 @Serializable data class ForwardRoute(val fromChatId: Long, val messageIds: List<Long>)
 /** Профиль чата ([chatId]) или пользователя ([userId]); второй — 0. */
 @Serializable data class ProfileRoute(val chatId: Long = 0, val userId: Long = 0)
@@ -104,6 +105,7 @@ fun ReachNavHost(authState: AuthState, openChatId: Long? = null, onOpenChatHandl
                     onOpenProfile = { navController.navigate(ProfileRoute(chatId = it)) },
                     onOpenUserProfile = { navController.navigate(ProfileRoute(userId = it)) },
                     onOpenScheduled = { navController.navigate(ScheduledRoute(it)) },
+                    onOpenThread = { chatId, threadId -> navController.navigate(ChatRoute(chatId, threadId = threadId)) },
                 )
             }
             composable<ScheduledRoute> { ScheduledScreen(onBack = { navController.popBackStack() }) }

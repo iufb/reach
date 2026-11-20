@@ -26,7 +26,7 @@ import org.drinkless.tdlib.TdApi
  * [followUpdates] держит отрезок в актуальном виде: новые, изменённые и удалённые сообщения.
  * Новые добавляются, только если отрезок доходит до конца истории — иначе они придут с [loadNewer].
  */
-class ChatHistory(private val chatId: Long, private val td: TdClient) {
+class ChatHistory(private val chatId: Long, private val td: TdClient, private val scope: ChatScope = ChatScope.Whole) {
 
     data class State(
         /** Сначала новые. */
@@ -158,7 +158,7 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         td.updates.collect { update ->
             when (update) {
                 // Отложенные живут на своём экране, в истории их нет
-                is TdApi.UpdateNewMessage -> if (update.message.chatId == chatId && update.message.schedulingState == null) {
+                is TdApi.UpdateNewMessage -> if (update.message.chatId == chatId && update.message.schedulingState == null && scope.contains(update.message)) {
                     val message = update.message.toModel()
                     // До open копим всё: open решит, нужны ли они
                     _state.update { s -> if (s.reachedNewest || !s.opened) s.merge(listOf(message)) else s }
@@ -196,15 +196,25 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
                     edit(update.messageId) { copy(editDate = update.editDate) }
                 }
                 is TdApi.UpdateMessageInteractionInfo -> if (update.chatId == chatId) {
-                    val views = update.interactionInfo?.viewCount ?: 0
-                    val reactions = update.interactionInfo.toReactions()
-                    edit(update.messageId) { copy(viewCount = views, reactions = reactions) }
+                    val info = update.interactionInfo
+                    val views = info?.viewCount ?: 0
+                    val reactions = info.toReactions()
+                    val replies = info?.replyInfo
+                    edit(update.messageId) {
+                        copy(
+                            viewCount = views,
+                            reactions = reactions,
+                            replyCount = replies?.replyCount ?: 0,
+                            recentRepliers = replies?.recentReplierIds.orEmpty().map { it.toSender(chatId) },
+                            hasComments = replies != null,
+                        )
+                    }
                 }
                 // Отправка завершилась: временный id меняется на постоянный
-                is TdApi.UpdateMessageSendSucceeded -> if (update.message.chatId == chatId && update.message.schedulingState == null) {
+                is TdApi.UpdateMessageSendSucceeded -> if (update.message.chatId == chatId && update.message.schedulingState == null && scope.contains(update.message)) {
                     replace(update.oldMessageId, update.message.toModel())
                 }
-                is TdApi.UpdateMessageSendFailed -> if (update.message.chatId == chatId && update.message.schedulingState == null) {
+                is TdApi.UpdateMessageSendFailed -> if (update.message.chatId == chatId && update.message.schedulingState == null && scope.contains(update.message)) {
                     Log.w(TAG, "send failed: ${update.error.code} ${update.error.message}")
                     replace(update.oldMessageId, update.message.toModel())
                 }
@@ -232,7 +242,7 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         val previewOptions = if (withLinkPreview) null else TdApi.LinkPreviewOptions(true, "", false, false, false)
         val content = TdApi.InputMessageText(text.toFormattedText(), previewOptions, true)
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
-        val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, options.toTd(), null, content))
+        val pending = td.send(TdApi.SendMessage(chatId, scope.toTd(), replyTo, options.toTd(), null, content))
         mergeSent(listOf(pending))
     }
 
@@ -253,9 +263,9 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         }
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
         val pending = if (contents.size == 1) {
-            listOf(td.send(TdApi.SendMessage(chatId, null, replyTo, options.toTd(), null, contents.single())))
+            listOf(td.send(TdApi.SendMessage(chatId, scope.toTd(), replyTo, options.toTd(), null, contents.single())))
         } else {
-            td.send(TdApi.SendMessageAlbum(chatId, null, replyTo, options.toTd(), contents.toTypedArray<TdApi.InputMessageContent>())).messages.toList()
+            td.send(TdApi.SendMessageAlbum(chatId, scope.toTd(), replyTo, options.toTd(), contents.toTypedArray<TdApi.InputMessageContent>())).messages.toList()
         }
         mergeSent(pending)
     }
@@ -265,7 +275,7 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         if (!_state.value.reachedNewest) open(lastReadInboxId = null)
         val document = TdApi.InputDocument(TdApi.InputFileLocal(path), null, false)
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
-        val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, options.toTd(), null, TdApi.InputMessageDocument(document, null)))
+        val pending = td.send(TdApi.SendMessage(chatId, scope.toTd(), replyTo, options.toTd(), null, TdApi.InputMessageDocument(document, null)))
         mergeSent(listOf(pending))
     }
 
@@ -280,7 +290,7 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         if (!_state.value.reachedNewest) open(lastReadInboxId = null)
         val voice = TdApi.InputVoiceNote(TdApi.InputFileLocal(path), duration, waveform)
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
-        val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, options.toTd(), null, TdApi.InputMessageVoiceNote(voice, null, null)))
+        val pending = td.send(TdApi.SendMessage(chatId, scope.toTd(), replyTo, options.toTd(), null, TdApi.InputMessageVoiceNote(voice, null, null)))
         mergeSent(listOf(pending))
     }
 
@@ -309,7 +319,7 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
             false,
         )
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
-        val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, options.toTd(), null, content))
+        val pending = td.send(TdApi.SendMessage(chatId, scope.toTd(), replyTo, options.toTd(), null, content))
         mergeSent(listOf(pending))
     }
 
@@ -334,8 +344,14 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
     }
 
     private suspend fun fetch(fromMessageId: Long, offset: Int, limit: Int): List<Message> =
-        runCatching { td.send(TdApi.GetChatHistory(chatId, fromMessageId, offset, limit, false)) }
-            .onFailure { Log.e(TAG, "getChatHistory($chatId) failed", it) }
+        runCatching {
+            when (scope) {
+                ChatScope.Whole -> td.send(TdApi.GetChatHistory(chatId, fromMessageId, offset, limit, false))
+                is ChatScope.Thread -> td.send(TdApi.GetMessageThreadHistory(chatId, scope.threadId, fromMessageId, offset, limit))
+                is ChatScope.Topic -> td.send(TdApi.GetForumTopicHistory(chatId, scope.topicId, fromMessageId, offset, limit))
+            }
+        }
+            .onFailure { Log.e(TAG, "history($chatId, $scope) failed", it) }
             .getOrNull()?.messages.orEmpty().map { it.toModel() }
 
     private fun State.merge(added: List<Message>): State {

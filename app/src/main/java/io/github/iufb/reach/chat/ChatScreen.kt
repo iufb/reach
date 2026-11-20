@@ -44,6 +44,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.gestures.scrollBy
 import androidx.compose.foundation.lazy.LazyColumn
@@ -115,8 +116,13 @@ fun ChatScreen(
     onOpenProfile: (chatId: Long) -> Unit,
     onOpenUserProfile: (userId: Long) -> Unit,
     onOpenScheduled: (chatId: Long) -> Unit,
+    onOpenThread: (chatId: Long, threadId: Long) -> Unit = { _, _ -> },
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
+    val scopeInfo by viewModel.scopeInfo.collectAsStateWithLifecycle()
+    val openThread by rememberUpdatedState(onOpenThread)
+    LaunchedEffect(viewModel) { viewModel.openThread.collect { (chatId, threadId) -> openThread(chatId, threadId) } }
+    val scoped = viewModel.scope != ChatScope.Whole
     val chat by viewModel.chat.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
     val senders by viewModel.senders.collectAsStateWithLifecycle()
@@ -204,6 +210,12 @@ fun ChatScreen(
             header = header,
             onOpenProfile = { chat?.let { onOpenProfile(it.id) } },
             onOpenScheduled = { chat?.let { onOpenScheduled(it.id) } },
+            scopeTitle = when (viewModel.scope) {
+                ChatScope.Whole -> null
+                is ChatScope.Thread -> stringResource(R.string.comments_title)
+                is ChatScope.Topic -> scopeInfo?.title.orEmpty()
+            },
+            threadRoot = scopeInfo?.root.orEmpty(),
             selectionBar = selectionActions?.let { actions ->
                 {
                     SelectionBar(
@@ -290,6 +302,8 @@ fun ChatScreen(
                 onShowVoters = viewModel::showPollVoters,
                 onRetractVote = viewModel::retractVote,
                 onStopPoll = viewModel::stopPoll,
+                onOpenComments = if (scoped) null else viewModel::openComments,
+                senders = senders,
             ),
         )
     }
@@ -306,6 +320,10 @@ private fun ChatContent(
     onOpenProfile: () -> Unit,
     /** Значок отложенных в шапке, пока они есть. */
     onOpenScheduled: () -> Unit = {},
+    /** Тред или топик: заголовок вместо названия чата; `null` — открыт весь чат. */
+    scopeTitle: String? = null,
+    /** Пост, к которому комментарии: над самым старым комментарием. */
+    threadRoot: List<Message> = emptyList(),
     /** Шапка режима выбора; `null` — обычная шапка чата. */
     selectionBar: (@Composable () -> Unit)?,
     onLoadOlder: () -> Unit,
@@ -331,7 +349,13 @@ private fun ChatContent(
                                 Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
                             }
                         },
-                        title = { if (chat != null) ChatHeader(chat, header, senders, onOpenProfile) },
+                        title = {
+                            if (chat != null && scopeTitle != null) {
+                                ScopeHeader(scopeTitle, chatTitle(chat))
+                            } else if (chat != null) {
+                                ChatHeader(chat, header, senders, onOpenProfile)
+                            }
+                        },
                         actions = {
                             if (chat?.hasScheduledMessages == true) {
                                 IconButton(onClick = onOpenScheduled) {
@@ -353,7 +377,7 @@ private fun ChatContent(
         if (!state.opened || chat == null) {
             Box(modifier, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
         } else {
-            MessageList(chat, state, senders, interactions, onLoadOlder, onLoadNewer, onVisibleMessagesChange, modifier)
+            MessageList(chat, state, senders, interactions, onLoadOlder, onLoadNewer, onVisibleMessagesChange, modifier, threadRoot)
         }
     }
 }
@@ -408,6 +432,10 @@ private class MessageInteractions(
     val onShowVoters: (Message, io.github.iufb.reach.chats.PollOptionInfo) -> Unit = { _, _ -> },
     val onRetractVote: (Message) -> Unit = {},
     val onStopPoll: (Message) -> Unit = {},
+    /** Плашка комментариев под постом канала; `null` — уже в треде. */
+    val onOpenComments: ((Message) -> Unit)? = null,
+    /** Аватарки комментаторов. */
+    val senders: Map<Sender, SenderInfo> = emptyMap(),
 ) {
     /** Меню, если оно открыто именно для [message]. */
     fun menuFor(message: Message): MessageMenu? = menu?.takeIf { it.message.id == message.id }
@@ -528,6 +556,7 @@ private fun MessageList(
     onLoadNewer: () -> Unit,
     onVisibleMessagesChange: (List<Long>) -> Unit,
     modifier: Modifier,
+    threadRoot: List<Message> = emptyList(),
 ) {
     val isChannel = chat.kind == ChatKind.Channel
     val items = buildItems(state, isGroup = chat.kind == ChatKind.Group)
@@ -579,6 +608,16 @@ private fun MessageList(
                     }
                 }
                 Item.UnreadDivider -> UnreadDivider()
+            }
+        }
+        // Пост, который комментируют, — над всеми комментариями
+        if (state.reachedOldest && threadRoot.isNotEmpty()) {
+            item(key = "thread-start") { ThreadStartDivider() }
+            item(key = "thread-root") {
+                val root = threadRoot.first()
+                MessageBubble(root, sender = senders[root.sender], interactions = interactions, album = threadRoot) {
+                    ForwardHeader(root, senders, interactions)
+                }
             }
         }
         if (!state.reachedOldest) {
@@ -909,6 +948,43 @@ private fun ChannelPost(
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
+        val openComments = interactions.onOpenComments
+        if (message.hasComments && openComments != null && interactions.selection.isEmpty()) {
+            CommentsBar(message, interactions.senders) { openComments(message) }
+        }
+    }
+}
+
+/** «N комментариев» с аватарками последних комментаторов; тап открывает тред. */
+@Composable
+private fun CommentsBar(message: Message, senders: Map<Sender, SenderInfo>, onClick: () -> Unit) {
+    androidx.compose.material3.HorizontalDivider(Modifier.padding(top = 8.dp))
+    Row(
+        Modifier.fillMaxWidth().clickable(onClick = onClick).padding(top = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        message.recentRepliers.take(3).forEachIndexed { i, sender ->
+            val info = senders[sender]
+            Avatar(
+                info?.name.orEmpty(),
+                info?.photo,
+                info?.accentColorId ?: 0,
+                modifier = Modifier.offset(x = (-8 * i).dp),
+                size = 24.dp,
+            )
+        }
+        if (message.recentRepliers.isNotEmpty()) Spacer(Modifier.width(4.dp))
+        Text(
+            if (message.replyCount > 0) {
+                pluralStringResource(R.plurals.comments, message.replyCount, message.replyCount)
+            } else {
+                stringResource(R.string.comments_leave)
+            },
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.primary,
+        )
+        Text("›", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.primary)
     }
 }
 
@@ -1158,6 +1234,32 @@ private fun ServiceMessage(body: MessageBody.Service) {
                 .padding(horizontal = 10.dp, vertical = 4.dp),
             style = MaterialTheme.typography.labelMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+        )
+    }
+}
+
+@Composable
+private fun ThreadStartDivider() {
+    Text(
+        stringResource(R.string.comments_start),
+        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+        style = MaterialTheme.typography.labelMedium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant,
+        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+    )
+}
+
+/** Шапка треда / топика: название и чат, к которому он относится. */
+@Composable
+private fun ScopeHeader(title: String, chatTitle: String) {
+    Column {
+        Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+        Text(
+            chatTitle,
+            style = MaterialTheme.typography.bodySmall,
+            color = LocalContentColor.current.copy(alpha = 0.88f),
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
         )
     }
 }
