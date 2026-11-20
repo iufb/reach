@@ -304,6 +304,7 @@ fun ChatScreen(
                 onReactionEffectDone = viewModel::onReactionEffectDone,
                 emojiEffects = emojiEffects,
                 onAnimatedEmojiClick = viewModel::onAnimatedEmojiClick,
+                onOpenContent = viewModel::openContent,
                 onEmojiEffectShown = viewModel::onEmojiEffectShown,
                 onEmojiEffectDone = viewModel::onEmojiEffectDone,
                 replied = replied,
@@ -454,6 +455,8 @@ private class MessageInteractions(
     /** Эффекты больших эмодзи по тапу (своему или собеседника). */
     val emojiEffects: List<EmojiEffect> = emptyList(),
     val onAnimatedEmojiClick: (Message) -> Unit = {},
+    /** Содержимое открыто (кружок просмотрен): `openMessageContent`. */
+    val onOpenContent: (Message) -> Unit = {},
     val onEmojiEffectShown: (EmojiEffect) -> Unit = {},
     val onEmojiEffectDone: (EmojiEffect) -> Unit = {},
     /** Голос в опросе: номера вариантов. */
@@ -1124,6 +1127,18 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
                 }
             }
         }
+        is MessageBody.VideoNote -> {
+            val noteState = rememberVideoNoteState(body.note)
+            VideoNoteView(
+                body.note,
+                noteState,
+                isViewed = body.isViewed || message.isOutgoing,
+                modifier = Modifier.messageLongPress(message, interactions) {
+                    // Первый просмотр со звуком входящего кружка — «просмотрено»
+                    if (noteState.toggle() && !message.isOutgoing && !body.isViewed) interactions.onOpenContent(message)
+                },
+            )
+        }
         is MessageBody.Sticker -> StickerView(
             body.sticker,
             Modifier.messageLongPress(message, interactions) { interactions.onStickerClick(body.sticker) },
@@ -1393,7 +1408,7 @@ private fun MessageBody.viewerItem(): ViewerItem? = when (this) {
 
 /** Содержимое без пузыря: стикеры и большие эмодзи. */
 private fun MessageBody.isBare(): Boolean =
-    this is MessageBody.Sticker || this is MessageBody.AnimatedEmoji || (this is MessageBody.Text && bigEmojiCount() > 0)
+    this is MessageBody.Sticker || this is MessageBody.AnimatedEmoji || this is MessageBody.VideoNote || (this is MessageBody.Text && bigEmojiCount() > 0)
 
 /** 1–3 кастомных эмодзи без другого текста и превью — показываем крупно; иначе 0. */
 private fun MessageBody.Text.bigEmojiCount(): Int =

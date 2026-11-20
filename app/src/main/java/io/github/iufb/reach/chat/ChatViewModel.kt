@@ -1041,6 +1041,14 @@ class ChatViewModel @Inject constructor(
     val emojiEffects: StateFlow<List<EmojiEffect>> = _emojiEffects.asStateFlow()
     private var lastEffectKey = 0L
 
+    /** Содержимое сообщения открыто (кружок просмотрен) — TDLib пришлёт `updateMessageContentOpened`. */
+    fun openContent(message: Message) {
+        viewModelScope.launch {
+            runCatching { td.send(TdApi.OpenMessageContent(chatId, message.id)) }
+                .onFailure { Log.w(TAG, "openMessageContent failed", it) }
+        }
+    }
+
     /** Тап по большому эмодзи: TDLib отдаёт эффект и сам сообщает о тапе собеседнику; 404 — эффекта нет. */
     fun onAnimatedEmojiClick(message: Message) {
         if (message.sendingState != null) return
