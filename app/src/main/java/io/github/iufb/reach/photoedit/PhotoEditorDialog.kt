@@ -51,6 +51,14 @@ import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.ImageBitmap
+import androidx.compose.ui.graphics.ColorFilter
+import androidx.compose.ui.graphics.ColorMatrix
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.PathEffect
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.drawscope.DrawScope
@@ -76,7 +84,7 @@ import kotlin.math.roundToInt
 import kotlin.math.sin
 
 /** Инструмент редактора. */
-private enum class Tool { Crop, Draw, Text }
+private enum class Tool { Crop, Draw, Text, Filter }
 
 /**
  * Состояние редактора: текущие правки и история для отмены/повтора. [commit] — законченное
@@ -166,9 +174,8 @@ fun PhotoEditorDialog(
                 Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
                 return@Column
             }
-            val oriented = remember(bitmap, edit.rotation, edit.flipped) {
-                PhotoEditRenderer.orient(bitmap, edit).asImageBitmap()
-            }
+            val orientedBitmap = remember(bitmap, edit.rotation, edit.flipped) { PhotoEditRenderer.orient(bitmap, edit) }
+            val oriented = remember(orientedBitmap) { orientedBitmap.asImageBitmap() }
             EditorCanvas(
                 oriented, state, tool, brush,
                 selectedText = selectedText,
@@ -182,6 +189,7 @@ fun PhotoEditorDialog(
             when (tool) {
                 Tool.Crop -> CropTools(oriented, edit, onChange = state::commit)
                 Tool.Draw -> DrawTools(brush)
+                Tool.Filter -> FilterTools(orientedBitmap, state)
                 Tool.Text -> TextTools(
                     selected = selectedText?.let { edit.texts.getOrNull(it) },
                     onAdd = { textDialog = TextDialog(null, "") },
@@ -246,6 +254,7 @@ private fun ToolTabs(tool: Tool, onSelect: (Tool) -> Unit) {
                 Tool.Crop -> R.string.photo_edit_tab_crop
                 Tool.Draw -> R.string.photo_edit_tab_draw
                 Tool.Text -> R.string.photo_edit_tab_text
+                Tool.Filter -> R.string.photo_edit_tab_filters
             }
             FilterChip(selected = t == tool, onClick = { onSelect(t) }, label = { Text(stringResource(label), color = Color.White) })
         }
@@ -282,7 +291,9 @@ private fun EditorCanvas(
         val currentSelected by rememberUpdatedState(selectedText)
         val select by rememberUpdatedState(onSelectText)
 
+        val colorFilter = remember(edit.filter, edit.adjust) { composeColorFilter(edit.filter, edit.adjust) }
         val gestures = when (tool) {
+            Tool.Filter -> Modifier
             Tool.Crop -> Modifier.pointerInput(image, dw, dh) {
                 val handle = HANDLE_RADIUS.toPx()
                 var target = CropTarget.None
@@ -364,6 +375,7 @@ private fun EditorCanvas(
                 image,
                 dstOffset = IntOffset(ox.roundToInt(), oy.roundToInt()),
                 dstSize = IntSize(dw.roundToInt(), dh.roundToInt()),
+                colorFilter = colorFilter,
             )
             drawIntoCanvas { OverlayPainter.draw(it.nativeCanvas, edit, area, extraStroke = drawing) }
             if (tool == Tool.Text) {
@@ -522,6 +534,78 @@ private fun ColorRow(selected: Int, onSelect: (Int) -> Unit) {
     }
 }
 
+private fun composeColorFilter(filter: FilterPreset, adjust: Adjustments): ColorFilter? =
+    colorMatrixFor(filter, adjust)?.let { ColorFilter.colorMatrix(ColorMatrix(it.array)) }
+
+/** Фильтры с превью на миниатюре и ползунки коррекции; ползунок — один шаг истории за протяжку. */
+@Composable
+private fun FilterTools(image: Bitmap, state: EditorState) {
+    val thumb = remember(image) {
+        val scale = THUMB_SIDE.toFloat() / maxOf(image.width, image.height)
+        Bitmap.createScaledBitmap(image, (image.width * scale).roundToInt().coerceAtLeast(1), (image.height * scale).roundToInt().coerceAtLeast(1), true)
+            .asImageBitmap()
+    }
+    val edit = state.edit
+    Column(Modifier.fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            items(FilterPreset.entries) { preset ->
+                val filter = remember(preset) { composeColorFilter(preset, Adjustments()) }
+                Column(
+                    Modifier.clickable { state.commit(edit.copy(filter = preset)) },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    Image(
+                        thumb,
+                        contentDescription = null,
+                        colorFilter = filter,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier
+                            .size(56.dp)
+                            .border(if (preset == edit.filter) 2.dp else 0.dp, Color.White, RoundedCornerShape(6.dp))
+                            .clip(RoundedCornerShape(6.dp)),
+                    )
+                    Text(stringResource(preset.label()), color = Color.White, style = MaterialTheme.typography.labelSmall)
+                }
+            }
+        }
+        var adjusting by remember { mutableStateOf(false) }
+        for ((label, value, update) in listOf(
+            Triple(R.string.photo_edit_brightness, edit.adjust.brightness) { a: Adjustments, v: Float -> a.copy(brightness = v) },
+            Triple(R.string.photo_edit_contrast, edit.adjust.contrast) { a: Adjustments, v: Float -> a.copy(contrast = v) },
+            Triple(R.string.photo_edit_saturation, edit.adjust.saturation) { a: Adjustments, v: Float -> a.copy(saturation = v) },
+            Triple(R.string.photo_edit_warmth, edit.adjust.warmth) { a: Adjustments, v: Float -> a.copy(warmth = v) },
+        )) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(stringResource(label), color = Color.White, style = MaterialTheme.typography.labelMedium, modifier = Modifier.width(96.dp))
+                Slider(
+                    value = value,
+                    onValueChange = { v ->
+                        if (!adjusting) {
+                            state.beginGesture()
+                            adjusting = true
+                        }
+                        state.preview(state.edit.copy(adjust = update(state.edit.adjust, v)))
+                    },
+                    onValueChangeFinished = { adjusting = false },
+                    valueRange = -1f..1f,
+                    modifier = Modifier.weight(1f),
+                )
+            }
+        }
+    }
+}
+
+private fun FilterPreset.label(): Int = when (this) {
+    FilterPreset.None -> R.string.photo_filter_none
+    FilterPreset.Mono -> R.string.photo_filter_mono
+    FilterPreset.Noir -> R.string.photo_filter_noir
+    FilterPreset.Sepia -> R.string.photo_filter_sepia
+    FilterPreset.Warm -> R.string.photo_filter_warm
+    FilterPreset.Cool -> R.string.photo_filter_cool
+    FilterPreset.Vintage -> R.string.photo_filter_vintage
+    FilterPreset.Vivid -> R.string.photo_filter_vivid
+}
+
 @Composable
 private fun TextInputDialog(initial: String, onDone: (String) -> Unit, onDismiss: () -> Unit) {
     var text by remember { mutableStateOf(initial) }
@@ -646,3 +730,4 @@ private const val DEFAULT_TEXT_SIZE = 0.08f
 private const val MIN_TEXT_SIZE = 0.02f
 private const val MAX_TEXT_SIZE = 0.4f
 private const val TEXT_HIT_SLOP = 24f
+private const val THUMB_SIDE = 160
