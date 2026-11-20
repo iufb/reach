@@ -170,7 +170,8 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
                 }
                 is TdApi.UpdateMessageInteractionInfo -> if (update.chatId == chatId) {
                     val views = update.interactionInfo?.viewCount ?: 0
-                    edit(update.messageId) { copy(viewCount = views) }
+                    val reactions = update.interactionInfo.toReactions()
+                    edit(update.messageId) { copy(viewCount = views, reactions = reactions) }
                 }
                 // Отправка завершилась: временный id меняется на постоянный
                 is TdApi.UpdateMessageSendSucceeded -> if (update.message.chatId == chatId) {
