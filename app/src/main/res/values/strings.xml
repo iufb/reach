@@ -577,6 +577,15 @@
     <string name="stats_graph_error">Нет данных за этот период</string>
     <string name="stats_recent_posts">Последние посты</string>
     <string name="stats_post">Пост</string>
+    <string name="auth_register_title">Новый аккаунт</string>
+    <string name="auth_register_subtitle">Этот номер ещё не в Telegram. Укажите имя — его увидят ваши собеседники.</string>
+    <string name="auth_register_last_name">Фамилия (необязательно)</string>
+    <string name="auth_register_accept">Я принимаю условия использования Telegram</string>
+    <string name="auth_register_accept_short">Принимаю</string>
+    <string name="auth_register_terms">Условия использования</string>
+    <string name="auth_register_min_age">Минимальный возраст: %1$d</string>
+    <string name="auth_error_signup_forbidden">Telegram не разрешает регистрировать новый аккаунт в этом приложении. Создайте аккаунт в официальном приложении Telegram, а потом войдите здесь.</string>
+    <string name="auth_error_invalid_name">Недопустимое имя</string>
     <string name="contacts_title">Контакты</string>
     <string name="contacts_search">Поиск контактов</string>
     <string name="contacts_empty">Контактов пока нет</string>

@@ -49,6 +49,11 @@ class AuthRepository @Inject constructor(
         td.send(TdApi.CheckAuthenticationPassword(password))
     }
 
+    /** Регистрация нового аккаунта: вызов означает согласие с условиями из [AuthState.WaitRegistration]. */
+    suspend fun register(firstName: String, lastName: String) {
+        td.send(TdApi.RegisterUser(firstName.trim(), lastName.trim(), false))
+    }
+
     suspend fun resendCode() {
         td.send(TdApi.ResendAuthenticationCode(TdApi.ResendCodeReasonUserRequest()))
     }

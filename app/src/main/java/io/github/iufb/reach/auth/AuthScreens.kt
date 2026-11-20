@@ -1,5 +1,12 @@
 package io.github.iufb.reach.auth
 
+import io.github.iufb.reach.chat.RichTextView
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.ui.semantics.Role
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.AlertDialog
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.background
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -184,6 +191,66 @@ private fun PasswordContent(
     }
 }
 
+/** Новый аккаунт: имя, фамилия, условия Telegram (без согласия — нельзя). */
+@Composable
+fun RegistrationScreen(onChangePhoneNumber: () -> Unit, viewModel: RegistrationViewModel = hiltViewModel()) {
+    val terms by viewModel.terms.collectAsStateWithLifecycle()
+    val state by viewModel.state.collectAsStateWithLifecycle()
+    var showTerms by remember { mutableStateOf(false) }
+    AuthLayout(
+        title = stringResource(R.string.auth_register_title),
+        subtitle = stringResource(R.string.auth_register_subtitle),
+    ) {
+        AuthField(
+            value = state.firstName,
+            onValueChange = viewModel::onFirstNameChange,
+            label = stringResource(R.string.contacts_first_name),
+            keyboardType = KeyboardType.Text,
+            enabled = !state.submitting,
+            error = state.error,
+            onDone = viewModel::submit,
+        )
+        OutlinedTextField(
+            value = state.lastName,
+            onValueChange = viewModel::onLastNameChange,
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text(stringResource(R.string.auth_register_last_name)) },
+            singleLine = true,
+            enabled = !state.submitting,
+        )
+        Row(
+            Modifier.fillMaxWidth().toggleable(state.acceptedTerms, role = Role.Checkbox, onValueChange = viewModel::onAcceptTerms),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Checkbox(checked = state.acceptedTerms, onCheckedChange = null)
+            Text(stringResource(R.string.auth_register_accept), Modifier.weight(1f).padding(start = 8.dp))
+        }
+        TextButton(onClick = { showTerms = true }) { Text(stringResource(R.string.auth_register_terms)) }
+        SubmitButton(enabled = state.canSubmit, submitting = state.submitting, onClick = viewModel::submit)
+        TextButton(onClick = onChangePhoneNumber) { Text(stringResource(R.string.auth_change_phone)) }
+    }
+    val current = terms
+    if (showTerms && current != null) {
+        AlertDialog(
+            onDismissRequest = { showTerms = false },
+            title = { Text(stringResource(R.string.auth_register_terms)) },
+            text = {
+                Column(Modifier.verticalScroll(rememberScrollState())) {
+                    if (current.minAge > 0) Text(stringResource(R.string.auth_register_min_age, current.minAge))
+                    RichTextView(current.terms, style = MaterialTheme.typography.bodyMedium)
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showTerms = false
+                    viewModel.onAcceptTerms(true)
+                }) { Text(stringResource(R.string.auth_register_accept_short)) }
+            },
+            dismissButton = { TextButton(onClick = { showTerms = false }) { Text(stringResource(R.string.close)) } },
+        )
+    }
+}
+
 @Composable
 fun UnsupportedAuthScreen(step: String) {
     AuthLayout(
@@ -295,6 +362,8 @@ private fun errorText(error: AuthError): String = when (error) {
     AuthError.InvalidCode -> stringResource(R.string.auth_error_invalid_code)
     AuthError.CodeExpired -> stringResource(R.string.auth_error_code_expired)
     AuthError.InvalidPassword -> stringResource(R.string.auth_error_invalid_password)
+    AuthError.SignUpForbidden -> stringResource(R.string.auth_error_signup_forbidden)
+    AuthError.InvalidName -> stringResource(R.string.auth_error_invalid_name)
     is AuthError.FloodWait -> floodWaitText(error.seconds)
     is AuthError.Unknown -> stringResource(R.string.auth_error_unknown, error.message)
 }

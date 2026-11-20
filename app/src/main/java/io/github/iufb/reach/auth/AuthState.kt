@@ -1,5 +1,7 @@
 package io.github.iufb.reach.auth
 
+import io.github.iufb.reach.chats.RichText
+import io.github.iufb.reach.chats.toRichText
 import org.drinkless.tdlib.TdApi
 
 /**
@@ -25,6 +27,14 @@ sealed interface AuthState {
     data class WaitPassword(
         /** Подсказка, которую пользователь задал вместе с паролем; может быть пустой. */
         val hint: String,
+    ) : AuthState
+
+    /** Номер ещё не зарегистрирован: имя и согласие с условиями (ADR-0007). */
+    data class WaitRegistration(
+        /** Условия использования Telegram. */
+        val terms: RichText,
+        /** Минимальный возраст; 0 — не указан. */
+        val minAge: Int,
     ) : AuthState
 
     data object Ready : AuthState
@@ -66,6 +76,11 @@ internal fun TdApi.AuthorizationState.toAuthState(): AuthState = when (this) {
     )
 
     is TdApi.AuthorizationStateWaitPassword -> AuthState.WaitPassword(passwordHint)
+
+    is TdApi.AuthorizationStateWaitRegistration -> AuthState.WaitRegistration(
+        termsOfService.text.toRichText(),
+        termsOfService.minUserAge,
+    )
 
     is TdApi.AuthorizationStateReady -> AuthState.Ready
 
