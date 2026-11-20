@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import io.github.iufb.reach.chats.MUTE_FOREVER
 import org.drinkless.tdlib.TdApi
 import javax.inject.Inject
 
@@ -47,6 +48,8 @@ data class Profile(
     val isUser: Boolean = false,
     /** Показать «Написать»: профиль пользователя открыт не из его чата. */
     val canWrite: Boolean = false,
+    /** Уведомления чата выключены; `null` — профиль открыт не из чата, переключателя нет. */
+    val isMuted: Boolean? = null,
 )
 
 /** Полная информация, которую TDLib отдаёт отдельным запросом. */
@@ -66,7 +69,7 @@ private data class FullInfo(
 class ProfileViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val td: TdClient,
-    chats: ChatsRepository,
+    private val chats: ChatsRepository,
     users: UsersRepository,
 ) : ViewModel() {
 
@@ -92,6 +95,7 @@ class ProfileViewModel @Inject constructor(
                 about = info.about,
                 canWrite = route.userId != 0L,
                 isUser = true,
+                isMuted = chat?.isMuted,
             )
             chat != null -> Profile(
                 title = chat.title,
@@ -102,6 +106,7 @@ class ProfileViewModel @Inject constructor(
                 about = info.about,
                 memberCount = info.memberCount,
                 isChannel = chat.kind == ChatKind.Channel,
+                isMuted = chat.isMuted,
             )
             else -> null
         }
@@ -151,6 +156,15 @@ class ProfileViewModel @Inject constructor(
                 else -> FullInfo()
             }
         }.onFailure { Log.w(TAG, "load full info failed", it) }
+    }
+
+    /** Переключатель «Уведомления»: выключить навсегда или включить. */
+    fun setNotificationsEnabled(enabled: Boolean) {
+        if (route.chatId == 0L) return
+        viewModelScope.launch {
+            runCatching { chats.setMuteFor(route.chatId, if (enabled) 0 else MUTE_FOREVER) }
+                .onFailure { Log.w(TAG, "setMuteFor failed", it) }
+        }
     }
 
     fun write() {

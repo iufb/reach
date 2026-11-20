@@ -102,7 +102,11 @@ fun ChatsScreen(
         onSelectList = viewModel::selectList,
     )
     menuChat?.let { chat ->
-        ChatMenuSheet(chat, list, ChatMenuActions(onSetPinned = viewModel::setPinned, onSetArchived = viewModel::setArchived), onDismiss = viewModel::dismissMenu)
+        ChatMenuSheet(chat, list, ChatMenuActions(
+                onSetPinned = viewModel::setPinned,
+                onSetArchived = viewModel::setArchived,
+                onSetMuteFor = viewModel::setMuteFor,
+            ), onDismiss = viewModel::dismissMenu)
     }
 }
 
@@ -314,14 +318,26 @@ private fun ChatRow(chat: Chat, isPinned: Boolean, activity: String?, onClick: (
         Spacer(Modifier.width(12.dp))
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    chat.title.ifBlank { stringResource(R.string.chat_deleted_account) },
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
+                // Иконка «без звука» сразу за названием, а не у края
+                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        chat.title.ifBlank { stringResource(R.string.chat_deleted_account) },
+                        modifier = Modifier.weight(1f, fill = false),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    if (chat.isMuted) {
+                        Spacer(Modifier.width(4.dp))
+                        Icon(
+                            painterResource(R.drawable.ic_muted),
+                            contentDescription = stringResource(R.string.chat_muted),
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                }
                 // Черновик новее последнего сообщения — показываем его время
                 listOfNotNull(chat.lastMessage?.date, chat.draft?.date).maxOrNull()?.let { date ->
                     Spacer(Modifier.width(8.dp))
@@ -348,7 +364,7 @@ private fun ChatRow(chat: Chat, isPinned: Boolean, activity: String?, onClick: (
                 when {
                     chat.unreadCount > 0 -> {
                         Spacer(Modifier.width(8.dp))
-                        UnreadBadge(chat.unreadCount)
+                        UnreadBadge(chat.unreadCount, muted = chat.isMuted)
                     }
                     isPinned -> {
                         Spacer(Modifier.width(8.dp))

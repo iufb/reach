@@ -49,6 +49,9 @@ class ChatsRepository @Inject constructor(
     /** Папки пользователя; обновляются по `UpdateChatFolders`. */
     val folders: StateFlow<ChatFolders> = _folders.asStateFlow()
 
+    /** «Без звука» по умолчанию для типов чатов, секунды. */
+    private var scopeMute: Map<NotificationScope, Int> = emptyMap()
+
     private val _counts = MutableStateFlow<Map<ChatListType, ChatListCounts>>(emptyMap())
 
     init {
@@ -102,9 +105,27 @@ class ChatsRepository @Inject constructor(
         td.send(TdApi.AddChatToList(chatId, list.toTd()))
     }
 
+    /**
+     * Без звука на [seconds] секунд (0 — включить звук). TDLib принимает настройки целиком,
+     * поэтому берём текущие и меняем только `muteFor`.
+     */
+    suspend fun setMuteFor(chatId: Long, seconds: Int) {
+        val settings = td.send(TdApi.GetChat(chatId)).notificationSettings
+        settings.useDefaultMuteFor = false
+        settings.muteFor = seconds
+        td.send(TdApi.SetChatNotificationSettings(chatId, settings))
+    }
+
     private fun onUpdate(update: TdApi.Object) {
         when (update) {
-            is TdApi.UpdateNewChat -> _chats.update { it + (update.chat.id to update.chat.toModel()) }
+            is TdApi.UpdateNewChat -> _chats.update { it + (update.chat.id to update.chat.toModel().withMute(scopeMute)) }
+            is TdApi.UpdateChatNotificationSettings -> edit(update.chatId) {
+                copy(muteFor = update.notificationSettings.ownMuteFor).withMute(scopeMute)
+            }
+            is TdApi.UpdateScopeNotificationSettings -> {
+                scopeMute = scopeMute + (update.scope.toModel() to update.notificationSettings.muteFor)
+                _chats.update { all -> all.mapValues { (_, chat) -> chat.withMute(scopeMute) } }
+            }
             is TdApi.UpdateChatTitle -> edit(update.chatId) { copy(title = update.title) }
             is TdApi.UpdateChatPosition -> edit(update.chatId) { copy(positions = positions.with(update.position)) }
             is TdApi.UpdateChatLastMessage -> edit(update.chatId) {
@@ -138,6 +159,7 @@ class ChatsRepository @Inject constructor(
                 _allLoaded.value = emptySet()
                 _counts.value = emptyMap()
                 _folders.value = ChatFolders.Empty
+                scopeMute = emptyMap()
             }
         }
     }
