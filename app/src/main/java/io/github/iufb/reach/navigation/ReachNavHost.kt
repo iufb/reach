@@ -16,6 +16,18 @@ import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
 import io.github.iufb.reach.auth.AuthState
+import android.widget.Toast
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.platform.UriHandler
+import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.iufb.reach.R
+import io.github.iufb.reach.links.InviteDialog
+import io.github.iufb.reach.links.LinkEvent
+import io.github.iufb.reach.links.LinkMessage
+import io.github.iufb.reach.links.LinksViewModel
 import io.github.iufb.reach.auth.CodeScreen
 import io.github.iufb.reach.auth.LoadingScreen
 import io.github.iufb.reach.auth.PasswordScreen
@@ -29,6 +41,7 @@ import io.github.iufb.reach.newchat.NewChatScreen
 import io.github.iufb.reach.members.MembersScreen
 import io.github.iufb.reach.rights.AdminRightsScreen
 import io.github.iufb.reach.rights.PermissionsScreen
+import io.github.iufb.reach.invites.InviteLinksScreen
 import io.github.iufb.reach.blocked.BlockedScreen
 import io.github.iufb.reach.contacts.ContactSyncScreen
 import io.github.iufb.reach.settings.SettingsScreen
@@ -69,13 +82,21 @@ import kotlinx.serialization.Serializable
 @Serializable data class AdminRightsRoute(val chatId: Long, val userId: Long)
 /** [userId] = 0 — общие разрешения группы. */
 @Serializable data class PermissionsRoute(val chatId: Long, val userId: Long = 0)
+@Serializable data class InviteLinksRoute(val chatId: Long)
 
 /**
  * Два графа: вход и основной. Какой экран показан, решает [AuthState]:
  * навигация только догоняет состояние TDLib, сама переходов не придумывает.
  */
 @Composable
-fun ReachNavHost(authState: AuthState, openChatId: Long? = null, onOpenChatHandled: () -> Unit = {}) {
+fun ReachNavHost(
+    authState: AuthState,
+    openChatId: Long? = null,
+    onOpenChatHandled: () -> Unit = {},
+    openLink: String? = null,
+    onOpenLinkHandled: () -> Unit = {},
+    links: LinksViewModel = hiltViewModel(),
+) {
     // Стартовый граф — по первому известному состоянию: при повторном запуске
     // с сохранённой сессией экран входа не мелькает.
     var startGraph by remember { mutableStateOf<Any?>(null) }
@@ -91,122 +112,138 @@ fun ReachNavHost(authState: AuthState, openChatId: Long? = null, onOpenChatHandl
     val navController = rememberNavController()
     val currentAuthState by rememberUpdatedState(authState)
 
-    NavHost(navController, startDestination = start) {
-        navigation<AuthGraph>(startDestination = PhoneRoute) {
-            composable<PhoneRoute> {
-                // Тот же номер повторно может дать равное состояние, и StateFlow его не пришлёт —
-                // поэтому после успешной отправки догоняем состояние явно.
-                PhoneScreen(onSubmitted = { navController.syncWith(currentAuthState) })
+    // Ссылки Telegram из сообщений разбирает клиент, остальные — внешнее приложение
+    val platformUris = LocalUriHandler.current
+    val uriHandler = remember(platformUris, links) {
+        object : UriHandler {
+            override fun openUri(uri: String) {
+                if (LinksViewModel.isTelegramLink(uri)) links.open(uri) else platformUris.openUri(uri)
             }
-            composable<CodeRoute> {
-                // Назад к уже введённому номеру. TDLib разрешает setAuthenticationPhoneNumber и в WaitCode.
-                CodeScreen(onChangePhoneNumber = navController::backToPhone)
-            }
-            // В WaitPassword TDLib тоже принимает setAuthenticationPhoneNumber
-            composable<PasswordRoute> { PasswordScreen(onChangePhoneNumber = navController::backToPhone) }
-            composable<UnsupportedAuthRoute> { UnsupportedAuthScreen(it.toRoute<UnsupportedAuthRoute>().step) }
         }
-        navigation<MainGraph>(startDestination = ChatsRoute()) {
-            composable<ChatsRoute> {
-                ChatsScreen(
-                    onChatClick = { navController.navigate(ChatRoute(it)) },
-                    onOpenArchive = { navController.navigate(ChatsRoute(archive = true)) },
-                    onOpenSearch = { navController.navigate(SearchRoute) },
-                    onBack = { navController.popBackStack() },
-                    onOpenSettings = { navController.navigate(SettingsRoute) },
-                    onOpenTopics = { navController.navigate(TopicsRoute(it)) },
-                    onOpenContacts = { navController.navigate(ContactsRoute) },
-                    onNewChat = { channel -> navController.navigate(NewChatRoute(channel)) },
-                )
+    }
+    CompositionLocalProvider(LocalUriHandler provides uriHandler) {
+        NavHost(navController, startDestination = start) {
+            navigation<AuthGraph>(startDestination = PhoneRoute) {
+                composable<PhoneRoute> {
+                    // Тот же номер повторно может дать равное состояние, и StateFlow его не пришлёт —
+                    // поэтому после успешной отправки догоняем состояние явно.
+                    PhoneScreen(onSubmitted = { navController.syncWith(currentAuthState) })
+                }
+                composable<CodeRoute> {
+                    // Назад к уже введённому номеру. TDLib разрешает setAuthenticationPhoneNumber и в WaitCode.
+                    CodeScreen(onChangePhoneNumber = navController::backToPhone)
+                }
+                // В WaitPassword TDLib тоже принимает setAuthenticationPhoneNumber
+                composable<PasswordRoute> { PasswordScreen(onChangePhoneNumber = navController::backToPhone) }
+                composable<UnsupportedAuthRoute> { UnsupportedAuthScreen(it.toRoute<UnsupportedAuthRoute>().step) }
             }
-            composable<NewChatRoute> {
-                NewChatScreen(
-                    onBack = { navController.popBackStack() },
-                    // Созданный чат открывается вместо мастера: «назад» из него — в список
-                    onCreated = { navController.navigate(ChatRoute(it)) { popUpTo(ChatsRoute()) } },
-                )
-            }
-            composable<ContactsRoute> {
-                ContactsScreen(
-                    onBack = { navController.popBackStack() },
-                    onOpenChat = { navController.navigate(ChatRoute(it)) },
-                )
-            }
-            composable<TopicsRoute> {
-                TopicsScreen(
-                    onBack = { navController.popBackStack() },
-                    onOpenTopic = { chatId, topicId -> navController.navigate(ChatRoute(chatId, topicId = topicId)) },
-                    onOpenAsMessages = { navController.navigate(ChatRoute(it)) },
-                    onOpenProfile = { navController.navigate(ProfileRoute(chatId = it)) },
-                )
-            }
-            composable<ChatRoute> {
-                ChatScreen(
-                    onBack = { navController.popBackStack() },
-                    onForward = { from, ids -> navController.navigate(ForwardRoute(from, ids)) },
-                    onOpenChat = { navController.navigate(ChatRoute(it)) },
-                    onOpenProfile = { navController.navigate(ProfileRoute(chatId = it)) },
-                    onOpenUserProfile = { navController.navigate(ProfileRoute(userId = it)) },
-                    onOpenScheduled = { navController.navigate(ScheduledRoute(it)) },
-                    onOpenThread = { chatId, threadId -> navController.navigate(ChatRoute(chatId, threadId = threadId)) },
-                )
-            }
-            composable<ScheduledRoute> { ScheduledScreen(onBack = { navController.popBackStack() }) }
-            composable<SearchRoute> {
-                SearchScreen(
-                    onBack = { navController.popBackStack() },
-                    onOpenChat = { navController.navigate(ChatRoute(it)) },
-                    onOpenMessage = { chatId, messageId -> navController.navigate(ChatRoute(chatId, messageId)) },
-                )
-            }
-            composable<ProfileRoute> {
-                ProfileScreen(
-                    onBack = { navController.popBackStack() },
-                    onOpenChat = { navController.navigate(ChatRoute(it)) },
-                    onOpenGallery = { navController.navigate(GalleryRoute(it)) },
-                    onOpenMembers = { navController.navigate(MembersRoute(it)) },
-                    onOpenPermissions = { navController.navigate(PermissionsRoute(it)) },
-                    // Вышли из группы — её чата больше нет: назад к списку
-                    onLeft = { navController.popBackStack<ChatsRoute>(inclusive = false) },
-                )
-            }
-            composable<MembersRoute> {
-                MembersScreen(
-                    onBack = { navController.popBackStack() },
-                    onOpenUser = { navController.navigate(ProfileRoute(userId = it)) },
-                    onEditAdmin = { chatId, userId -> navController.navigate(AdminRightsRoute(chatId, userId)) },
-                    onRestrict = { chatId, userId -> navController.navigate(PermissionsRoute(chatId, userId)) },
-                )
-            }
-            composable<AdminRightsRoute> { AdminRightsScreen(onBack = { navController.popBackStack() }) }
-            composable<PermissionsRoute> { PermissionsScreen(onBack = { navController.popBackStack() }) }
-            composable<SettingsRoute> {
-                SettingsScreen(
-                    onBack = { navController.popBackStack() },
-                    onOpenAutoDownload = { navController.navigate(AutoDownloadRoute) },
-                    onOpenContactSync = { navController.navigate(ContactSyncRoute) },
-                    onOpenBlocked = { navController.navigate(BlockedRoute) },
-                )
-            }
-            composable<BlockedRoute> { BlockedScreen(onBack = { navController.popBackStack() }) }
-            composable<ContactSyncRoute> { ContactSyncScreen(onBack = { navController.popBackStack() }) }
-            composable<AutoDownloadRoute> { AutoDownloadScreen(onBack = { navController.popBackStack() }) }
-            composable<GalleryRoute> {
-                GalleryScreen(
-                    onBack = { navController.popBackStack() },
-                    onShowInChat = { chatId, messageId -> navController.navigate(ChatRoute(chatId, messageId)) },
-                )
-            }
-            composable<ForwardRoute> {
-                ForwardScreen(
-                    onBack = { navController.popBackStack() },
-                    // После пересылки — в целевой чат; «назад» из него ведёт в список чатов
-                    onForwarded = { navController.navigate(ChatRoute(it)) { popUpTo(ChatsRoute()) } },
-                )
+            navigation<MainGraph>(startDestination = ChatsRoute()) {
+                composable<ChatsRoute> {
+                    ChatsScreen(
+                        onChatClick = { navController.navigate(ChatRoute(it)) },
+                        onOpenArchive = { navController.navigate(ChatsRoute(archive = true)) },
+                        onOpenSearch = { navController.navigate(SearchRoute) },
+                        onBack = { navController.popBackStack() },
+                        onOpenSettings = { navController.navigate(SettingsRoute) },
+                        onOpenTopics = { navController.navigate(TopicsRoute(it)) },
+                        onOpenContacts = { navController.navigate(ContactsRoute) },
+                        onNewChat = { channel -> navController.navigate(NewChatRoute(channel)) },
+                    )
+                }
+                composable<NewChatRoute> {
+                    NewChatScreen(
+                        onBack = { navController.popBackStack() },
+                        // Созданный чат открывается вместо мастера: «назад» из него — в список
+                        onCreated = { navController.navigate(ChatRoute(it)) { popUpTo(ChatsRoute()) } },
+                    )
+                }
+                composable<ContactsRoute> {
+                    ContactsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenChat = { navController.navigate(ChatRoute(it)) },
+                    )
+                }
+                composable<TopicsRoute> {
+                    TopicsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenTopic = { chatId, topicId -> navController.navigate(ChatRoute(chatId, topicId = topicId)) },
+                        onOpenAsMessages = { navController.navigate(ChatRoute(it)) },
+                        onOpenProfile = { navController.navigate(ProfileRoute(chatId = it)) },
+                    )
+                }
+                composable<ChatRoute> {
+                    ChatScreen(
+                        onBack = { navController.popBackStack() },
+                        onForward = { from, ids -> navController.navigate(ForwardRoute(from, ids)) },
+                        onOpenChat = { navController.navigate(ChatRoute(it)) },
+                        onOpenProfile = { navController.navigate(ProfileRoute(chatId = it)) },
+                        onOpenUserProfile = { navController.navigate(ProfileRoute(userId = it)) },
+                        onOpenScheduled = { navController.navigate(ScheduledRoute(it)) },
+                        onOpenThread = { chatId, threadId -> navController.navigate(ChatRoute(chatId, threadId = threadId)) },
+                    )
+                }
+                composable<ScheduledRoute> { ScheduledScreen(onBack = { navController.popBackStack() }) }
+                composable<SearchRoute> {
+                    SearchScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenChat = { navController.navigate(ChatRoute(it)) },
+                        onOpenMessage = { chatId, messageId -> navController.navigate(ChatRoute(chatId, messageId)) },
+                    )
+                }
+                composable<ProfileRoute> {
+                    ProfileScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenChat = { navController.navigate(ChatRoute(it)) },
+                        onOpenGallery = { navController.navigate(GalleryRoute(it)) },
+                        onOpenMembers = { navController.navigate(MembersRoute(it)) },
+                        onOpenPermissions = { navController.navigate(PermissionsRoute(it)) },
+                        onOpenInviteLinks = { navController.navigate(InviteLinksRoute(it)) },
+                        // Вышли из группы — её чата больше нет: назад к списку
+                        onLeft = { navController.popBackStack<ChatsRoute>(inclusive = false) },
+                    )
+                }
+                composable<MembersRoute> {
+                    MembersScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenUser = { navController.navigate(ProfileRoute(userId = it)) },
+                        onEditAdmin = { chatId, userId -> navController.navigate(AdminRightsRoute(chatId, userId)) },
+                        onRestrict = { chatId, userId -> navController.navigate(PermissionsRoute(chatId, userId)) },
+                    )
+                }
+                composable<AdminRightsRoute> { AdminRightsScreen(onBack = { navController.popBackStack() }) }
+                composable<PermissionsRoute> { PermissionsScreen(onBack = { navController.popBackStack() }) }
+                composable<InviteLinksRoute> { InviteLinksScreen(onBack = { navController.popBackStack() }) }
+                composable<SettingsRoute> {
+                    SettingsScreen(
+                        onBack = { navController.popBackStack() },
+                        onOpenAutoDownload = { navController.navigate(AutoDownloadRoute) },
+                        onOpenContactSync = { navController.navigate(ContactSyncRoute) },
+                        onOpenBlocked = { navController.navigate(BlockedRoute) },
+                    )
+                }
+                composable<BlockedRoute> { BlockedScreen(onBack = { navController.popBackStack() }) }
+                composable<ContactSyncRoute> { ContactSyncScreen(onBack = { navController.popBackStack() }) }
+                composable<AutoDownloadRoute> { AutoDownloadScreen(onBack = { navController.popBackStack() }) }
+                composable<GalleryRoute> {
+                    GalleryScreen(
+                        onBack = { navController.popBackStack() },
+                        onShowInChat = { chatId, messageId -> navController.navigate(ChatRoute(chatId, messageId)) },
+                    )
+                }
+                composable<ForwardRoute> {
+                    ForwardScreen(
+                        onBack = { navController.popBackStack() },
+                        // После пересылки — в целевой чат; «назад» из него ведёт в список чатов
+                        onForwarded = { navController.navigate(ChatRoute(it)) { popUpTo(ChatsRoute()) } },
+                    )
+                }
             }
         }
     }
     LaunchedEffect(authState) { navController.syncWith(authState) }
+    LinkEffects(links, navController, authState, openLink, onOpenLinkHandled) { url ->
+        runCatching { platformUris.openUri(url) }
+    }
     // Тап по уведомлению: открываем чат поверх списка, когда вход уже выполнен
     LaunchedEffect(openChatId, authState) {
         if (openChatId != null && authState == AuthState.Ready) {
@@ -214,6 +251,43 @@ fun ReachNavHost(authState: AuthState, openChatId: Long? = null, onOpenChatHandl
             onOpenChatHandled()
         }
     }
+}
+
+/** Ссылка из другого приложения (после входа), переходы по ссылкам и превью приглашения. */
+@Composable
+private fun LinkEffects(
+    links: LinksViewModel,
+    navController: NavController,
+    authState: AuthState,
+    openLink: String?,
+    onOpenLinkHandled: () -> Unit,
+    openExternal: (String) -> Unit,
+) {
+    val context = LocalContext.current
+    LaunchedEffect(openLink, authState) {
+        if (openLink != null && authState == AuthState.Ready) {
+            links.open(openLink)
+            onOpenLinkHandled()
+        }
+    }
+    LaunchedEffect(links) {
+        links.events.collect { event ->
+            when (event) {
+                is LinkEvent.OpenChat -> navController.navigate(ChatRoute(event.chatId, event.messageId))
+                is LinkEvent.External -> openExternal(event.url)
+                is LinkEvent.Message -> Toast.makeText(
+                    context,
+                    when (event.text) {
+                        LinkMessage.RequestSent -> R.string.invite_request_sent
+                        LinkMessage.Invalid -> R.string.invite_invalid
+                    },
+                    Toast.LENGTH_SHORT,
+                ).show()
+            }
+        }
+    }
+    val invite by links.invite.collectAsStateWithLifecycle()
+    invite?.let { InviteDialog(it, onJoin = links::join, onDismiss = links::dismissInvite) }
 }
 
 /** Назад к уже введённому номеру. */

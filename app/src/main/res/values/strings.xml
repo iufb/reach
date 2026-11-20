@@ -59,6 +59,18 @@
         <item quantity="many">Выбрано %d</item>
         <item quantity="other">Выбрано %d</item>
     </plurals>
+    <plurals name="invite_joined">
+        <item quantity="one">%d вступил</item>
+        <item quantity="few">%d вступили</item>
+        <item quantity="many">%d вступили</item>
+        <item quantity="other">%d вступили</item>
+    </plurals>
+    <plurals name="invite_pending">
+        <item quantity="one">%d заявка</item>
+        <item quantity="few">%d заявки</item>
+        <item quantity="many">%d заявок</item>
+        <item quantity="other">%d заявки</item>
+    </plurals>
     <plurals name="comments">
         <item quantity="one">%d комментарий</item>
         <item quantity="few">%d комментария</item>
@@ -509,6 +521,30 @@
     <string name="perm_pin">Закрепление сообщений</string>
     <string name="perm_change_info">Изменение профиля группы</string>
     <string name="perm_create_topics">Создание топиков</string>
+    <string name="invite_links_title">Ссылки-приглашения</string>
+    <string name="invite_share">Поделиться</string>
+    <string name="invite_replace">Сбросить</string>
+    <string name="invite_create">Создать ссылку</string>
+    <string name="invite_revoke">Отозвать</string>
+    <string name="invite_revoked">Отозванные</string>
+    <string name="invite_name">Название (видно только админам)</string>
+    <string name="invite_limit">Лимит участников (пусто — без лимита)</string>
+    <string name="invite_requests_switch">Вступление по заявке</string>
+    <string name="invite_expiry">Срок действия</string>
+    <string name="invite_expiry_never">Бессрочно</string>
+    <string name="invite_expiry_hour">1 час</string>
+    <string name="invite_usage_limit">%1$d из %2$d</string>
+    <string name="invite_status_revoked">отозвана</string>
+    <string name="invite_status_expired">истекла</string>
+    <string name="invite_expires">до %1$s</string>
+    <string name="join_requests_title">Заявки на вступление</string>
+    <string name="join_request_approve">Принять</string>
+    <string name="join_request_decline">Отклонить</string>
+    <string name="invite_join_group">Вступить в группу</string>
+    <string name="invite_join_channel">Подписаться</string>
+    <string name="invite_request">Отправить заявку</string>
+    <string name="invite_request_sent">Заявка отправлена, дождитесь одобрения админа</string>
+    <string name="invite_invalid">Ссылка недействительна или устарела</string>
     <string name="contacts_title">Контакты</string>
     <string name="contacts_search">Поиск контактов</string>
     <string name="contacts_empty">Контактов пока нет</string>

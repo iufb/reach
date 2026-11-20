@@ -63,6 +63,7 @@ fun ProfileScreen(
     onOpenGallery: (chatId: Long) -> Unit,
     onOpenMembers: (chatId: Long) -> Unit = {},
     onOpenPermissions: (chatId: Long) -> Unit = {},
+    onOpenInviteLinks: (chatId: Long) -> Unit = {},
     /** Вышли из группы или удалили её. */
     onLeft: () -> Unit = onBack,
     viewModel: ProfileViewModel = hiltViewModel(),
@@ -190,6 +191,11 @@ fun ProfileScreen(
                         stringResource(if (current.isChannel) R.string.members_subscribers else R.string.members_title),
                         Modifier.fillMaxWidth(),
                     )
+                }
+            }
+            if (current.canManageInvites) {
+                TextButton(onClick = { onOpenInviteLinks(viewModel.chatId) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.invite_links_title), Modifier.fillMaxWidth())
                 }
             }
             if (current.canEditPermissions) {
