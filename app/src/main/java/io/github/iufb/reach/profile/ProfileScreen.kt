@@ -61,8 +61,14 @@ fun ProfileScreen(
     onBack: () -> Unit,
     onOpenChat: (Long) -> Unit,
     onOpenGallery: (chatId: Long) -> Unit,
+    onOpenMembers: (chatId: Long) -> Unit = {},
+    /** Вышли из группы или удалили её. */
+    onLeft: () -> Unit = onBack,
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
+    val leftCallback by rememberUpdatedState(onLeft)
+    LaunchedEffect(viewModel) { viewModel.left.collect { leftCallback() } }
+    var confirmLeave by remember { mutableStateOf<Boolean?>(null) }
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val open by rememberUpdatedState(onOpenChat)
     LaunchedEffect(viewModel) { viewModel.openChat.collect { open(it) } }
@@ -177,6 +183,14 @@ fun ProfileScreen(
                     Switch(checked = !muted, onCheckedChange = viewModel::setNotificationsEnabled)
                 }
             }
+            if (current.canOpenMembers) {
+                TextButton(onClick = { onOpenMembers(viewModel.chatId) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        stringResource(if (current.isChannel) R.string.members_subscribers else R.string.members_title),
+                        Modifier.fillMaxWidth(),
+                    )
+                }
+            }
             current.autoDeleteTime?.let { seconds ->
                 Column(
                     Modifier
@@ -206,6 +220,38 @@ fun ProfileScreen(
                     )
                 }
             }
+            if (current.isMember && !current.isUser) {
+                HorizontalDivider()
+                TextButton(onClick = { confirmLeave = false }, modifier = Modifier.fillMaxWidth()) {
+                    Text(
+                        stringResource(if (current.isChannel) R.string.leave_channel else R.string.leave_group),
+                        Modifier.fillMaxWidth(),
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+                if (current.isOwner) {
+                    TextButton(onClick = { confirmLeave = true }, modifier = Modifier.fillMaxWidth()) {
+                        Text(
+                            stringResource(if (current.isChannel) R.string.delete_channel else R.string.delete_group),
+                            Modifier.fillMaxWidth(),
+                            color = MaterialTheme.colorScheme.error,
+                        )
+                    }
+                }
+            }
+        }
+        confirmLeave?.let { delete ->
+            AlertDialog(
+                onDismissRequest = { confirmLeave = null },
+                text = { Text(stringResource(if (delete) R.string.delete_chat_confirm else R.string.leave_chat_confirm, current.title)) },
+                confirmButton = {
+                    TextButton(onClick = {
+                        confirmLeave = null
+                        if (delete) viewModel.deleteChat() else viewModel.leave()
+                    }) { Text(stringResource(if (delete) R.string.message_action_delete else R.string.leave), color = MaterialTheme.colorScheme.error) }
+                },
+                dismissButton = { TextButton(onClick = { confirmLeave = null }) { Text(stringResource(R.string.cancel)) } },
+            )
         }
         if (viewingPhoto) current.fullPhoto?.let { PhotoViewer(listOf(it), 0) { viewingPhoto = false } }
         if (confirmBlock) {

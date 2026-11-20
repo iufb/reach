@@ -176,7 +176,11 @@ class ChatsRepository @Inject constructor(
             is TdApi.UpdateChatPhoto -> edit(update.chatId) { copy(photo = update.photo?.small?.toTdFile()) }
             is TdApi.UpdateChatAccentColors -> edit(update.chatId) { copy(accentColorId = update.accentColorId) }
             is TdApi.UpdateChatPermissions -> edit(update.chatId) {
-                copy(canSendBasicMessages = update.permissions.canSendBasicMessages, canChangeInfoByDefault = update.permissions.canChangeInfo)
+                copy(
+                    canSendBasicMessages = update.permissions.canSendBasicMessages,
+                    canChangeInfoByDefault = update.permissions.canChangeInfo,
+                    canInviteByDefault = update.permissions.canInviteUsers,
+                )
             }
             is TdApi.UpdateChatReadInbox -> edit(update.chatId) { copy(unreadCount = update.unreadCount, lastReadInboxMessageId = update.lastReadInboxMessageId) }
             is TdApi.UpdateChatFolders -> _folders.value = ChatFolders(

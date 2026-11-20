@@ -108,6 +108,8 @@ data class Chat(
     val viewAsTopics: Boolean = false,
     /** Собеседник (или чат) в чёрном списке. */
     val isBlocked: Boolean = false,
+    /** Общее разрешение участникам приглашать (`ChatPermissions.canInviteUsers`). */
+    val canInviteByDefault: Boolean = false,
 ) {
     /** Есть что читать: непрочитанные сообщения или ручная пометка. */
     val hasUnread: Boolean get() = unreadCount > 0 || isMarkedAsUnread
@@ -166,6 +168,7 @@ internal fun TdApi.Chat.toModel() = Chat(
     canChangeInfoByDefault = permissions.canChangeInfo,
     viewAsTopics = viewAsTopics,
     isBlocked = blockList is TdApi.BlockListMain,
+    canInviteByDefault = permissions.canInviteUsers,
 )
 
 /** Черновики голосовых и видеокружков клиент не показывает. */
