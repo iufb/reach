@@ -14,6 +14,10 @@ val tdApiId: Int = providers.environmentVariable("APP_ID").orNull?.trim()
     ?: 0
 val tdApiHash: String = providers.environmentVariable("APP_HASH").orNull?.trim().orEmpty()
 
+// Клиентский конфиг Firebase для push — тоже только из GitHub Secrets (ADR-0005).
+// Без него сборка проходит, push выключен.
+fun fcm(name: String): String = providers.environmentVariable(name).orNull?.trim().orEmpty()
+
 // Фиксированный debug-keystore из GitHub Secrets (ADR-0001): CI кладёт его в DEBUG_KEYSTORE_PATH.
 // Без него AGP подписывает случайным ключом раннера, и APK не встанет поверх установленного.
 val debugKeystorePath: String? = providers.environmentVariable("DEBUG_KEYSTORE_PATH").orNull?.takeIf { it.isNotBlank() }
@@ -31,6 +35,9 @@ android {
 
         buildConfigField("int", "TD_API_ID", tdApiId.toString())
         buildConfigField("String", "TD_API_HASH", "\"$tdApiHash\"")
+        for (name in listOf("FCM_PROJECT_ID", "FCM_APP_ID", "FCM_API_KEY", "FCM_SENDER_ID")) {
+            buildConfigField("String", name, "\"${fcm(name)}\"")
+        }
     }
 
     signingConfigs {
@@ -61,6 +68,8 @@ dependencies {
     implementation(libs.kotlinx.serialization.core)
     implementation(libs.coil.compose)
     implementation(libs.androidx.emoji2.bundled)
+    implementation(platform(libs.firebase.bom))
+    implementation(libs.firebase.messaging)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
