@@ -95,12 +95,18 @@ class LinksViewModel @Inject constructor(private val td: TdClient) : ViewModel()
         _invite.value = null
         viewModelScope.launch {
             runCatching { td.send(TdApi.JoinChatByInviteLink(preview.link)) }
-                .onSuccess { _events.emit(LinkEvent.OpenChat(it.id)) }
-                .onFailure {
-                    // Ссылка с заявкой: TDLib отвечает этой «ошибкой», заявка при этом создана
-                    val sent = it.message.orEmpty().contains("INVITE_REQUEST_SENT")
-                    _events.emit(LinkEvent.Message(if (sent) LinkMessage.RequestSent else LinkMessage.Invalid))
+                .onSuccess { result ->
+                    _events.emit(
+                        when (result) {
+                            is TdApi.ChatJoinResultSuccess -> LinkEvent.OpenChat(result.chatId)
+                            // Заявка админам (или проверка ботом-стражем) — ждём одобрения
+                            is TdApi.ChatJoinResultRequestSent, is TdApi.ChatJoinResultGuardBotApprovalRequired ->
+                                LinkEvent.Message(LinkMessage.RequestSent)
+                            else -> LinkEvent.Message(LinkMessage.Invalid)
+                        },
+                    )
                 }
+                .onFailure { _events.emit(LinkEvent.Message(LinkMessage.Invalid)) }
         }
     }
 
