@@ -1,6 +1,9 @@
 package io.github.iufb.reach.chats
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.runtime.remember
 import io.github.iufb.reach.chat.Sender
 import io.github.iufb.reach.presence.ActivityKind
 import io.github.iufb.reach.presence.activityText
@@ -72,7 +75,17 @@ fun ChatsScreen(onChatClick: (Long) -> Unit, viewModel: ChatsViewModel = hiltVie
     val allLoaded by viewModel.allLoaded.collectAsStateWithLifecycle()
     val loggingOut by viewModel.loggingOut.collectAsStateWithLifecycle()
     val activities by viewModel.activities.collectAsStateWithLifecycle()
-    ChatsContent(viewModel.list, chats, allLoaded, loggingOut, onChatClick, viewModel::loadMore, viewModel::logOut, activities)
+    val menuChat by viewModel.menuChat.collectAsStateWithLifecycle()
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(viewModel) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
+    ChatsContent(
+        viewModel.list, chats, allLoaded, loggingOut, onChatClick, viewModel::loadMore, viewModel::logOut, activities,
+        onChatLongClick = viewModel::openMenu,
+        snackbar = snackbar,
+    )
+    menuChat?.let { chat ->
+        ChatMenuSheet(chat, viewModel.list, ChatMenuActions(onSetPinned = viewModel::setPinned), onDismiss = viewModel::dismissMenu)
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -86,10 +99,13 @@ private fun ChatsContent(
     onLoadMore: () -> Unit,
     onLogOut: () -> Unit,
     activities: Map<Long, Map<Sender, ActivityKind>> = emptyMap(),
+    onChatLongClick: (Long) -> Unit = {},
+    snackbar: SnackbarHostState = remember { SnackbarHostState() },
 ) {
     var confirmLogOut by rememberSaveable { mutableStateOf(false) }
     var menuOpen by rememberSaveable { mutableStateOf(false) }
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 colors = reachBarColors(),
@@ -123,7 +139,7 @@ private fun ChatsContent(
                     textAlign = TextAlign.Center,
                 )
             }
-            else -> ChatList(list, chats, allLoaded, onChatClick, onLoadMore, modifier, activities)
+            else -> ChatList(list, chats, allLoaded, onChatClick, onChatLongClick, onLoadMore, modifier, activities)
         }
     }
     if (confirmLogOut) {
@@ -143,6 +159,7 @@ private fun ChatList(
     chats: List<Chat>,
     allLoaded: Boolean,
     onChatClick: (Long) -> Unit,
+    onChatLongClick: (Long) -> Unit,
     onLoadMore: () -> Unit,
     modifier: Modifier,
     activities: Map<Long, Map<Sender, ActivityKind>>,
@@ -156,6 +173,7 @@ private fun ChatList(
                 isPinned = chat.positions[list]?.isPinned == true,
                 activity = activities[chat.id]?.let { activityText(it, withNames = false) { "" } },
                 onClick = { onChatClick(chat.id) },
+                onLongClick = { onChatLongClick(chat.id) },
             )
             HorizontalDivider(Modifier.padding(start = 80.dp), thickness = Dp.Hairline, color = MaterialTheme.colorScheme.outlineVariant)
         }
@@ -187,11 +205,11 @@ private fun LoadMoreEffect(listState: LazyListState, enabled: Boolean, onLoadMor
 }
 
 @Composable
-private fun ChatRow(chat: Chat, isPinned: Boolean, activity: String?, onClick: () -> Unit) {
+private fun ChatRow(chat: Chat, isPinned: Boolean, activity: String?, onClick: () -> Unit, onLongClick: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
             .padding(horizontal = 12.dp, vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
