@@ -10,6 +10,7 @@ import io.github.iufb.reach.chats.ChatKind
 import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.chats.GroupRef
 import io.github.iufb.reach.chats.GroupsRepository
+import io.github.iufb.reach.contacts.ContactsRepository
 import io.github.iufb.reach.chats.canChangeInfo
 import io.github.iufb.reach.chats.PhotoInfo
 import io.github.iufb.reach.chats.RichText
@@ -56,6 +57,10 @@ data class Profile(
     val autoDeleteTime: Int? = null,
     /** Можно менять автоудаление (личка или право менять настройки группы). */
     val canChangeAutoDelete: Boolean = false,
+    /** Пользователь в контактах; `null` — не пользователь или это ты сам. */
+    val isContact: Boolean? = null,
+    val firstName: String = "",
+    val lastName: String = "",
 )
 
 /** Полная информация, которую TDLib отдаёт отдельным запросом. */
@@ -78,7 +83,10 @@ class ProfileViewModel @Inject constructor(
     private val chats: ChatsRepository,
     users: UsersRepository,
     groups: GroupsRepository,
+    private val contacts: ContactsRepository,
 ) : ViewModel() {
+
+    private val myId = MutableStateFlow(0L)
 
     private val route = savedStateHandle.toRoute<ProfileRoute>()
 
@@ -91,7 +99,7 @@ class ProfileViewModel @Inject constructor(
 
     private val full = MutableStateFlow(FullInfo())
 
-    val profile: StateFlow<Profile?> = combine(chats.chats, users.users, full, groups.statuses) { chatMap, userMap, info, statuses ->
+    val profile: StateFlow<Profile?> = combine(chats.chats, users.users, full, groups.statuses, myId) { chatMap, userMap, info, statuses, me ->
         val user = userId?.let(userMap::get)
         val chat = chatMap[route.chatId]
         val canChangeInfo = chat != null && chat.canChangeInfo(chat.group?.let(statuses::get))
@@ -109,6 +117,9 @@ class ProfileViewModel @Inject constructor(
                 isMuted = chat?.isMuted,
                 autoDeleteTime = chat?.takeUnless { it.isSavedMessages }?.autoDeleteTime,
                 canChangeAutoDelete = canChangeInfo,
+                isContact = user.isContact.takeIf { me != 0L && user.id != me },
+                firstName = user.firstName,
+                lastName = user.lastName,
             )
             chat != null -> Profile(
                 title = chat.title,
@@ -145,6 +156,24 @@ class ProfileViewModel @Inject constructor(
             }
         }
         viewModelScope.launch { load() }
+        viewModelScope.launch {
+            (runCatching { td.send(TdApi.GetOption("my_id")) }.getOrNull() as? TdApi.OptionValueInteger)?.let { myId.value = it.value }
+        }
+    }
+
+    /** Добавить в контакты или переименовать контакт. */
+    fun saveContact(firstName: String, lastName: String) {
+        val id = userId ?: return
+        viewModelScope.launch {
+            runCatching { contacts.save(id, firstName, lastName) }.onFailure { _error.emit(it.message.orEmpty()) }
+        }
+    }
+
+    fun removeContact() {
+        val id = userId ?: return
+        viewModelScope.launch {
+            runCatching { contacts.remove(id) }.onFailure { _error.emit(it.message.orEmpty()) }
+        }
     }
 
     private suspend fun load() {

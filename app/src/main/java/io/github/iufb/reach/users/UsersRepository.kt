@@ -26,6 +26,8 @@ data class User(
     /** Телефон, если пользователь его показывает; без «+». */
     val phoneNumber: String = "",
     val status: UserStatus = UserStatus.Unknown,
+    /** В контактах текущего пользователя. */
+    val isContact: Boolean = false,
 ) {
     /** Пустое имя у удалённых аккаунтов. */
     val fullName: String get() = listOf(firstName, lastName).filter { it.isNotBlank() }.joinToString(" ")
@@ -67,4 +69,5 @@ private fun TdApi.User.toModel() = User(
     username = usernames?.activeUsernames?.firstOrNull().orEmpty(),
     phoneNumber = phoneNumber,
     status = status.toModel(),
+    isContact = isContact,
 )

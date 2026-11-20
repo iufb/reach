@@ -81,6 +81,7 @@ fun ChatsScreen(
     onOpenSearch: () -> Unit,
     onBack: () -> Unit,
     onOpenAutoDownload: () -> Unit = {},
+    onOpenContacts: () -> Unit = {},
     /** Форум открывается списком топиков. */
     onOpenTopics: (Long) -> Unit = onChatClick,
     viewModel: ChatsViewModel = hiltViewModel(),
@@ -111,6 +112,7 @@ fun ChatsScreen(
         onOpenSearch = onOpenSearch,
         onOpenSaved = viewModel::openSavedMessages,
         onOpenAutoDownload = onOpenAutoDownload,
+        onOpenContacts = onOpenContacts,
         tabs = tabs,
         onSelectList = viewModel::selectList,
     )
@@ -143,6 +145,7 @@ private fun ChatsContent(
     onOpenSearch: () -> Unit = {},
     onOpenSaved: () -> Unit = {},
     onOpenAutoDownload: () -> Unit = {},
+    onOpenContacts: () -> Unit = {},
     tabs: List<FolderTab> = emptyList(),
     onSelectList: (ChatListType) -> Unit = {},
 ) {
@@ -185,6 +188,13 @@ private fun ChatsContent(
                                     onClick = {
                                         menuOpen = false
                                         onOpenSaved()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.contacts_title)) },
+                                    onClick = {
+                                        menuOpen = false
+                                        onOpenContacts()
                                     },
                                 )
                                 DropdownMenuItem(

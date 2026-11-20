@@ -46,6 +46,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chat.PhotoViewer
 import io.github.iufb.reach.chat.RichTextView
+import io.github.iufb.reach.contacts.ContactNameDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import io.github.iufb.reach.chats.autoDeleteLabel
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -65,6 +68,8 @@ fun ProfileScreen(
     LaunchedEffect(viewModel) { viewModel.openChat.collect { open(it) } }
     var viewingPhoto by remember { mutableStateOf(false) }
     var choosingAutoDelete by remember { mutableStateOf(false) }
+    var editingContact by remember { mutableStateOf(false) }
+    var menuOpen by remember { mutableStateOf(false) }
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) { viewModel.error.collect { snackbar.showSnackbar(it) } }
 
@@ -79,6 +84,35 @@ fun ProfileScreen(
                     }
                 },
                 title = { Text(stringResource(R.string.profile_title)) },
+                actions = {
+                    val current = profile
+                    val isContact = current?.isContact
+                    if (isContact != null) {
+                        Box {
+                            IconButton(onClick = { menuOpen = true }) {
+                                Icon(painterResource(R.drawable.ic_more), contentDescription = stringResource(R.string.chat_list_menu))
+                            }
+                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(if (isContact) R.string.contact_edit else R.string.contact_add)) },
+                                    onClick = {
+                                        menuOpen = false
+                                        editingContact = true
+                                    },
+                                )
+                                if (isContact) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.contact_remove), color = MaterialTheme.colorScheme.error) },
+                                        onClick = {
+                                            menuOpen = false
+                                            viewModel.removeContact()
+                                        },
+                                    )
+                                }
+                            }
+                        }
+                    }
+                },
             )
         },
     ) { padding ->
@@ -159,6 +193,18 @@ fun ProfileScreen(
             }
         }
         if (viewingPhoto) current.fullPhoto?.let { PhotoViewer(listOf(it), 0) { viewingPhoto = false } }
+        if (editingContact) {
+            ContactNameDialog(
+                title = stringResource(if (current.isContact == true) R.string.contact_edit else R.string.contact_add),
+                initialFirst = current.firstName,
+                initialLast = current.lastName,
+                onSave = { first, last ->
+                    editingContact = false
+                    viewModel.saveContact(first, last)
+                },
+                onDismiss = { editingContact = false },
+            )
+        }
         if (choosingAutoDelete) {
             AutoDeleteDialog(
                 current = current.autoDeleteTime ?: 0,
