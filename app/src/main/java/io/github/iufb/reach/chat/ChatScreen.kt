@@ -6,10 +6,12 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.runtime.key
 import androidx.compose.runtime.collectAsState
 import io.github.iufb.reach.files.TdFile
 import io.github.iufb.reach.files.FileState
 import io.github.iufb.reach.chats.DocumentInfo
+import androidx.compose.ui.zIndex
 import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.emptyFlow
@@ -174,6 +176,7 @@ fun ChatScreen(
     val stickerSetTitle by viewModel.stickerSetTitle.collectAsStateWithLifecycle()
     val audio by viewModel.audio.collectAsStateWithLifecycle()
     val reactionEffect by viewModel.reactionEffect.collectAsStateWithLifecycle()
+    val emojiEffects by viewModel.emojiEffects.collectAsStateWithLifecycle()
     val recorderState by viewModel.recorderState.collectAsStateWithLifecycle()
     stickerSetTitle?.let { StickerSetDialog(it, viewModel::dismissStickerSet) }
     var creatingPoll by remember { mutableStateOf(false) }
@@ -297,6 +300,10 @@ fun ChatScreen(
                 onAudioSeek = viewModel::onAudioSeek,
                 reactionEffect = reactionEffect,
                 onReactionEffectDone = viewModel::onReactionEffectDone,
+                emojiEffects = emojiEffects,
+                onAnimatedEmojiClick = viewModel::onAnimatedEmojiClick,
+                onEmojiEffectShown = viewModel::onEmojiEffectShown,
+                onEmojiEffectDone = viewModel::onEmojiEffectDone,
                 replied = replied,
                 onJumpTo = viewModel::jumpTo,
                 scrollTarget = scrollTarget,
@@ -442,6 +449,11 @@ private class MessageInteractions(
     /** Эффект своей реакции: (сообщение, реакция). */
     val reactionEffect: Pair<Long, ReactionKey>? = null,
     val onReactionEffectDone: () -> Unit = {},
+    /** Эффекты больших эмодзи по тапу (своему или собеседника). */
+    val emojiEffects: List<EmojiEffect> = emptyList(),
+    val onAnimatedEmojiClick: (Message) -> Unit = {},
+    val onEmojiEffectShown: (EmojiEffect) -> Unit = {},
+    val onEmojiEffectDone: (EmojiEffect) -> Unit = {},
     /** Голос в опросе: номера вариантов. */
     val onVote: (Message, List<Int>) -> Unit = { _, _ -> },
     val onShowVoters: (Message, io.github.iufb.reach.chats.PollOptionInfo) -> Unit = { _, _ -> },
@@ -779,8 +791,11 @@ private fun MessageBubble(
         bottomStart = if (outgoing) 16.dp else 4.dp,
         bottomEnd = if (outgoing) 4.dp else 16.dp,
     )
+    // Эффекты реакций и эмодзи выходят за пузырь — рисуем элемент поверх соседей
+    val hasEffect = interactions.reactionEffect?.first == message.id || interactions.emojiEffects.any { it.messageId == message.id }
     Row(
         modifier = Modifier
+            .zIndex(if (hasEffect) 1f else 0f)
             .fillMaxWidth()
             .selectionHighlight(message, interactions)
             .swipeToReply(interactions.replyAction(message))
@@ -1069,12 +1084,32 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
         }
         is MessageBody.AnimatedEmoji -> {
             val (replay, onReplay) = rememberReplay()
-            AnimatedEmojiView(
-                body.emoji,
-                body.animation,
-                replay,
-                Modifier.messageLongPress(message, interactions, onClick = onReplay),
-            )
+            val effects = interactions.emojiEffects.filter { it.messageId == message.id }
+            // Тап собеседника: эмодзи проигрывается заново вместе с эффектом (свой тап уже перезапустил)
+            val peerEffect = effects.lastOrNull { it.fromPeer }?.key
+            LaunchedEffect(peerEffect) { if (peerEffect != null) onReplay() }
+            Box {
+                AnimatedEmojiView(
+                    body.emoji,
+                    body.animation,
+                    replay,
+                    Modifier.messageLongPress(message, interactions) {
+                        onReplay()
+                        interactions.onAnimatedEmojiClick(message)
+                    },
+                )
+                for (effect in effects) {
+                    key(effect.key) {
+                        EmojiEffectView(
+                            effect,
+                            towardsStart = message.isOutgoing,
+                            onShown = interactions.onEmojiEffectShown,
+                            onDone = interactions.onEmojiEffectDone,
+                            modifier = Modifier.matchParentSize(),
+                        )
+                    }
+                }
+            }
         }
         is MessageBody.Sticker -> StickerView(
             body.sticker,
