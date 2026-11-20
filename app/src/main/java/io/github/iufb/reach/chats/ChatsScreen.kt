@@ -80,7 +80,7 @@ fun ChatsScreen(
     onOpenArchive: () -> Unit,
     onOpenSearch: () -> Unit,
     onBack: () -> Unit,
-    onOpenAutoDownload: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     onOpenContacts: () -> Unit = {},
     /** Форум открывается списком топиков. */
     onOpenTopics: (Long) -> Unit = onChatClick,
@@ -111,7 +111,7 @@ fun ChatsScreen(
         onBack = onBack,
         onOpenSearch = onOpenSearch,
         onOpenSaved = viewModel::openSavedMessages,
-        onOpenAutoDownload = onOpenAutoDownload,
+        onOpenSettings = onOpenSettings,
         onOpenContacts = onOpenContacts,
         tabs = tabs,
         onSelectList = viewModel::selectList,
@@ -144,7 +144,7 @@ private fun ChatsContent(
     onBack: () -> Unit = {},
     onOpenSearch: () -> Unit = {},
     onOpenSaved: () -> Unit = {},
-    onOpenAutoDownload: () -> Unit = {},
+    onOpenSettings: () -> Unit = {},
     onOpenContacts: () -> Unit = {},
     tabs: List<FolderTab> = emptyList(),
     onSelectList: (ChatListType) -> Unit = {},
@@ -197,19 +197,12 @@ private fun ChatsContent(
                                         onOpenContacts()
                                     },
                                 )
+                                // Автозагрузка и выход — в настройках
                                 DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.autodownload_title)) },
-                                    leadingIcon = { Icon(painterResource(R.drawable.ic_download), contentDescription = null) },
+                                    text = { Text(stringResource(R.string.settings_title)) },
                                     onClick = {
                                         menuOpen = false
-                                        onOpenAutoDownload()
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.logout)) },
-                                    onClick = {
-                                        menuOpen = false
-                                        confirmLogOut = true
+                                        onOpenSettings()
                                     },
                                 )
                             }

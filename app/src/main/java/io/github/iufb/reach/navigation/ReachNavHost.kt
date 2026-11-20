@@ -25,6 +25,7 @@ import io.github.iufb.reach.chat.ChatScreen
 import io.github.iufb.reach.chat.ScheduledScreen
 import io.github.iufb.reach.topics.TopicsScreen
 import io.github.iufb.reach.contacts.ContactsScreen
+import io.github.iufb.reach.settings.SettingsScreen
 import io.github.iufb.reach.chats.ChatsScreen
 import io.github.iufb.reach.forward.ForwardScreen
 import io.github.iufb.reach.gallery.GalleryScreen
@@ -54,6 +55,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class ScheduledRoute(val chatId: Long)
 @Serializable data class TopicsRoute(val chatId: Long)
 @Serializable data object ContactsRoute
+@Serializable data object SettingsRoute
 
 /**
  * Два графа: вход и основной. Какой экран показан, решает [AuthState]:
@@ -98,7 +100,7 @@ fun ReachNavHost(authState: AuthState, openChatId: Long? = null, onOpenChatHandl
                     onOpenArchive = { navController.navigate(ChatsRoute(archive = true)) },
                     onOpenSearch = { navController.navigate(SearchRoute) },
                     onBack = { navController.popBackStack() },
-                    onOpenAutoDownload = { navController.navigate(AutoDownloadRoute) },
+                    onOpenSettings = { navController.navigate(SettingsRoute) },
                     onOpenTopics = { navController.navigate(TopicsRoute(it)) },
                     onOpenContacts = { navController.navigate(ContactsRoute) },
                 )
@@ -141,6 +143,12 @@ fun ReachNavHost(authState: AuthState, openChatId: Long? = null, onOpenChatHandl
                     onBack = { navController.popBackStack() },
                     onOpenChat = { navController.navigate(ChatRoute(it)) },
                     onOpenGallery = { navController.navigate(GalleryRoute(it)) },
+                )
+            }
+            composable<SettingsRoute> {
+                SettingsScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenAutoDownload = { navController.navigate(AutoDownloadRoute) },
                 )
             }
             composable<AutoDownloadRoute> { AutoDownloadScreen(onBack = { navController.popBackStack() }) }
