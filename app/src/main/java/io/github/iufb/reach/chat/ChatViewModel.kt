@@ -30,6 +30,11 @@ import io.github.iufb.reach.files.FilesRepository
 import io.github.iufb.reach.files.MediaImporter
 import io.github.iufb.reach.files.TdFile
 import io.github.iufb.reach.files.toTdFile
+import io.github.iufb.reach.files.ImportedImage
+import io.github.iufb.reach.photoedit.PhotoEdit
+import io.github.iufb.reach.photoedit.PhotoEditRenderer
+import io.github.iufb.reach.photoedit.RenderedPhoto
+import android.graphics.Bitmap
 import io.github.iufb.reach.media.describeVideoNote
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
@@ -92,6 +97,12 @@ data class ScopeInfo(
  */
 data class EmojiEffect(val key: Long, val messageId: Long, val animation: TdFile, val emoji: String, val fromPeer: Boolean)
 
+/** Фото к отправке: исходник, правки и отредактированная копия (если правки есть). */
+data class PickedPhoto(val uri: Uri, val edit: PhotoEdit = PhotoEdit.None, val rendered: RenderedPhoto? = null) {
+    /** Что показывать в превью. */
+    val preview: Any get() = rendered?.let { java.io.File(it.path) } ?: uri
+}
+
 /** Имя и аватарка автора сообщения в группе. */
 data class SenderInfo(val name: String, val photo: io.github.iufb.reach.files.TdFile?, val accentColorId: Int)
 
@@ -109,6 +120,7 @@ class ChatViewModel @Inject constructor(
     private val reactions: ReactionsRepository,
     private val audioPlayer: AudioPlayer,
     private val recorder: VoiceRecorder,
+    private val photoEditor: PhotoEditRenderer,
 ) : ViewModel() {
 
     private val route = savedStateHandle.toRoute<ChatRoute>()
@@ -200,9 +212,13 @@ class ChatViewModel @Inject constructor(
         .combine(dismissedPreviewUrl) { preview, dismissed -> preview?.takeUnless { it.url == dismissed } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
-    private val _pickedPhotos = MutableStateFlow<List<Uri>>(emptyList())
-    /** Выбранные в Photo Picker фото: перед отправкой — превью и подпись. */
-    val pickedPhotos: StateFlow<List<Uri>> = _pickedPhotos.asStateFlow()
+    private val _pickedPhotos = MutableStateFlow<List<PickedPhoto>>(emptyList())
+    /** Выбранные в Photo Picker фото: перед отправкой — превью, подпись и редактор. */
+    val pickedPhotos: StateFlow<List<PickedPhoto>> = _pickedPhotos.asStateFlow()
+
+    private val _editingPhoto = MutableStateFlow<Int?>(null)
+    /** Какое из выбранных фото открыто в редакторе. */
+    val editingPhoto: StateFlow<Int?> = _editingPhoto.asStateFlow()
 
     private val memberCount = MutableStateFlow(0)
 
@@ -448,11 +464,42 @@ class ChatViewModel @Inject constructor(
         runCatching { td.send(TdApi.GetLinkPreview(draft.toFormattedText(), null)) }.getOrNull()?.toModel()
 
     fun onPhotosPicked(uris: List<Uri>) {
-        _pickedPhotos.value = uris
+        _pickedPhotos.value = uris.map { PickedPhoto(it) }
     }
 
     fun cancelPhotos() {
+        photoEditor.discard(_pickedPhotos.value.mapNotNull { it.rendered?.path })
         _pickedPhotos.value = emptyList()
+    }
+
+    fun editPhoto(index: Int) {
+        if (index in _pickedPhotos.value.indices) _editingPhoto.value = index
+    }
+
+    fun cancelPhotoEdit() {
+        _editingPhoto.value = null
+    }
+
+    /** Исходник для редактора. */
+    suspend fun loadPhotoForEdit(index: Int): Bitmap = photoEditor.load(_pickedPhotos.value[index].uri)
+
+    /** «Готово» в редакторе: собрать отредактированную копию; пустые правки — снова исходник. */
+    fun applyPhotoEdit(index: Int, edit: PhotoEdit) {
+        _editingPhoto.value = null
+        val photo = _pickedPhotos.value.getOrNull(index) ?: return
+        viewModelScope.launch {
+            val rendered = if (edit.isEmpty) {
+                null
+            } else {
+                runCatching { photoEditor.renderToFile(photo.uri, edit) }
+                    .onFailure { Log.e(TAG, "photo edit failed", it) }
+                    .getOrNull() ?: return@launch
+            }
+            photo.rendered?.let { photoEditor.discard(listOf(it.path)) }
+            _pickedPhotos.update { list ->
+                list.map { if (it.uri == photo.uri) it.copy(edit = edit, rendered = rendered) else it }
+            }
+        }
     }
 
     /**
@@ -486,7 +533,9 @@ class ChatViewModel @Inject constructor(
         _replyTo.value = null
         viewModelScope.launch {
             runCatching {
-                val images = uris.map { importer.importImage(it) }
+                val images = uris.map { photo ->
+                    photo.rendered?.let { ImportedImage(it.path, it.width, it.height) } ?: importer.importImage(photo.uri)
+                }
                 history.sendPhotos(images, RichText(caption.trim()), reply?.id, sendOptions(silent), spoiler)
             }.onFailure {
                 Log.e(TAG, "send photos failed", it)
