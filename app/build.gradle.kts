@@ -61,7 +61,7 @@ android {
         // Debug-сборка на тестовых серверах Telegram (test DC): ставится рядом с основной,
         // своя база TDLib (отдельный applicationId → свой filesDir). Push выключен: FCM-проект
         // привязан к основному applicationId, а в test DC push всё равно не проверяем.
-        create("testdc") {
+        create("dctest") { // имя build type не может начинаться с "test"
             initWith(getByName("debug"))
             applicationIdSuffix = ".testdc"
             versionNameSuffix = "-testdc"
