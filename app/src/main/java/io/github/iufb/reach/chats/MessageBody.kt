@@ -20,6 +20,9 @@ sealed interface MessageBody {
     /** GIF — в Telegram это беззвучный MP4; модель та же, что у видео. */
     data class Animation(val animation: VideoInfo, val caption: RichText) : MessageBody
 
+    /** Голосовое; [isListened] — собеседник (или мы) уже прослушал. */
+    data class Voice(val voice: VoiceInfo, val caption: RichText, val isListened: Boolean) : MessageBody
+
     /** Стикер — без пузыря и без подписи. */
     data class Sticker(val sticker: StickerInfo) : MessageBody
 
@@ -53,7 +56,7 @@ internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
     is TdApi.MessageDocument -> MessageBody.Document(document.toInfo(), caption.toRichText())
     // Плеер — в v0.4, пока аудио — файл
     is TdApi.MessageAudio -> MessageBody.Document(audio.toInfo(), caption.toRichText())
-    is TdApi.MessageVoiceNote -> unsupported(ContentKind.VoiceNote, caption)
+    is TdApi.MessageVoiceNote -> MessageBody.Voice(voiceNote.toInfo(), caption.toRichText(), isListened)
     is TdApi.MessageAnimation -> MessageBody.Animation(toInfo(), caption.toRichText())
     is TdApi.MessagePaidMedia -> unsupported(ContentKind.PaidMedia, caption)
     is TdApi.MessageVideoNote -> MessageBody.Unsupported(ContentKind.VideoNote)

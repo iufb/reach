@@ -89,6 +89,7 @@ import io.github.iufb.reach.chats.ContentKind
 import io.github.iufb.reach.chats.GroupRef
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.StickerInfo
+import io.github.iufb.reach.media.AudioState
 import io.github.iufb.reach.presence.activityText
 import io.github.iufb.reach.presence.userStatusText
 import io.github.iufb.reach.chats.RichText
@@ -162,6 +163,7 @@ fun ChatScreen(
     LaunchedEffect(viewModel) { viewModel.openFile.collect { openFile(context, it) } }
     viewer?.let { (items, index) -> MediaViewer(items, index) { viewer = null } }
     val stickerSetTitle by viewModel.stickerSetTitle.collectAsStateWithLifecycle()
+    val audio by viewModel.audio.collectAsStateWithLifecycle()
     stickerSetTitle?.let { StickerSetDialog(it, viewModel::dismissStickerSet) }
     CompositionLocalProvider(LocalMentionHandler provides mentionHandler) {
         ChatContent(
@@ -222,6 +224,9 @@ fun ChatScreen(
                 downloads = downloads,
                 onDocumentClick = viewModel::onDocumentClick,
                 onStickerClick = viewModel::onStickerClick,
+                audio = audio,
+                onVoiceToggle = viewModel::onVoiceToggle,
+                onAudioSeek = viewModel::onAudioSeek,
                 replied = replied,
                 onJumpTo = viewModel::jumpTo,
                 scrollTarget = scrollTarget,
@@ -322,6 +327,10 @@ private class MessageInteractions(
     val onScrolledToTarget: () -> Unit,
     /** Тап по стикеру: название пака. */
     val onStickerClick: (StickerInfo) -> Unit = {},
+    /** Что играет в аудиоплеере (только этот чат). */
+    val audio: AudioState = AudioState(),
+    val onVoiceToggle: (Message) -> Unit = {},
+    val onAudioSeek: (Float) -> Unit = {},
 ) {
     /** Меню, если оно открыто именно для [message]. */
     fun menuFor(message: Message): MessageMenu? = menu?.takeIf { it.message.id == message.id }
@@ -826,6 +835,17 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
                 )
                 UploadOverlay(message, body.video.file, interactions)
             }
+            if (!body.caption.isBlank()) RichTextView(body.caption)
+        }
+        is MessageBody.Voice -> {
+            VoiceNoteView(
+                body.voice,
+                isListened = body.isListened || message.isOutgoing,
+                playback = interactions.audio.takeIf { it.track?.messageId == message.id },
+                onToggle = { interactions.onVoiceToggle(message) },
+                onSeek = interactions.onAudioSeek,
+                modifier = Modifier.messageLongPress(message, interactions),
+            )
             if (!body.caption.isBlank()) RichTextView(body.caption)
         }
         is MessageBody.Sticker -> StickerView(
