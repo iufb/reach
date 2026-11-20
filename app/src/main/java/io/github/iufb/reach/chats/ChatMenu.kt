@@ -41,6 +41,7 @@ class ChatMenuActions(
     val onSetPinned: (Chat, Boolean) -> Unit,
     val onSetArchived: (Chat, Boolean) -> Unit,
     val onSetMuteFor: (Chat, Int) -> Unit,
+    val onSetUnread: (Chat, Boolean) -> Unit,
 )
 
 /** Варианты «без звука»: подпись и срок в секундах. */
@@ -84,6 +85,10 @@ internal fun ChatMenuSheet(chat: Chat, list: ChatListType, actions: ChatMenuActi
                 if (archived) stringResource(R.string.chat_action_unarchive) else stringResource(R.string.chat_action_archive),
                 painterResource(if (archived) R.drawable.ic_unarchive else R.drawable.ic_archive),
             ) { actions.onSetArchived(chat, !archived) }
+            ChatMenuItem(
+                stringResource(if (chat.hasUnread) R.string.chat_action_mark_read else R.string.chat_action_mark_unread),
+                painterResource(if (chat.hasUnread) R.drawable.ic_mark_read else R.drawable.ic_mark_unread),
+            ) { actions.onSetUnread(chat, !chat.hasUnread) }
             if (chat.isMuted) {
                 ChatMenuItem(stringResource(R.string.chat_action_unmute), painterResource(R.drawable.ic_unmute)) {
                     actions.onSetMuteFor(chat, 0)

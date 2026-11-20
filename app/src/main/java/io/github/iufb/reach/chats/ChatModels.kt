@@ -92,7 +92,12 @@ data class Chat(
     val muteFor: Int? = null,
     /** Итог с учётом настроек по умолчанию: уведомления выключены. */
     val isMuted: Boolean = false,
+    /** Пользователь вручную пометил чат непрочитанным. */
+    val isMarkedAsUnread: Boolean = false,
 ) {
+    /** Есть что читать: непрочитанные сообщения или ручная пометка. */
+    val hasUnread: Boolean get() = unreadCount > 0 || isMarkedAsUnread
+
     val notificationScope: NotificationScope
         get() = when (kind) {
             ChatKind.Private, ChatKind.Secret -> NotificationScope.Private
@@ -140,6 +145,7 @@ internal fun TdApi.Chat.toModel() = Chat(
         else -> null
     },
     muteFor = notificationSettings.ownMuteFor,
+    isMarkedAsUnread = isMarkedAsUnread,
 )
 
 /** Черновики голосовых и видеокружков клиент не показывает. */

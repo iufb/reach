@@ -139,6 +139,11 @@ class ChatsViewModel @Inject constructor(
     /** Без звука на [seconds] секунд; 0 — включить звук. */
     fun setMuteFor(chat: Chat, seconds: Int) = chatAction { chatsRepository.setMuteFor(chat.id, seconds) }
 
+    /** «Пометить непрочитанным» или прочитать чат целиком. */
+    fun setUnread(chat: Chat, unread: Boolean) = chatAction {
+        if (unread) chatsRepository.setMarkedAsUnread(chat.id, true) else chatsRepository.markAsRead(chat)
+    }
+
     /** Действие из меню: меню закрывается сразу, ошибка TDLib уходит в [errors]. */
     private fun chatAction(action: suspend () -> Unit) {
         dismissMenu()

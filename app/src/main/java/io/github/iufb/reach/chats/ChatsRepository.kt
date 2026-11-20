@@ -116,9 +116,22 @@ class ChatsRepository @Inject constructor(
         td.send(TdApi.SetChatNotificationSettings(chatId, settings))
     }
 
+    /** Ручная пометка «непрочитанный». */
+    suspend fun setMarkedAsUnread(chatId: Long, marked: Boolean) {
+        td.send(TdApi.ToggleChatIsMarkedAsUnread(chatId, marked))
+    }
+
+    /** Читает чат целиком: снимает пометку и отмечает прочитанным последнее сообщение. */
+    suspend fun markAsRead(chat: Chat) {
+        if (chat.isMarkedAsUnread) setMarkedAsUnread(chat.id, false)
+        val last = chat.lastMessage?.id ?: return
+        if (chat.unreadCount > 0) td.send(TdApi.ViewMessages(chat.id, longArrayOf(last), TdApi.MessageSourceChatList(), true))
+    }
+
     private fun onUpdate(update: TdApi.Object) {
         when (update) {
             is TdApi.UpdateNewChat -> _chats.update { it + (update.chat.id to update.chat.toModel().withMute(scopeMute)) }
+            is TdApi.UpdateChatIsMarkedAsUnread -> edit(update.chatId) { copy(isMarkedAsUnread = update.isMarkedAsUnread) }
             is TdApi.UpdateChatNotificationSettings -> edit(update.chatId) {
                 copy(muteFor = update.notificationSettings.ownMuteFor).withMute(scopeMute)
             }
