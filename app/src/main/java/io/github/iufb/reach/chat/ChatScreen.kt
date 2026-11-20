@@ -236,7 +236,7 @@ fun ChatScreen(
                 onDocumentClick = viewModel::onDocumentClick,
                 onStickerClick = viewModel::onStickerClick,
                 audio = audio,
-                onVoiceToggle = viewModel::onVoiceToggle,
+                onAudioToggle = viewModel::onAudioToggle,
                 onAudioSeek = viewModel::onAudioSeek,
                 replied = replied,
                 onJumpTo = viewModel::jumpTo,
@@ -285,6 +285,7 @@ private fun ChatContent(
                     )
                 }
                 if (pinned != null) PinnedBar(pinned, onPinnedClick)
+                NowPlayingBar()
             }
         },
     ) { padding ->
@@ -340,7 +341,7 @@ private class MessageInteractions(
     val onStickerClick: (StickerInfo) -> Unit = {},
     /** Что играет в аудиоплеере (только этот чат). */
     val audio: AudioState = AudioState(),
-    val onVoiceToggle: (Message) -> Unit = {},
+    val onAudioToggle: (Message) -> Unit = {},
     val onAudioSeek: (Float) -> Unit = {},
 ) {
     /** Меню, если оно открыто именно для [message]. */
@@ -853,9 +854,19 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
                 body.voice,
                 isListened = body.isListened || message.isOutgoing,
                 playback = interactions.audio.takeIf { it.track?.messageId == message.id },
-                onToggle = { interactions.onVoiceToggle(message) },
+                onToggle = { interactions.onAudioToggle(message) },
                 onSeek = interactions.onAudioSeek,
                 modifier = Modifier.messageLongPress(message, interactions),
+            )
+            if (!body.caption.isBlank()) RichTextView(body.caption)
+        }
+        is MessageBody.Audio -> {
+            AudioRow(
+                body.audio,
+                playback = interactions.audio.takeIf { it.track?.messageId == message.id },
+                onToggle = { interactions.onAudioToggle(message) },
+                onSeek = interactions.onAudioSeek,
+                modifier = Modifier.messageLongPress(message, interactions) { interactions.onAudioToggle(message) },
             )
             if (!body.caption.isBlank()) RichTextView(body.caption)
         }
@@ -959,6 +970,7 @@ private fun AlbumContent(album: List<Message>, interactions: MessageInteractions
             is MessageBody.Photo -> body.caption
             is MessageBody.Video -> body.caption
             is MessageBody.Animation -> body.caption
+            is MessageBody.Audio -> body.caption
             is MessageBody.Unsupported -> body.caption
             is MessageBody.Document -> body.caption
             else -> null

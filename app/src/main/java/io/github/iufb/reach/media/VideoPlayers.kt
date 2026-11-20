@@ -109,6 +109,7 @@ private const val MAX_INLINE_PLAYERS = 3
 @InstallIn(SingletonComponent::class)
 internal interface MediaEntryPoint {
     fun videoPlayers(): VideoPlayers
+    fun audioPlayer(): AudioPlayer
 }
 
 /** [VideoPlayers] из Compose — для экранов без своей ViewModel (полноэкранный просмотр). */
@@ -116,4 +117,11 @@ internal interface MediaEntryPoint {
 internal fun rememberVideoPlayers(): VideoPlayers {
     val context = LocalContext.current.applicationContext
     return remember(context) { EntryPointAccessors.fromApplication(context, MediaEntryPoint::class.java).videoPlayers() }
+}
+
+/** [AudioPlayer] из Compose — для мини-плеера, который висит на нескольких экранах. */
+@Composable
+internal fun rememberAudioPlayer(): AudioPlayer {
+    val context = LocalContext.current.applicationContext
+    return remember(context) { EntryPointAccessors.fromApplication(context, MediaEntryPoint::class.java).audioPlayer() }
 }

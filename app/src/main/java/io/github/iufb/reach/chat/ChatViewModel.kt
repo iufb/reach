@@ -382,14 +382,33 @@ class ChatViewModel @Inject constructor(
         .map { if (it.track?.chatId == chatId) it else AudioState() }
         .stateIn(viewModelScope, SharingStarted.Eagerly, AudioState())
 
-    /** Тап по ▶ голосового: играть его, а за ним — следующие голосовые чата (из загруженных). */
-    fun onVoiceToggle(message: Message) {
-        val track = message.voiceTrack() ?: return
-        val following = history.state.value.messages
-            .filter { it.id > message.id }
-            .sortedBy { it.id }
-            .mapNotNull { it.voiceTrack() }
-        audioPlayer.toggle(track, following)
+    /**
+     * Тап по ▶ голосового или трека. Голосовое — играть его и следующие голосовые чата;
+     * трек — очередь из всех загруженных треков чата (от старых к новым), начиная с него.
+     */
+    fun onAudioToggle(message: Message) {
+        when (message.content) {
+            is MessageBody.Voice -> {
+                val track = message.voiceTrack() ?: return
+                val following = history.state.value.messages
+                    .filter { it.id > message.id }
+                    .sortedBy { it.id }
+                    .mapNotNull { it.voiceTrack() }
+                audioPlayer.toggle(track, following)
+            }
+            is MessageBody.Audio -> {
+                val tracks = history.state.value.messages.sortedBy { it.id }.mapNotNull { it.musicTrack() }
+                audioPlayer.toggleIn(tracks, tracks.indexOfFirst { it.messageId == message.id })
+            }
+            else -> Unit
+        }
+    }
+
+    private fun Message.musicTrack(): AudioTrack? {
+        val body = content as? MessageBody.Audio ?: return null
+        if (sendingState != null) return null
+        val audio = body.audio
+        return AudioTrack(chatId, id, audio.file, isVoice = false, audio.displayTitle, audio.performer, audio.duration, audio.cover)
     }
 
     fun onAudioSeek(fraction: Float) = audioPlayer.seekTo(fraction)

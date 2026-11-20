@@ -23,6 +23,9 @@ sealed interface MessageBody {
     /** Голосовое; [isListened] — собеседник (или мы) уже прослушал. */
     data class Voice(val voice: VoiceInfo, val caption: RichText, val isListened: Boolean) : MessageBody
 
+    /** Музыка (`MessageAudio`). */
+    data class Audio(val audio: AudioInfo, val caption: RichText) : MessageBody
+
     /** Стикер — без пузыря и без подписи. */
     data class Sticker(val sticker: StickerInfo) : MessageBody
 
@@ -54,8 +57,7 @@ internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
     is TdApi.MessagePhoto -> MessageBody.Photo(photo.toInfo(), caption.toRichText())
     is TdApi.MessageVideo -> MessageBody.Video(toInfo(), caption.toRichText())
     is TdApi.MessageDocument -> MessageBody.Document(document.toInfo(), caption.toRichText())
-    // Плеер — в v0.4, пока аудио — файл
-    is TdApi.MessageAudio -> MessageBody.Document(audio.toInfo(), caption.toRichText())
+    is TdApi.MessageAudio -> MessageBody.Audio(audio.toAudioInfo(), caption.toRichText())
     is TdApi.MessageVoiceNote -> MessageBody.Voice(voiceNote.toInfo(), caption.toRichText(), isListened)
     is TdApi.MessageAnimation -> MessageBody.Animation(toInfo(), caption.toRichText())
     is TdApi.MessagePaidMedia -> unsupported(ContentKind.PaidMedia, caption)

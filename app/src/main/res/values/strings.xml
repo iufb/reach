@@ -163,6 +163,9 @@
     <string name="gallery_gifs">GIF</string>
     <string name="gallery_empty">Здесь пока пусто</string>
     <string name="gallery_show_in_chat">Показать в чате</string>
+    <string name="player_close">Закрыть плеер</string>
+    <string name="player_previous">Предыдущий трек</string>
+    <string name="player_next">Следующий трек</string>
     <string name="voice_record">Записать голосовое</string>
     <string name="voice_slide_to_cancel">‹ Влево — отмена</string>
     <string name="voice_lock">Зафиксировать запись</string>

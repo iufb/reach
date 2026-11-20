@@ -126,13 +126,16 @@ class GalleryViewModel @Inject constructor(
     fun onAudioToggle(tab: GalleryTab, message: Message) {
         val tracks = _pages.value[tab]?.messages.orEmpty().mapNotNull { it.track() }
         val index = tracks.indexOfFirst { it.messageId == message.id }.takeIf { it >= 0 } ?: return
-        audioPlayer.toggle(tracks[index], tracks.drop(index + 1))
+        audioPlayer.toggleIn(tracks, index)
     }
 
     fun onAudioSeek(fraction: Float) = audioPlayer.seekTo(fraction)
 
     private fun Message.track(): AudioTrack? = when (val body = content) {
         is MessageBody.Voice -> AudioTrack(chatId, id, body.voice.file, isVoice = true, duration = body.voice.duration)
+        is MessageBody.Audio -> body.audio.let {
+            AudioTrack(chatId, id, it.file, isVoice = false, it.displayTitle, it.performer, it.duration, it.cover)
+        }
         else -> null
     }
 
