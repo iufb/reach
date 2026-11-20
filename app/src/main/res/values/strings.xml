@@ -80,6 +80,13 @@
     <string name="profile_notifications">Уведомления</string>
     <string name="archive_title">Архив</string>
     <string name="folder_all_chats">Все чаты</string>
+    <string name="search_title">Поиск</string>
+    <string name="search_hint">Поиск</string>
+    <string name="search_clear">Очистить</string>
+    <string name="search_recent">Недавние</string>
+    <string name="search_recent_empty">Здесь появятся чаты, которые вы искали</string>
+    <string name="search_chats">Чаты</string>
+    <string name="search_empty">Ничего не найдено</string>
     <string name="archive_empty">В архиве пусто</string>
     <plurals name="archive_chats">
         <item quantity="one">%d чат</item>

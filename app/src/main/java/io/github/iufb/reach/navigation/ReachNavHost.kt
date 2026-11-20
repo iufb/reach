@@ -25,6 +25,7 @@ import io.github.iufb.reach.chat.ChatScreen
 import io.github.iufb.reach.chats.ChatsScreen
 import io.github.iufb.reach.forward.ForwardScreen
 import io.github.iufb.reach.profile.ProfileScreen
+import io.github.iufb.reach.search.SearchScreen
 import kotlinx.serialization.Serializable
 
 @Serializable data object AuthGraph
@@ -36,6 +37,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object MainGraph
 /** Список чатов: основной или архив. */
 @Serializable data class ChatsRoute(val archive: Boolean = false)
+@Serializable data object SearchRoute
 @Serializable data class ChatRoute(val chatId: Long)
 @Serializable data class ForwardRoute(val fromChatId: Long, val messageIds: List<Long>)
 /** Профиль чата ([chatId]) или пользователя ([userId]); второй — 0. */
@@ -82,6 +84,7 @@ fun ReachNavHost(authState: AuthState) {
                 ChatsScreen(
                     onChatClick = { navController.navigate(ChatRoute(it)) },
                     onOpenArchive = { navController.navigate(ChatsRoute(archive = true)) },
+                    onOpenSearch = { navController.navigate(SearchRoute) },
                     onBack = { navController.popBackStack() },
                 )
             }
@@ -92,6 +95,12 @@ fun ReachNavHost(authState: AuthState) {
                     onOpenChat = { navController.navigate(ChatRoute(it)) },
                     onOpenProfile = { navController.navigate(ProfileRoute(chatId = it)) },
                     onOpenUserProfile = { navController.navigate(ProfileRoute(userId = it)) },
+                )
+            }
+            composable<SearchRoute> {
+                SearchScreen(
+                    onBack = { navController.popBackStack() },
+                    onOpenChat = { navController.navigate(ChatRoute(it)) },
                 )
             }
             composable<ProfileRoute> {

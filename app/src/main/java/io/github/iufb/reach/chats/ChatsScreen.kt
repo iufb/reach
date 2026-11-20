@@ -78,6 +78,7 @@ import kotlinx.coroutines.flow.filter
 fun ChatsScreen(
     onChatClick: (Long) -> Unit,
     onOpenArchive: () -> Unit,
+    onOpenSearch: () -> Unit,
     onBack: () -> Unit,
     viewModel: ChatsViewModel = hiltViewModel(),
 ) {
@@ -98,6 +99,7 @@ fun ChatsScreen(
         archive = archive,
         onOpenArchive = onOpenArchive,
         onBack = onBack,
+        onOpenSearch = onOpenSearch,
         tabs = tabs,
         onSelectList = viewModel::selectList,
     )
@@ -127,6 +129,7 @@ private fun ChatsContent(
     archive: ArchiveSummary? = null,
     onOpenArchive: () -> Unit = {},
     onBack: () -> Unit = {},
+    onOpenSearch: () -> Unit = {},
     tabs: List<FolderTab> = emptyList(),
     onSelectList: (ChatListType) -> Unit = {},
 ) {
@@ -152,6 +155,11 @@ private fun ChatsContent(
                     )
                 },
                 actions = {
+                    if (!isArchive) {
+                        IconButton(onClick = onOpenSearch) {
+                            Icon(painterResource(R.drawable.ic_search), stringResource(R.string.search_title))
+                        }
+                    }
                     if (!isArchive) Box {
                         IconButton(onClick = { menuOpen = true }, enabled = !loggingOut) {
                             Icon(painterResource(R.drawable.ic_more), stringResource(R.string.chat_list_menu))
