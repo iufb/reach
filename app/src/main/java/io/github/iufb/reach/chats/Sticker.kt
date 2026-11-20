@@ -5,8 +5,8 @@ import io.github.iufb.reach.files.toTdFile
 import org.drinkless.tdlib.TdApi
 
 /**
- * Стикер. Статичный WebP рисуется сам ([file]), анимированный TGS — через Lottie;
- * видеостикеры (WebM) до v0.6 показываются миниатюрой [thumbnail] и эмодзи.
+ * Стикер. Статичный WebP рисуется сам ([file]), анимированный TGS — через Lottie,
+ * видеостикер WebM — своим декодером с альфой (ADR-0008).
  */
 data class StickerInfo(
     val width: Int,
@@ -17,6 +17,8 @@ data class StickerInfo(
     val isStatic: Boolean,
     /** Анимированный (Lottie в gzip). */
     val isTgs: Boolean,
+    /** Видеостикер (VP9 с альфа-каналом). */
+    val isWebm: Boolean,
     val file: TdFile,
     /** Картинка-миниатюра (WebP/JPEG/PNG), если есть. */
     val thumbnail: TdFile?,
@@ -29,6 +31,7 @@ internal fun TdApi.Sticker.toInfo() = StickerInfo(
     setId = setId,
     isStatic = format is TdApi.StickerFormatWebp,
     isTgs = format is TdApi.StickerFormatTgs,
+    isWebm = format is TdApi.StickerFormatWebm,
     file = sticker.toTdFile(),
     thumbnail = thumbnail?.takeIf {
         it.format is TdApi.ThumbnailFormatWebp || it.format is TdApi.ThumbnailFormatJpeg || it.format is TdApi.ThumbnailFormatPng
