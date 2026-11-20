@@ -54,7 +54,10 @@ import coil3.compose.AsyncImage
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.VideoInfo
 import io.github.iufb.reach.chats.formatDuration
+import io.github.iufb.reach.media.MediaKind
 import io.github.iufb.reach.media.PlaybackSlots
+import io.github.iufb.reach.media.currentAutoDownloadRules
+import io.github.iufb.reach.media.rememberAutoDownload
 import io.github.iufb.reach.media.rememberVideoPlayers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -63,8 +66,14 @@ import kotlin.math.abs
 /** Видео в пузыре: постер с пропорциями ролика, кнопка ▶ и длительность. */
 @Composable
 internal fun VideoThumbnail(video: VideoInfo, modifier: Modifier = Modifier, square: Boolean = false) {
+    // Разрешено правилами — докачиваем ролик заранее, чтобы по тапу он стартовал сразу
+    val autoDownload = rememberAutoDownload()
+    val rules = currentAutoDownloadRules()
+    LaunchedEffect(video.file, rules) {
+        if (rules.allows(MediaKind.Video, video.size)) autoDownload.preload(video.file)
+    }
     Box(modifier, contentAlignment = Alignment.Center) {
-        PhotoThumbnail(video.poster, square = square)
+        PhotoThumbnail(video.poster, square = square, autoDownload = false)
         PlayBadge()
         Text(
             formatDuration(video.duration.toLong()),
@@ -299,6 +308,16 @@ private fun VideoSurface(player: Player, modifier: Modifier) {
  */
 @Composable
 internal fun AnimationThumbnail(animation: VideoInfo, modifier: Modifier = Modifier) {
+    val rules = currentAutoDownloadRules()
+    var requested by remember(animation.file) { mutableStateOf(false) }
+    if (!requested && !rules.allows(MediaKind.Gif, animation.size)) {
+        // Автозагрузка GIF выключена: постер и кнопка, по тапу — играть
+        Box(modifier, contentAlignment = Alignment.Center) {
+            PhotoThumbnail(animation.poster, autoDownload = false)
+            DownloadBadge(animation.size, onClick = { requested = true })
+        }
+        return
+    }
     val players = rememberVideoPlayers()
     val slots = players.inlineSlots
     val owner = remember { Any() }
@@ -308,7 +327,7 @@ internal fun AnimationThumbnail(animation: VideoInfo, modifier: Modifier = Modif
     }
     DisposableEffect(owner) { onDispose { slots.release(owner) } }
     Box(modifier, contentAlignment = Alignment.Center) {
-        PhotoThumbnail(animation.poster)
+        PhotoThumbnail(animation.poster, autoDownload = false)
         if (slots.holds(owner)) InlineAnimationPlayer(animation, Modifier.matchParentSize())
         Text(
             stringResource(R.string.content_animation),

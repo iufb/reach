@@ -27,6 +27,7 @@ import io.github.iufb.reach.forward.ForwardScreen
 import io.github.iufb.reach.gallery.GalleryScreen
 import io.github.iufb.reach.profile.ProfileScreen
 import io.github.iufb.reach.search.SearchScreen
+import io.github.iufb.reach.settings.AutoDownloadScreen
 import kotlinx.serialization.Serializable
 
 @Serializable data object AuthGraph
@@ -45,6 +46,7 @@ import kotlinx.serialization.Serializable
 /** Профиль чата ([chatId]) или пользователя ([userId]); второй — 0. */
 @Serializable data class ProfileRoute(val chatId: Long = 0, val userId: Long = 0)
 @Serializable data class GalleryRoute(val chatId: Long)
+@Serializable data object AutoDownloadRoute
 
 /**
  * Два графа: вход и основной. Какой экран показан, решает [AuthState]:
@@ -89,6 +91,7 @@ fun ReachNavHost(authState: AuthState, openChatId: Long? = null, onOpenChatHandl
                     onOpenArchive = { navController.navigate(ChatsRoute(archive = true)) },
                     onOpenSearch = { navController.navigate(SearchRoute) },
                     onBack = { navController.popBackStack() },
+                    onOpenAutoDownload = { navController.navigate(AutoDownloadRoute) },
                 )
             }
             composable<ChatRoute> {
@@ -114,6 +117,7 @@ fun ReachNavHost(authState: AuthState, openChatId: Long? = null, onOpenChatHandl
                     onOpenGallery = { navController.navigate(GalleryRoute(it)) },
                 )
             }
+            composable<AutoDownloadRoute> { AutoDownloadScreen(onBack = { navController.popBackStack() }) }
             composable<GalleryRoute> {
                 GalleryScreen(
                     onBack = { navController.popBackStack() },
