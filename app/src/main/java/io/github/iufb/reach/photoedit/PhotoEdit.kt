@@ -18,6 +18,8 @@ data class PhotoEdit(
     /** Рисунок кистью и ластиком, по порядку. */
     val strokes: List<BrushStroke> = emptyList(),
     val texts: List<TextItem> = emptyList(),
+    val filter: FilterPreset = FilterPreset.None,
+    val adjust: Adjustments = Adjustments(),
 ) {
     val isEmpty: Boolean get() = this == None
 

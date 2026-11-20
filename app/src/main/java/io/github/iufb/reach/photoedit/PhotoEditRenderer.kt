@@ -3,6 +3,8 @@ package io.github.iufb.reach.photoedit
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.ColorMatrixColorFilter
+import android.graphics.Paint
 import android.graphics.RectF
 import android.graphics.ImageDecoder
 import android.graphics.Matrix
@@ -69,9 +71,15 @@ class PhotoEditRenderer @Inject constructor(@ApplicationContext private val cont
             return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
         }
 
-        /** Поворот → рисунок и надписи → кроп. */
+        /** Поворот → цвет (фильтр и коррекция) → рисунок и надписи → кроп. */
         fun render(source: Bitmap, edit: PhotoEdit): Bitmap {
             var image = orient(source, edit)
+            colorMatrixFor(edit.filter, edit.adjust)?.let { matrix ->
+                val colored = Bitmap.createBitmap(image.width, image.height, Bitmap.Config.ARGB_8888)
+                val paint = Paint(Paint.FILTER_BITMAP_FLAG).apply { colorFilter = ColorMatrixColorFilter(matrix) }
+                Canvas(colored).drawBitmap(image, 0f, 0f, paint)
+                image = colored
+            }
             if (edit.strokes.isNotEmpty() || edit.texts.isNotEmpty()) {
                 if (!image.isMutable || image === source) image = image.copy(Bitmap.Config.ARGB_8888, true)
                 val area = RectF(0f, 0f, image.width.toFloat(), image.height.toFloat())
