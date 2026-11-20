@@ -24,6 +24,7 @@ import io.github.iufb.reach.auth.UnsupportedAuthScreen
 import io.github.iufb.reach.chat.ChatScreen
 import io.github.iufb.reach.chats.ChatsScreen
 import io.github.iufb.reach.forward.ForwardScreen
+import io.github.iufb.reach.gallery.GalleryScreen
 import io.github.iufb.reach.profile.ProfileScreen
 import io.github.iufb.reach.search.SearchScreen
 import kotlinx.serialization.Serializable
@@ -43,6 +44,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class ForwardRoute(val fromChatId: Long, val messageIds: List<Long>)
 /** Профиль чата ([chatId]) или пользователя ([userId]); второй — 0. */
 @Serializable data class ProfileRoute(val chatId: Long = 0, val userId: Long = 0)
+@Serializable data class GalleryRoute(val chatId: Long)
 
 /**
  * Два графа: вход и основной. Какой экран показан, решает [AuthState]:
@@ -109,6 +111,13 @@ fun ReachNavHost(authState: AuthState, openChatId: Long? = null, onOpenChatHandl
                 ProfileScreen(
                     onBack = { navController.popBackStack() },
                     onOpenChat = { navController.navigate(ChatRoute(it)) },
+                    onOpenGallery = { navController.navigate(GalleryRoute(it)) },
+                )
+            }
+            composable<GalleryRoute> {
+                GalleryScreen(
+                    onBack = { navController.popBackStack() },
+                    onShowInChat = { chatId, messageId -> navController.navigate(ChatRoute(chatId, messageId)) },
                 )
             }
             composable<ForwardRoute> {

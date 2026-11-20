@@ -19,6 +19,7 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.foundation.layout.Row
 import androidx.compose.material3.Switch
 import androidx.compose.material3.TopAppBar
@@ -49,6 +50,7 @@ import io.github.iufb.reach.ui.theme.reachBarColors
 fun ProfileScreen(
     onBack: () -> Unit,
     onOpenChat: (Long) -> Unit,
+    onOpenGallery: (chatId: Long) -> Unit,
     viewModel: ProfileViewModel = hiltViewModel(),
 ) {
     val profile by viewModel.profile.collectAsStateWithLifecycle()
@@ -106,6 +108,9 @@ fun ProfileScreen(
                 Button(onClick = viewModel::write) { Text(stringResource(R.string.profile_write)) }
             }
             HorizontalDivider()
+            TextButton(onClick = { onOpenGallery(viewModel.chatId) }, modifier = Modifier.fillMaxWidth()) {
+                Text(stringResource(R.string.profile_gallery), Modifier.fillMaxWidth())
+            }
             current.isMuted?.let { muted ->
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
                     Text(stringResource(R.string.profile_notifications), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
