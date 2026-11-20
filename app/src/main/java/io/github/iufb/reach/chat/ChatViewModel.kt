@@ -77,6 +77,8 @@ class ChatViewModel @Inject constructor(
 ) : ViewModel() {
 
     private val chatId: Long = savedStateHandle.toRoute<ChatRoute>().chatId
+    /** Сообщение, на котором открыть чат; 0 — обычное открытие. */
+    private val startMessageId: Long = savedStateHandle.toRoute<ChatRoute>().messageId
     private val history = ChatHistory(chatId, td)
 
     val chat: StateFlow<Chat?> = chatsRepository.chats.map { it[chatId] }
@@ -207,7 +209,11 @@ class ChatViewModel @Inject constructor(
                 _draft.compareAndSet(RichText.Empty, draft.text)
                 draft.replyToMessageId?.let { restoreReply(it) }
             }
-            history.open(opened.lastReadInboxMessageId.takeIf { opened.unreadCount > 0 })
+            if (startMessageId != 0L && history.openAround(startMessageId)) {
+                _scrollTarget.value = startMessageId
+            } else {
+                history.open(opened.lastReadInboxMessageId.takeIf { opened.unreadCount > 0 })
+            }
         }
     }
 

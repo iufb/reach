@@ -38,7 +38,8 @@ import kotlinx.serialization.Serializable
 /** Список чатов: основной или архив. */
 @Serializable data class ChatsRoute(val archive: Boolean = false)
 @Serializable data object SearchRoute
-@Serializable data class ChatRoute(val chatId: Long)
+/** Чат; [messageId] не 0 — открыть на этом сообщении (например, из поиска). */
+@Serializable data class ChatRoute(val chatId: Long, val messageId: Long = 0)
 @Serializable data class ForwardRoute(val fromChatId: Long, val messageIds: List<Long>)
 /** Профиль чата ([chatId]) или пользователя ([userId]); второй — 0. */
 @Serializable data class ProfileRoute(val chatId: Long = 0, val userId: Long = 0)
@@ -101,6 +102,7 @@ fun ReachNavHost(authState: AuthState) {
                 SearchScreen(
                     onBack = { navController.popBackStack() },
                     onOpenChat = { navController.navigate(ChatRoute(it)) },
+                    onOpenMessage = { chatId, messageId -> navController.navigate(ChatRoute(chatId, messageId)) },
                 )
             }
             composable<ProfileRoute> {
