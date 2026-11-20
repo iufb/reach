@@ -68,6 +68,8 @@
     <string name="chat_action_unpin">Открепить</string>
     <string name="chat_action_archive">В архив</string>
     <string name="chat_action_unarchive">Из архива</string>
+    <string name="chat_action_mark_unread">Пометить непрочитанным</string>
+    <string name="chat_action_mark_read">Пометить прочитанным</string>
     <string name="chat_action_mute">Без звука</string>
     <string name="chat_action_unmute">Включить звук</string>
     <string name="chat_muted">Без звука</string>

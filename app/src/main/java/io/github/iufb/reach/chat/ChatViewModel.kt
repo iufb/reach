@@ -68,7 +68,7 @@ class ChatViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val td: TdClient,
     @ApplicationScope private val appScope: CoroutineScope,
-    chats: ChatsRepository,
+    private val chatsRepository: ChatsRepository,
     private val users: UsersRepository,
     groups: GroupsRepository,
     private val importer: MediaImporter,
@@ -79,8 +79,8 @@ class ChatViewModel @Inject constructor(
     private val chatId: Long = savedStateHandle.toRoute<ChatRoute>().chatId
     private val history = ChatHistory(chatId, td)
 
-    val chat: StateFlow<Chat?> = chats.chats.map { it[chatId] }
-        .stateIn(viewModelScope, SharingStarted.Eagerly, chats.chats.value[chatId])
+    val chat: StateFlow<Chat?> = chatsRepository.chats.map { it[chatId] }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, chatsRepository.chats.value[chatId])
 
     val state: StateFlow<ChatHistory.State> = history.state
 
@@ -183,7 +183,7 @@ class ChatViewModel @Inject constructor(
     val sendError: StateFlow<String?> = _sendError.asStateFlow()
 
     /** Авторы сообщений по отправителю: пользователи и чаты (анонимные админы, каналы). */
-    val senders: StateFlow<Map<Sender, SenderInfo>> = combine(users.users, chats.chats) { userMap, chatMap ->
+    val senders: StateFlow<Map<Sender, SenderInfo>> = combine(users.users, chatsRepository.chats) { userMap, chatMap ->
         buildMap {
             userMap.values.forEach { put(Sender.User(it.id), SenderInfo(it.fullName, it.photo, it.accentColorId)) }
             chatMap.values.forEach { put(Sender.Chat(it.id), SenderInfo(it.title, it.photo, it.accentColorId)) }
@@ -218,6 +218,10 @@ class ChatViewModel @Inject constructor(
     fun onResume() {
         resumed.value = true
         appScope.launch { runCatching { td.send(TdApi.OpenChat(chatId)) }.onFailure { Log.e(TAG, "openChat failed", it) } }
+        // Открыли чат — ручная пометка «непрочитанный» больше не нужна
+        if (chatsRepository.chats.value[chatId]?.isMarkedAsUnread == true) {
+            appScope.launch { runCatching { chatsRepository.setMarkedAsUnread(chatId, false) }.onFailure { Log.e(TAG, "unmark failed", it) } }
+        }
     }
 
     fun onPause() {

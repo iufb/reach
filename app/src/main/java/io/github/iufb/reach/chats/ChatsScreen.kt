@@ -106,6 +106,7 @@ fun ChatsScreen(
                 onSetPinned = viewModel::setPinned,
                 onSetArchived = viewModel::setArchived,
                 onSetMuteFor = viewModel::setMuteFor,
+                onSetUnread = viewModel::setUnread,
             ), onDismiss = viewModel::dismissMenu)
     }
 }
@@ -366,6 +367,11 @@ private fun ChatRow(chat: Chat, isPinned: Boolean, activity: String?, onClick: (
                         Spacer(Modifier.width(8.dp))
                         UnreadBadge(chat.unreadCount, muted = chat.isMuted)
                     }
+                    // Пометка без непрочитанных — пустая точка-счётчик
+                    chat.isMarkedAsUnread -> {
+                        Spacer(Modifier.width(8.dp))
+                        UnreadBadge(0, muted = chat.isMuted)
+                    }
                     isPinned -> {
                         Spacer(Modifier.width(8.dp))
                         Icon(
@@ -433,7 +439,11 @@ private fun UnreadBadge(count: Int, muted: Boolean = false) {
         contentAlignment = Alignment.Center,
     ) {
         Text(
-            if (count > MAX_BADGE) "$MAX_BADGE+" else count.toString(),
+            when {
+                count == 0 -> ""
+                count > MAX_BADGE -> "$MAX_BADGE+"
+                else -> count.toString()
+            },
             style = MaterialTheme.typography.labelSmall,
             color = if (muted) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onPrimary,
         )
