@@ -41,7 +41,13 @@ class ChatsRepository @Inject constructor(
     val chats: StateFlow<Map<Long, Chat>> = _chats.asStateFlow()
 
     private val _allLoaded = MutableStateFlow<Set<ChatListType>>(emptySet())
-    private val loadLock = Mutex()
+    /** Свой замок на каждый список: архив и папки грузятся параллельно с основным. */
+    private val loadLocks = mutableMapOf<ChatListType, Mutex>()
+
+    private val _folders = MutableStateFlow(ChatFolders.Empty)
+
+    /** Папки пользователя; обновляются по `UpdateChatFolders`. */
+    val folders: StateFlow<ChatFolders> = _folders.asStateFlow()
 
     private val _counts = MutableStateFlow<Map<ChatListType, ChatListCounts>>(emptyMap())
 
@@ -69,8 +75,12 @@ class ChatsRepository @Inject constructor(
     /** Счётчики списка; `null` — TDLib их ещё не присылал. */
     fun counts(list: ChatListType): Flow<ChatListCounts?> = _counts.map { it[list] }.distinctUntilChanged()
 
+    /** Счётчики всех списков, о которых TDLib уже сообщил. */
+    val allCounts: StateFlow<Map<ChatListType, ChatListCounts>> = _counts.asStateFlow()
+
     /** Просит TDLib прислать следующую порцию чатов. Параллельные вызовы схлопываются. */
     suspend fun loadMore(list: ChatListType) {
+        val loadLock = synchronized(loadLocks) { loadLocks.getOrPut(list) { Mutex() } }
         if (!loadLock.tryLock()) return
         try {
             if (list in _allLoaded.value) return
@@ -115,6 +125,10 @@ class ChatsRepository @Inject constructor(
                 copy(canSendBasicMessages = update.permissions.canSendBasicMessages)
             }
             is TdApi.UpdateChatReadInbox -> edit(update.chatId) { copy(unreadCount = update.unreadCount, lastReadInboxMessageId = update.lastReadInboxMessageId) }
+            is TdApi.UpdateChatFolders -> _folders.value = ChatFolders(
+                update.chatFolders.map { ChatFolder(it.id, it.name.text.text) },
+                update.mainChatListPosition,
+            )
             is TdApi.UpdateUnreadChatCount -> update.chatList.toModel()?.let { list ->
                 _counts.update { it + (list to ChatListCounts(update.totalCount, update.unreadCount, update.unreadUnmutedCount)) }
             }
@@ -123,6 +137,7 @@ class ChatsRepository @Inject constructor(
                 _chats.value = emptyMap()
                 _allLoaded.value = emptySet()
                 _counts.value = emptyMap()
+                _folders.value = ChatFolders.Empty
             }
         }
     }

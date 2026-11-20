@@ -4,6 +4,9 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.PrimaryScrollableTabRow
+import androidx.compose.material3.Tab
+import androidx.compose.runtime.key
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.runtime.remember
 import io.github.iufb.reach.chat.Sender
@@ -84,18 +87,22 @@ fun ChatsScreen(
     val activities by viewModel.activities.collectAsStateWithLifecycle()
     val menuChat by viewModel.menuChat.collectAsStateWithLifecycle()
     val archive by viewModel.archive.collectAsStateWithLifecycle()
+    val list by viewModel.list.collectAsStateWithLifecycle()
+    val tabs by viewModel.tabs.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
     ChatsContent(
-        viewModel.list, chats, allLoaded, loggingOut, onChatClick, viewModel::loadMore, viewModel::logOut, activities,
+        list, chats, allLoaded, loggingOut, onChatClick, viewModel::loadMore, viewModel::logOut, activities,
         onChatLongClick = viewModel::openMenu,
         snackbar = snackbar,
         archive = archive,
         onOpenArchive = onOpenArchive,
         onBack = onBack,
+        tabs = tabs,
+        onSelectList = viewModel::selectList,
     )
     menuChat?.let { chat ->
-        ChatMenuSheet(chat, viewModel.list, ChatMenuActions(onSetPinned = viewModel::setPinned, onSetArchived = viewModel::setArchived), onDismiss = viewModel::dismissMenu)
+        ChatMenuSheet(chat, list, ChatMenuActions(onSetPinned = viewModel::setPinned, onSetArchived = viewModel::setArchived), onDismiss = viewModel::dismissMenu)
     }
 }
 
@@ -115,6 +122,8 @@ private fun ChatsContent(
     archive: ArchiveSummary? = null,
     onOpenArchive: () -> Unit = {},
     onBack: () -> Unit = {},
+    tabs: List<FolderTab> = emptyList(),
+    onSelectList: (ChatListType) -> Unit = {},
 ) {
     val isArchive = list == ChatListType.Archive
     var confirmLogOut by rememberSaveable { mutableStateOf(false) }
@@ -157,16 +166,13 @@ private fun ChatsContent(
         },
     ) { padding ->
         val modifier = Modifier.fillMaxSize().padding(padding)
-        when {
-            loggingOut || chats == null -> Box(modifier, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            chats.isEmpty() && allLoaded && archive == null -> Box(modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-                Text(
-                    stringResource(if (isArchive) R.string.archive_empty else R.string.chats_empty),
-                    style = MaterialTheme.typography.bodyLarge,
-                    textAlign = TextAlign.Center,
-                )
+        if (tabs.isNotEmpty()) {
+            Column(modifier) {
+                FolderTabs(tabs, list, onSelectList)
+                ChatsBody(list, chats, allLoaded, loggingOut, onChatClick, onChatLongClick, onLoadMore, Modifier.weight(1f).fillMaxWidth(), activities, archive, onOpenArchive)
             }
-            else -> ChatList(list, chats, allLoaded, onChatClick, onChatLongClick, onLoadMore, modifier, activities, archive, onOpenArchive)
+        } else {
+            ChatsBody(list, chats, allLoaded, loggingOut, onChatClick, onChatLongClick, onLoadMore, modifier, activities, archive, onOpenArchive)
         }
     }
     if (confirmLogOut) {
@@ -177,6 +183,62 @@ private fun ChatsContent(
             },
             onDismiss = { confirmLogOut = false },
         )
+    }
+}
+
+/** Вкладки папок; у каждой — число непрочитанных чатов со звуком. */
+@Composable
+private fun FolderTabs(tabs: List<FolderTab>, selected: ChatListType, onSelect: (ChatListType) -> Unit) {
+    val index = tabs.indexOfFirst { it.list == selected }.coerceAtLeast(0)
+    PrimaryScrollableTabRow(
+        selectedTabIndex = index,
+        edgePadding = 8.dp,
+        containerColor = MaterialTheme.colorScheme.surface,
+    ) {
+        tabs.forEachIndexed { i, tab ->
+            Tab(
+                selected = i == index,
+                onClick = { onSelect(tab.list) },
+                text = {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(tab.title ?: stringResource(R.string.folder_all_chats), maxLines = 1)
+                        if (tab.unread > 0) {
+                            Spacer(Modifier.width(6.dp))
+                            UnreadBadge(tab.unread, muted = i != index)
+                        }
+                    }
+                },
+            )
+        }
+    }
+}
+
+@Composable
+private fun ChatsBody(
+    list: ChatListType,
+    chats: List<Chat>?,
+    allLoaded: Boolean,
+    loggingOut: Boolean,
+    onChatClick: (Long) -> Unit,
+    onChatLongClick: (Long) -> Unit,
+    onLoadMore: () -> Unit,
+    modifier: Modifier,
+    activities: Map<Long, Map<Sender, ActivityKind>>,
+    archive: ArchiveSummary?,
+    onOpenArchive: () -> Unit,
+) {
+    val isArchive = list == ChatListType.Archive
+    when {
+        loggingOut || chats == null -> Box(modifier, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        chats.isEmpty() && allLoaded && archive == null -> Box(modifier.padding(24.dp), contentAlignment = Alignment.Center) {
+            Text(
+                stringResource(if (isArchive) R.string.archive_empty else R.string.chats_empty),
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+            )
+        }
+        // Своё состояние прокрутки у каждой вкладки
+        else -> key(list) { ChatList(list, chats, allLoaded, onChatClick, onChatLongClick, onLoadMore, modifier, activities, archive, onOpenArchive) }
     }
 }
 

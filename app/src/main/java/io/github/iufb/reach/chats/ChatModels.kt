@@ -27,6 +27,21 @@ internal fun TdApi.ChatList.toModel(): ChatListType? = when (this) {
     else -> null
 }
 
+/** Папка из `UpdateChatFolders`. */
+data class ChatFolder(val id: Int, val title: String)
+
+/** Папки в порядке пользователя; основной список стоит на позиции [mainPosition]. */
+data class ChatFolders(val folders: List<ChatFolder>, val mainPosition: Int) {
+    /** Вкладки по порядку: папки и «Все чаты» на своём месте. Без папок — пусто. */
+    val lists: List<ChatListType>
+        get() = if (folders.isEmpty()) emptyList() else folders.map<ChatFolder, ChatListType> { ChatListType.Folder(it.id) }
+            .toMutableList().apply { add(mainPosition.coerceIn(0, size), ChatListType.Main) }
+
+    companion object {
+        val Empty = ChatFolders(emptyList(), 0)
+    }
+}
+
 /** Счётчики списка из `UpdateUnreadChatCount`: всего чатов и сколько из них непрочитанных. */
 data class ChatListCounts(val total: Int, val unread: Int, val unreadUnmuted: Int)
 
