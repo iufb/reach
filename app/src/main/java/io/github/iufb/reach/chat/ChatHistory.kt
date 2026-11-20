@@ -205,17 +205,27 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
      * дальше статус меняют `UpdateMessageSendSucceeded` / `UpdateMessageSendFailed`.
      * Если открыт кусок из середины истории — сначала переходим к концу, иначе своё сообщение не увидеть.
      */
-    suspend fun sendText(text: RichText, replyToMessageId: Long? = null, withLinkPreview: Boolean = true) {
+    suspend fun sendText(
+        text: RichText,
+        replyToMessageId: Long? = null,
+        withLinkPreview: Boolean = true,
+        options: SendOptions = SendOptions(),
+    ) {
         if (!_state.value.reachedNewest) open(lastReadInboxId = null)
-        val options = if (withLinkPreview) null else TdApi.LinkPreviewOptions(true, "", false, false, false)
-        val content = TdApi.InputMessageText(text.toFormattedText(), options, true)
+        val previewOptions = if (withLinkPreview) null else TdApi.LinkPreviewOptions(true, "", false, false, false)
+        val content = TdApi.InputMessageText(text.toFormattedText(), previewOptions, true)
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
-        val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, null, null, content))
+        val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, options.toTd(), null, content))
         _state.update { it.merge(listOf(pending.toModel())) }
     }
 
     /** Фото: одно — обычным сообщением, несколько — альбомом; подпись у первого. */
-    suspend fun sendPhotos(images: List<ImportedImage>, caption: RichText, replyToMessageId: Long? = null) {
+    suspend fun sendPhotos(
+        images: List<ImportedImage>,
+        caption: RichText,
+        replyToMessageId: Long? = null,
+        options: SendOptions = SendOptions(),
+    ) {
         if (images.isEmpty()) return
         if (!_state.value.reachedNewest) open(lastReadInboxId = null)
         val contents = images.mapIndexed { i, image ->
@@ -225,28 +235,34 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         }
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
         val pending = if (contents.size == 1) {
-            listOf(td.send(TdApi.SendMessage(chatId, null, replyTo, null, null, contents.single())))
+            listOf(td.send(TdApi.SendMessage(chatId, null, replyTo, options.toTd(), null, contents.single())))
         } else {
-            td.send(TdApi.SendMessageAlbum(chatId, null, replyTo, null, contents.toTypedArray<TdApi.InputMessageContent>())).messages.toList()
+            td.send(TdApi.SendMessageAlbum(chatId, null, replyTo, options.toTd(), contents.toTypedArray<TdApi.InputMessageContent>())).messages.toList()
         }
         _state.update { it.merge(pending.map { m -> m.toModel() }) }
     }
 
     /** Документ из локального файла [path]; имя берётся из пути. */
-    suspend fun sendDocument(path: String, replyToMessageId: Long? = null) {
+    suspend fun sendDocument(path: String, replyToMessageId: Long? = null, options: SendOptions = SendOptions()) {
         if (!_state.value.reachedNewest) open(lastReadInboxId = null)
         val document = TdApi.InputDocument(TdApi.InputFileLocal(path), null, false)
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
-        val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, null, null, TdApi.InputMessageDocument(document, null)))
+        val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, options.toTd(), null, TdApi.InputMessageDocument(document, null)))
         _state.update { it.merge(listOf(pending.toModel())) }
     }
 
     /** Голосовое (OGG/Opus) с длительностью и waveform. */
-    suspend fun sendVoice(path: String, duration: Int, waveform: ByteArray, replyToMessageId: Long? = null) {
+    suspend fun sendVoice(
+        path: String,
+        duration: Int,
+        waveform: ByteArray,
+        replyToMessageId: Long? = null,
+        options: SendOptions = SendOptions(),
+    ) {
         if (!_state.value.reachedNewest) open(lastReadInboxId = null)
         val voice = TdApi.InputVoiceNote(TdApi.InputFileLocal(path), duration, waveform)
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
-        val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, null, null, TdApi.InputMessageVoiceNote(voice, null, null)))
+        val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, options.toTd(), null, TdApi.InputMessageVoiceNote(voice, null, null)))
         _state.update { it.merge(listOf(pending.toModel())) }
     }
 

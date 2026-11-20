@@ -3,6 +3,13 @@ package io.github.iufb.reach.chat
 import android.net.Uri
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.material3.Checkbox
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
@@ -28,8 +35,9 @@ import io.github.iufb.reach.R
 
 /** Выбранные фото перед отправкой: превью и подпись. */
 @Composable
-internal fun SendPhotosDialog(uris: List<Uri>, onSend: (caption: String) -> Unit, onDismiss: () -> Unit) {
+internal fun SendPhotosDialog(uris: List<Uri>, onSend: (caption: String, silent: Boolean) -> Unit, onDismiss: () -> Unit) {
     var caption by rememberSaveable { mutableStateOf("") }
+    var silent by rememberSaveable { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(pluralStringResource(R.plurals.send_photos_title, uris.size, uris.size)) },
@@ -52,9 +60,17 @@ internal fun SendPhotosDialog(uris: List<Uri>, onSend: (caption: String) -> Unit
                     placeholder = { Text(stringResource(R.string.photo_caption_hint)) },
                     maxLines = 4,
                 )
+                Row(
+                    modifier = Modifier.fillMaxWidth().toggleable(silent, role = Role.Checkbox) { silent = it },
+                    verticalAlignment = Alignment.CenterVertically,
+                ) {
+                    Checkbox(checked = silent, onCheckedChange = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(R.string.send_silent))
+                }
             }
         },
-        confirmButton = { TextButton(onClick = { onSend(caption) }) { Text(stringResource(R.string.chat_send)) } },
+        confirmButton = { TextButton(onClick = { onSend(caption, silent) }) { Text(stringResource(R.string.chat_send)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
 }
