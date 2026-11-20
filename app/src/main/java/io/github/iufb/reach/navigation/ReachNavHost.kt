@@ -25,6 +25,7 @@ import io.github.iufb.reach.chat.ChatScreen
 import io.github.iufb.reach.chat.ScheduledScreen
 import io.github.iufb.reach.topics.TopicsScreen
 import io.github.iufb.reach.contacts.ContactsScreen
+import io.github.iufb.reach.blocked.BlockedScreen
 import io.github.iufb.reach.contacts.ContactSyncScreen
 import io.github.iufb.reach.settings.SettingsScreen
 import io.github.iufb.reach.chats.ChatsScreen
@@ -58,6 +59,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object ContactsRoute
 @Serializable data object SettingsRoute
 @Serializable data object ContactSyncRoute
+@Serializable data object BlockedRoute
 
 /**
  * Два графа: вход и основной. Какой экран показан, решает [AuthState]:
@@ -152,8 +154,10 @@ fun ReachNavHost(authState: AuthState, openChatId: Long? = null, onOpenChatHandl
                     onBack = { navController.popBackStack() },
                     onOpenAutoDownload = { navController.navigate(AutoDownloadRoute) },
                     onOpenContactSync = { navController.navigate(ContactSyncRoute) },
+                    onOpenBlocked = { navController.navigate(BlockedRoute) },
                 )
             }
+            composable<BlockedRoute> { BlockedScreen(onBack = { navController.popBackStack() }) }
             composable<ContactSyncRoute> { ContactSyncScreen(onBack = { navController.popBackStack() }) }
             composable<AutoDownloadRoute> { AutoDownloadScreen(onBack = { navController.popBackStack() }) }
             composable<GalleryRoute> {

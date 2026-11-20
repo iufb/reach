@@ -228,11 +228,14 @@ fun ChatScreen(
                         onDelete = viewModel::requestDeleteSelected,
                     )
                 }
-            }, viewModel::loadOlder, viewModel::loadNewer,
+            },
+            onLoadOlder = viewModel::loadOlder,
+            onLoadNewer = viewModel::loadNewer,
             onVisibleMessagesChange = viewModel::onVisibleMessagesChange,
             pinned = pinned,
             onPinnedClick = viewModel::onPinnedClick,
-            composer = if (canWrite) {
+            unblock = if (chat?.isBlocked == true && chat?.userId != null) viewModel::unblock else null,
+            composer = if (canWrite && chat?.isBlocked != true) {
                 ComposerState(
                     draft, sendError, replyTo, editing,
                     viewModel::onDraftChange, viewModel::onFormat, viewModel::send, viewModel::cancelReply, viewModel::cancelEdit,
@@ -324,6 +327,8 @@ private fun ChatContent(
     scopeTitle: String? = null,
     /** Пост, к которому комментарии: над самым старым комментарием. */
     threadRoot: List<Message> = emptyList(),
+    /** Личка с заблокированным: кнопка вместо поля ввода. */
+    unblock: (() -> Unit)? = null,
     /** Шапка режима выбора; `null` — обычная шапка чата. */
     selectionBar: (@Composable () -> Unit)?,
     onLoadOlder: () -> Unit,
@@ -336,7 +341,17 @@ private fun ChatContent(
 ) {
     Scaffold(
         modifier = Modifier.imePadding(),
-        bottomBar = { if (composer != null && chat != null) Composer(composer, senders) },
+        bottomBar = {
+            when {
+                unblock != null -> Surface(color = MaterialTheme.colorScheme.surface) {
+                    androidx.compose.material3.TextButton(
+                        onClick = unblock,
+                        modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(8.dp),
+                    ) { Text(stringResource(R.string.unblock)) }
+                }
+                composer != null && chat != null -> Composer(composer, senders)
+            }
+        },
         topBar = {
             Column {
                 if (selectionBar != null) {

@@ -319,6 +319,15 @@ class ChatViewModel @Inject constructor(
     /** Открыть комментарии: (чат обсуждения, id треда). */
     val openThread: SharedFlow<Pair<Long, Long>> = _openThread.asSharedFlow()
 
+    /** «Разблокировать» вместо поля ввода в личке с заблокированным. */
+    fun unblock() {
+        val userId = chat.value?.userId ?: return
+        viewModelScope.launch {
+            runCatching { td.send(TdApi.SetMessageSenderBlockList(TdApi.MessageSenderUser(userId), null)) }
+                .onFailure { Log.w(TAG, "unblock failed", it) }
+        }
+    }
+
     /** Плашка «N комментариев» под постом канала. */
     fun openComments(message: Message) {
         viewModelScope.launch {

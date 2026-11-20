@@ -61,6 +61,8 @@ data class Profile(
     val isContact: Boolean? = null,
     val firstName: String = "",
     val lastName: String = "",
+    /** Пользователь в чёрном списке; `null` — не пользователь или это ты сам. */
+    val isBlocked: Boolean? = null,
 )
 
 /** Полная информация, которую TDLib отдаёт отдельным запросом. */
@@ -69,6 +71,7 @@ private data class FullInfo(
     val about: RichText = RichText.Empty,
     val memberCount: Int = 0,
     val username: String = "",
+    val isBlocked: Boolean = false,
 )
 
 /**
@@ -120,6 +123,7 @@ class ProfileViewModel @Inject constructor(
                 isContact = user.isContact.takeIf { me != 0L && user.id != me },
                 firstName = user.firstName,
                 lastName = user.lastName,
+                isBlocked = info.isBlocked.takeIf { me != 0L && user.id != me },
             )
             chat != null -> Profile(
                 title = chat.title,
@@ -169,6 +173,15 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    fun setBlocked(blocked: Boolean) {
+        val id = userId ?: return
+        viewModelScope.launch {
+            runCatching {
+                td.send(TdApi.SetMessageSenderBlockList(TdApi.MessageSenderUser(id), if (blocked) TdApi.BlockListMain() else null))
+            }.onSuccess { load() }.onFailure { _error.emit(it.message.orEmpty()) }
+        }
+    }
+
     fun removeContact() {
         val id = userId ?: return
         viewModelScope.launch {
@@ -181,7 +194,11 @@ class ProfileViewModel @Inject constructor(
             full.value = when {
                 userId != null -> {
                     val info = td.send(TdApi.GetUserFullInfo(userId))
-                    FullInfo(photo = (info.photo ?: info.publicPhoto)?.toInfo(), about = info.bio.toRichText())
+                    FullInfo(
+                        photo = (info.photo ?: info.publicPhoto)?.toInfo(),
+                        about = info.bio.toRichText(),
+                        isBlocked = info.blockList is TdApi.BlockListMain,
+                    )
                 }
                 group is GroupRef.Super -> {
                     val info = td.send(TdApi.GetSupergroupFullInfo(group.id))
