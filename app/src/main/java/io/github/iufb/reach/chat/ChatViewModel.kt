@@ -13,6 +13,9 @@ import io.github.iufb.reach.chats.StickerInfo
 import io.github.iufb.reach.media.AudioPlayer
 import io.github.iufb.reach.media.AudioState
 import io.github.iufb.reach.media.AudioTrack
+import io.github.iufb.reach.media.RecorderState
+import io.github.iufb.reach.media.VoiceRecorder
+import io.github.iufb.reach.media.VoiceRecording
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
 import io.github.iufb.reach.chats.toFormattedText
@@ -81,6 +84,7 @@ class ChatViewModel @Inject constructor(
     presence: PresenceRepository,
     private val reactions: ReactionsRepository,
     private val audioPlayer: AudioPlayer,
+    private val recorder: VoiceRecorder,
 ) : ViewModel() {
 
     private val chatId: Long = savedStateHandle.toRoute<ChatRoute>().chatId
@@ -280,6 +284,7 @@ class ChatViewModel @Inject constructor(
     }
 
     override fun onCleared() {
+        recorder.discard()
         onPause()
     }
 
@@ -394,6 +399,51 @@ class ChatViewModel @Inject constructor(
         val body = content as? MessageBody.Voice ?: return null
         if (sendingState != null) return null
         return AudioTrack(chatId, id, body.voice.file, isVoice = true, duration = body.voice.duration)
+    }
+
+    /** Запись голосового из поля ввода. */
+    val recorderState: StateFlow<RecorderState> = recorder.state
+
+    /** Палец лёг на микрофон. Играющее аудио на время записи — на паузу. */
+    fun startRecording() {
+        audioPlayer.pause()
+        if (!recorder.start(viewModelScope)) Log.w(TAG, "microphone unavailable")
+    }
+
+    fun lockRecording() = recorder.lock()
+
+    /** Палец отпущен без фиксации — сразу отправить (слишком короткое не отправляется). */
+    fun releaseRecording() {
+        recorder.finish()?.let(::sendVoice)
+    }
+
+    /** «Стоп» в зафиксированном режиме — предпрослушивание. */
+    fun stopRecordingForPreview() = recorder.stopForPreview()
+
+    fun toggleRecordingPreview() = recorder.togglePreview()
+
+    /** Отправить: из идущей зафиксированной записи или из предпрослушивания. */
+    fun sendRecording() {
+        val recording = when (recorder.state.value) {
+            is RecorderState.Recording -> recorder.finish()
+            is RecorderState.Recorded -> recorder.takeRecorded()
+            RecorderState.Idle -> null
+        }
+        recording?.let(::sendVoice)
+    }
+
+    fun discardRecording() = recorder.discard()
+
+    private fun sendVoice(recording: VoiceRecording) {
+        val reply = _replyTo.value
+        _replyTo.value = null
+        viewModelScope.launch {
+            runCatching { history.sendVoice(recording.path, recording.durationSec, recording.waveform, reply?.id) }.onFailure {
+                Log.e(TAG, "send voice failed", it)
+                _replyTo.value = reply
+                _sendError.value = it.message
+            }
+        }
     }
 
     private val _stickerSetTitle = MutableStateFlow<String?>(null)

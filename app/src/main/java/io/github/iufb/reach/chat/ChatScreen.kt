@@ -164,6 +164,7 @@ fun ChatScreen(
     viewer?.let { (items, index) -> MediaViewer(items, index) { viewer = null } }
     val stickerSetTitle by viewModel.stickerSetTitle.collectAsStateWithLifecycle()
     val audio by viewModel.audio.collectAsStateWithLifecycle()
+    val recorderState by viewModel.recorderState.collectAsStateWithLifecycle()
     stickerSetTitle?.let { StickerSetDialog(it, viewModel::dismissStickerSet) }
     CompositionLocalProvider(LocalMentionHandler provides mentionHandler) {
         ChatContent(
@@ -196,6 +197,16 @@ fun ChatScreen(
                         photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                     },
                     onAttachFile = { filePicker.launch(arrayOf("*/*")) },
+                    voice = VoiceInput(
+                        state = recorderState,
+                        onStart = viewModel::startRecording,
+                        onLock = viewModel::lockRecording,
+                        onRelease = viewModel::releaseRecording,
+                        onStop = viewModel::stopRecordingForPreview,
+                        onSend = viewModel::sendRecording,
+                        onDiscard = viewModel::discardRecording,
+                        onTogglePreview = viewModel::toggleRecordingPreview,
+                    ),
                 )
             } else {
                 null

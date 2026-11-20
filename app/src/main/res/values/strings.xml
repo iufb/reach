@@ -153,6 +153,11 @@
     <string name="video_pause">Пауза</string>
     <string name="video_play_error">Не удалось воспроизвести видео</string>
     <string name="sticker_set">Стикерпак</string>
+    <string name="voice_record">Записать голосовое</string>
+    <string name="voice_slide_to_cancel">‹ Влево — отмена</string>
+    <string name="voice_lock">Зафиксировать запись</string>
+    <string name="voice_stop">Остановить запись</string>
+    <string name="voice_delete">Удалить запись</string>
     <string name="attach">Прикрепить</string>
     <string name="attach_photo">Фото</string>
     <string name="attach_file">Файл</string>
