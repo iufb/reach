@@ -204,6 +204,8 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch { reportViewedMessages() }
         viewModelScope.launch { history.followReplies() }
         viewModelScope.launch { followMemberCount() }
+        viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { followPinned() }
+        viewModelScope.launch { loadPinned() }
         viewModelScope.launch {
             val opened = chat.mapNotNull { it }.first()
             // Черновик восстанавливаем, только если пользователь ещё ничего не набрал
@@ -559,6 +561,58 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    private val pinnedMessages = MutableStateFlow<List<Message>>(emptyList())
+    private val pinnedIndex = MutableStateFlow(0)
+
+    /** Плашка закреплённого под шапкой; `null` — закреплённых нет. */
+    val pinned: StateFlow<PinnedBanner?> = combine(pinnedMessages, pinnedIndex) { list, index ->
+        if (list.isEmpty()) null else PinnedBanner(list[index.coerceIn(list.indices)], index.coerceIn(list.indices), list.size)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
+
+    /** Закреплённые сообщения чата, новые первыми. */
+    private suspend fun loadPinned() {
+        runCatching {
+            td.send(TdApi.SearchChatMessages(chatId, null, "", null, 0, 0, PINNED_LIMIT, TdApi.SearchMessagesFilterPinned()))
+        }.onSuccess { found ->
+            pinnedMessages.value = found.messages.map { it.toModel() }
+        }.onFailure { Log.w(TAG, "load pinned failed", it) }
+    }
+
+    private suspend fun followPinned() {
+        td.updates.collect { update ->
+            when (update) {
+                is TdApi.UpdateMessageIsPinned -> if (update.chatId == chatId) loadPinned()
+                is TdApi.UpdateMessageContent -> if (update.chatId == chatId && pinnedMessages.value.any { it.id == update.messageId }) loadPinned()
+                is TdApi.UpdateDeleteMessages -> if (update.chatId == chatId && update.isPermanent) {
+                    pinnedMessages.update { list -> list.filter { it.id !in update.messageIds } }
+                }
+            }
+        }
+    }
+
+    /** Тап по плашке: переходим к показанному закреплённому, плашка листает к следующему (более старому). */
+    fun onPinnedClick() {
+        val banner = pinned.value ?: return
+        jumpTo(banner.message.id)
+        if (banner.count > 1) pinnedIndex.value = (banner.index + 1) % banner.count
+    }
+
+    fun setPinned(message: Message, pinned: Boolean) {
+        _menu.value = null
+        viewModelScope.launch {
+            runCatching {
+                if (pinned) {
+                    td.send(TdApi.PinChatMessage(chatId, message.id, false, false))
+                } else {
+                    td.send(TdApi.UnpinChatMessage(chatId, message.id))
+                }
+            }.onFailure {
+                Log.w(TAG, "pin failed", it)
+                _sendError.value = it.message
+            }
+        }
+    }
+
     /** Тап по ответу: переходим к исходному сообщению, подгружая историю вокруг него. */
     fun jumpTo(messageId: Long) {
         viewModelScope.launch {
@@ -664,6 +718,7 @@ class ChatViewModel @Inject constructor(
 
     private companion object {
         const val TAG = "ChatViewModel"
+        const val PINNED_LIMIT = 100
         const val STOP_TIMEOUT_MS = 5_000L
         const val VIEW_DEBOUNCE_MS = 300L
         const val MENTION_DEBOUNCE_MS = 200L
