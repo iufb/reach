@@ -6,64 +6,96 @@ import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.iufb.reach.chats.Chat
 import io.github.iufb.reach.chats.ChatsRepository
+import io.github.iufb.reach.chats.MessageBody
+import io.github.iufb.reach.chats.toBody
 import io.github.iufb.reach.core.td.TdClient
 import io.github.iufb.reach.core.td.TdException
-import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
-import kotlinx.coroutines.flow.transformLatest
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
 import javax.inject.Inject
 
-/** Что показывает поиск. [isRecent] — запрос пустой, это недавно найденные чаты. */
-data class SearchResults(
-    val chats: List<Chat> = emptyList(),
-    val isRecent: Boolean = true,
-    val loading: Boolean = false,
+/** Найденное сообщение и чат, в котором оно лежит. */
+data class FoundMessage(
+    val chat: Chat,
+    val messageId: Long,
+    /** Unix-время, секунды. */
+    val date: Int,
+    val body: MessageBody,
 )
 
 /**
- * Поиск по своим чатам (PRODUCT.md §4.2): сначала локально (`searchChats`), затем на сервере
- * (`searchChatsOnServer`), без дублей. Пустой запрос — недавние (`searchRecentlyFoundChats`).
+ * Что показывает поиск. [isRecent] — запрос пустой: [chats] — недавно найденные.
+ * [publicChats] — публичные чаты и каналы, которых нет среди своих.
  */
-@OptIn(ExperimentalCoroutinesApi::class)
+data class SearchResults(
+    val query: String = "",
+    val chats: List<Chat> = emptyList(),
+    val publicChats: List<Chat> = emptyList(),
+    val messages: List<FoundMessage> = emptyList(),
+    val isRecent: Boolean = true,
+    val loading: Boolean = false,
+    val canLoadMoreMessages: Boolean = false,
+) {
+    val isEmpty: Boolean get() = chats.isEmpty() && publicChats.isEmpty() && messages.isEmpty()
+}
+
+/**
+ * Поиск (PRODUCT.md §4.2): свои чаты (`searchChats`, затем `searchChatsOnServer`), публичные
+ * (`searchPublicChats`) и сообщения во всех чатах (`searchMessages`, с пагинацией).
+ * Пустой запрос — недавние (`searchRecentlyFoundChats`). Новый запрос отменяет старый.
+ */
 @HiltViewModel
 class SearchViewModel @Inject constructor(
     private val td: TdClient,
-    private val chats: ChatsRepository,
+    chats: ChatsRepository,
 ) : ViewModel() {
 
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
 
-    /** Найденные id по порядку; сами чаты берутся свежими из репозитория. */
-    private val found: Flow<FoundIds> = _query.transformLatest { raw ->
-        val query = raw.trim()
-        if (query.isEmpty()) {
-            emit(FoundIds(recent(), isRecent = true, loading = false))
-            return@transformLatest
-        }
-        // Дебаунс: transformLatest отменит ожидание, если пользователь продолжит печатать
-        delay(DEBOUNCE_MS)
-        val local = request { td.send(TdApi.SearchChats(query, null, LIMIT)).chatIds.toList() }
-        emit(FoundIds(local, isRecent = false, loading = true))
-        val server = request { td.send(TdApi.SearchChatsOnServer(query, null, LIMIT)).chatIds.toList() }
-        emit(FoundIds((local + server).distinct(), isRecent = false, loading = false))
-    }
+    private val found = MutableStateFlow(Found())
+    private var searchJob: Job? = null
+    private var moreJob: Job? = null
+    private var lastQuery: String? = null
 
-    val results: StateFlow<SearchResults> = combine(found, chats.chats) { ids, all ->
-        SearchResults(ids.ids.mapNotNull(all::get), ids.isRecent, ids.loading)
+    /** Чаты берутся свежими из репозитория: TDLib присылает их апдейтами раньше ответа поиска. */
+    val results: StateFlow<SearchResults> = combine(found, chats.chats) { f, all ->
+        val own = f.chatIds.mapNotNull(all::get)
+        val ownIds = own.mapTo(HashSet()) { it.id }
+        SearchResults(
+            query = f.query,
+            chats = own,
+            publicChats = f.publicChatIds.filter { it !in ownIds }.mapNotNull(all::get),
+            messages = f.messages.mapNotNull { m -> all[m.chatId]?.let { FoundMessage(it, m.id, m.date, m.body) } },
+            isRecent = f.query.isEmpty(),
+            loading = f.loading,
+            canLoadMoreMessages = f.nextOffset.isNotEmpty(),
+        )
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), SearchResults(loading = true))
+
+    init {
+        onQueryChange("")
+    }
 
     fun onQueryChange(value: String) {
         _query.value = value
+        val query = value.trim()
+        // Пробелы по краям запрос не меняют
+        if (query == lastQuery) return
+        lastQuery = query
+        searchJob?.cancel()
+        moreJob?.cancel()
+        searchJob = viewModelScope.launch { search(query) }
     }
 
     /** Чат выбран из результатов — попадает в недавние. */
@@ -73,18 +105,74 @@ class SearchViewModel @Inject constructor(
         }
     }
 
-    private suspend fun recent(): List<Long> =
-        request { td.send(TdApi.SearchRecentlyFoundChats("", null, LIMIT)).chatIds.toList() }
+    /** Список сообщений докрутили до конца. */
+    fun loadMoreMessages() {
+        val current = found.value
+        if (current.nextOffset.isEmpty() || current.loading || moreJob?.isActive == true) return
+        moreJob = viewModelScope.launch {
+            val page = searchMessages(current.query, current.nextOffset) ?: return@launch
+            found.update { f ->
+                if (f.query != current.query) f else f.copy(messages = f.messages + page.messages, nextOffset = page.nextOffset)
+            }
+        }
+    }
 
-    /** Ошибка поиска не роняет экран: пустой результат. */
-    private suspend fun request(block: suspend () -> List<Long>): List<Long> = try {
-        block()
+    private suspend fun search(query: String) {
+        if (query.isEmpty()) {
+            found.value = Found(chatIds = ids { td.send(TdApi.SearchRecentlyFoundChats("", null, LIMIT)).chatIds })
+            return
+        }
+        // Старые результаты остаются на экране, пока идёт новый запрос
+        found.update { it.copy(loading = true) }
+        delay(DEBOUNCE_MS)
+        found.value = Found(query = query, loading = true)
+        coroutineScope {
+            launch {
+                val local = ids { td.send(TdApi.SearchChats(query, null, LIMIT)).chatIds }
+                found.update { it.copy(chatIds = local) }
+                val server = ids { td.send(TdApi.SearchChatsOnServer(query, null, LIMIT)).chatIds }
+                found.update { it.copy(chatIds = (it.chatIds + server).distinct()) }
+            }
+            launch {
+                val public = ids { td.send(TdApi.SearchPublicChats(query, null)).chatIds }
+                found.update { it.copy(publicChatIds = public) }
+            }
+            launch {
+                val page = searchMessages(query, "")
+                if (page != null) found.update { it.copy(messages = page.messages, nextOffset = page.nextOffset) }
+            }
+        }
+        found.update { it.copy(loading = false) }
+    }
+
+    private suspend fun searchMessages(query: String, offset: String): MessagePage? = try {
+        val result = td.send(TdApi.SearchMessages(null, query, offset, LIMIT, null, null, 0, 0))
+        MessagePage(result.messages.map { RawMessage(it.chatId, it.id, it.date, it.content.toBody()) }, result.nextOffset.orEmpty())
+    } catch (e: TdException) {
+        Log.w(TAG, "searchMessages failed", e)
+        null
+    }
+
+    /** Ошибка одного запроса не роняет поиск: пустой результат. */
+    private suspend fun ids(block: suspend () -> LongArray): List<Long> = try {
+        block().toList()
     } catch (e: TdException) {
         Log.w(TAG, "search request failed", e)
         emptyList()
     }
 
-    private data class FoundIds(val ids: List<Long>, val isRecent: Boolean, val loading: Boolean)
+    private data class RawMessage(val chatId: Long, val id: Long, val date: Int, val body: MessageBody)
+
+    private data class MessagePage(val messages: List<RawMessage>, val nextOffset: String)
+
+    private data class Found(
+        val query: String = "",
+        val chatIds: List<Long> = emptyList(),
+        val publicChatIds: List<Long> = emptyList(),
+        val messages: List<RawMessage> = emptyList(),
+        val nextOffset: String = "",
+        val loading: Boolean = false,
+    )
 
     private companion object {
         const val TAG = "SearchViewModel"

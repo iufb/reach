@@ -40,6 +40,17 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.Chat
+import io.github.iufb.reach.chats.bodySummary
+import io.github.iufb.reach.chats.formatChatTime
+import androidx.compose.foundation.lazy.LazyListState
+import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.runtime.rememberUpdatedState
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 import io.github.iufb.reach.ui.components.Avatar
 import io.github.iufb.reach.ui.theme.reachBarColors
 
@@ -48,6 +59,7 @@ import io.github.iufb.reach.ui.theme.reachBarColors
 fun SearchScreen(
     onBack: () -> Unit,
     onOpenChat: (Long) -> Unit,
+    onOpenMessage: (chatId: Long, messageId: Long) -> Unit,
     viewModel: SearchViewModel = hiltViewModel(),
 ) {
     val query by viewModel.query.collectAsStateWithLifecycle()
@@ -98,19 +110,110 @@ fun SearchScreen(
         Column(Modifier.fillMaxSize().padding(padding)) {
             if (results.loading) LinearProgressIndicator(Modifier.fillMaxWidth())
             when {
-                results.chats.isEmpty() && results.loading -> Unit
-                results.chats.isEmpty() -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                results.isEmpty && results.loading -> Unit
+                results.isEmpty -> Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                     Text(
                         stringResource(if (results.isRecent) R.string.search_recent_empty else R.string.search_empty),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
                 else -> {
-                    val title = stringResource(if (results.isRecent) R.string.search_recent else R.string.search_chats)
-                    LazyColumn(Modifier.fillMaxSize()) { section(title, results.chats, open) }
+                    val chatsTitle = stringResource(if (results.isRecent) R.string.search_recent else R.string.search_chats)
+                    val publicTitle = stringResource(R.string.search_global)
+                    val messagesTitle = stringResource(R.string.search_messages)
+                    val listState = rememberLazyListState()
+                    LoadMoreMessagesEffect(listState, results.canLoadMoreMessages, viewModel::loadMoreMessages)
+                    LazyColumn(Modifier.fillMaxSize(), state = listState) {
+                        if (results.chats.isNotEmpty()) section(chatsTitle, results.chats, open)
+                        if (results.publicChats.isNotEmpty()) section(publicTitle, results.publicChats, open)
+                        if (results.messages.isNotEmpty()) {
+                            item(key = "header:messages") { SectionHeader(messagesTitle) }
+                            items(results.messages, key = { "message:${it.chat.id}:${it.messageId}" }) { message ->
+                                MessageRow(message, results.query) { onOpenMessage(message.chat.id, message.messageId) }
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+}
+
+/** Подгрузка сообщений, когда до конца списка осталось несколько строк. */
+@Composable
+private fun LoadMoreMessagesEffect(listState: LazyListState, enabled: Boolean, onLoadMore: () -> Unit) {
+    val load by rememberUpdatedState(onLoadMore)
+    LaunchedEffect(listState, enabled) {
+        if (!enabled) return@LaunchedEffect
+        snapshotFlow {
+            val info = listState.layoutInfo
+            (info.visibleItemsInfo.lastOrNull()?.index ?: 0) >= info.totalItemsCount - LOAD_MORE_THRESHOLD
+        }
+            .distinctUntilChanged()
+            .filter { it }
+            .collect { load() }
+    }
+}
+
+private const val LOAD_MORE_THRESHOLD = 5
+
+/** Сообщение: чат, дата и фрагмент текста с подсвеченным запросом. */
+@Composable
+private fun MessageRow(message: FoundMessage, query: String, onClick: () -> Unit) {
+    val highlight = MaterialTheme.colorScheme.primary
+    val text = bodySummary(message.body).replace('\n', ' ')
+    Row(
+        modifier = Modifier.fillMaxWidth().clickable(onClick = onClick).padding(horizontal = 16.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Avatar(message.chat.title, message.chat.photo, message.chat.accentColorId, size = 44.dp)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    message.chat.title.ifBlank { stringResource(R.string.chat_deleted_account) },
+                    modifier = Modifier.weight(1f),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    formatChatTime(message.date),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            Text(
+                highlighted(snippet(text, query), query, highlight),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+    }
+}
+
+/** Фрагмент вокруг первого совпадения: длинный текст не прячет найденное за многоточием. */
+internal fun snippet(text: String, query: String, before: Int = 30): String {
+    val at = text.indexOf(query, ignoreCase = true)
+    if (at <= before) return text
+    val start = text.lastIndexOf(' ', at - before).takeIf { it >= 0 }?.plus(1) ?: (at - before)
+    return "…" + text.substring(start)
+}
+
+/** Все вхождения [query] без учёта регистра — цветом и жирным. */
+internal fun highlighted(text: String, query: String, color: Color): AnnotatedString = buildAnnotatedString {
+    append(text)
+    if (query.isBlank()) return@buildAnnotatedString
+    var from = 0
+    while (true) {
+        val at = text.indexOf(query, from, ignoreCase = true)
+        if (at < 0) break
+        addStyle(SpanStyle(color = color, fontWeight = FontWeight.SemiBold), at, at + query.length)
+        from = at + query.length
     }
 }
 

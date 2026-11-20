@@ -86,6 +86,8 @@
     <string name="search_recent">Недавние</string>
     <string name="search_recent_empty">Здесь появятся чаты, которые вы искали</string>
     <string name="search_chats">Чаты</string>
+    <string name="search_global">Глобальный поиск</string>
+    <string name="search_messages">Сообщения</string>
     <string name="search_empty">Ничего не найдено</string>
     <string name="archive_empty">В архиве пусто</string>
     <plurals name="archive_chats">
