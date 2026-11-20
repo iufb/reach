@@ -42,16 +42,28 @@ class MainActivity : ComponentActivity() {
     /** Чат, который просили открыть из уведомления; `null` — запроса нет или он уже выполнен. */
     private val openChatRequest = MutableStateFlow<Long?>(null)
 
+    /** Ссылка `t.me/…` / `tg://…`, с которой открыли приложение. */
+    private val openLinkRequest = MutableStateFlow<String?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         // После пересоздания активити запрос уже выполнен
-        if (savedInstanceState == null) openChatRequest.value = intent.chatIdExtra()
+        if (savedInstanceState == null) {
+            openChatRequest.value = intent.chatIdExtra()
+            openLinkRequest.value = intent.linkData()
+        }
         enableEdgeToEdge()
         setContent {
             ReachTheme {
                 if (hasApiCredentials()) {
                     val openChatId by openChatRequest.collectAsStateWithLifecycle()
-                    ReachRoot(openChatId, onOpenChatHandled = { openChatRequest.value = null })
+                    val openLink by openLinkRequest.collectAsStateWithLifecycle()
+                    ReachRoot(
+                        openChatId,
+                        onOpenChatHandled = { openChatRequest.value = null },
+                        openLink = openLink,
+                        onOpenLinkHandled = { openLinkRequest.value = null },
+                    )
                 } else {
                     MissingCredentialsScreen()
                 }
@@ -62,7 +74,10 @@ class MainActivity : ComponentActivity() {
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         intent.chatIdExtra()?.let { openChatRequest.value = it }
+        intent.linkData()?.let { openLinkRequest.value = it }
     }
+
+    private fun Intent.linkData(): String? = data?.takeIf { action == Intent.ACTION_VIEW }?.toString()
 
     private fun Intent.chatIdExtra(): Long? = getLongExtra(EXTRA_CHAT_ID, 0).takeIf { it != 0L }
 
@@ -73,10 +88,16 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-private fun ReachRoot(openChatId: Long?, onOpenChatHandled: () -> Unit, viewModel: AppViewModel = hiltViewModel()) {
+private fun ReachRoot(
+    openChatId: Long?,
+    onOpenChatHandled: () -> Unit,
+    openLink: String?,
+    onOpenLinkHandled: () -> Unit,
+    viewModel: AppViewModel = hiltViewModel(),
+) {
     val authState by viewModel.authState.collectAsStateWithLifecycle()
     if (authState == AuthState.Ready) NotificationPermissionRequest()
-    ReachNavHost(authState, openChatId, onOpenChatHandled)
+    ReachNavHost(authState, openChatId, onOpenChatHandled, openLink, onOpenLinkHandled)
 }
 
 /** Один раз за запуск просим разрешение на уведомления, если его нет (Android 13+). */
