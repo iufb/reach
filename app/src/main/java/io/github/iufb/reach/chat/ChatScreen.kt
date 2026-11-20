@@ -98,7 +98,7 @@ import io.github.iufb.reach.chats.SpanKind
 import io.github.iufb.reach.chats.TextSpan
 import io.github.iufb.reach.chats.ServiceKind
 import io.github.iufb.reach.chats.contentKindText
-import io.github.iufb.reach.chats.serviceKindText
+import io.github.iufb.reach.chats.serviceText
 import io.github.iufb.reach.ui.components.Avatar
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -390,7 +390,23 @@ private fun ChatHeader(chat: Chat, header: HeaderInfo, senders: Map<Sender, Send
         ChatAvatar(chat, size = 40.dp)
         Spacer(Modifier.width(12.dp))
         Column {
-            Text(chatTitle(chat), style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    chatTitle(chat),
+                    modifier = Modifier.weight(1f, fill = false),
+                    style = MaterialTheme.typography.titleMedium,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (chat.autoDeleteTime > 0) {
+                    Spacer(Modifier.width(4.dp))
+                    Icon(
+                        painterResource(R.drawable.ic_timer),
+                        contentDescription = stringResource(R.string.auto_delete_enabled),
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
             // У Избранного нет статуса и «печатает»
             if (chat.isSavedMessages) return@Column
             val activity = activityText(header.activities, withNames = chat.kind == ChatKind.Group) { sender ->
@@ -508,7 +524,7 @@ private fun MessageList(
         items(items, key = { it.key }) { item ->
             when (item) {
                 is Item.Msg -> when {
-                    item.message.content is MessageBody.Service -> ServiceMessage(item.message.content.kind)
+                    item.message.content is MessageBody.Service -> ServiceMessage(item.message.content)
                     isChannel -> ChannelPost(item.message, interactions, item.album) {
                         ForwardHeader(item.message, senders, interactions)
                         ReplyHeader(item.message, byId, senders, interactions)
@@ -965,7 +981,7 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
             if (!body.caption.isBlank()) RichTextView(body.caption)
         }
         // Служебные рисуются отдельно, без пузыря (ServiceMessage)
-        is MessageBody.Service -> Text(serviceKindText(body.kind), style = MaterialTheme.typography.bodyMedium)
+        is MessageBody.Service -> Text(serviceText(body), style = MaterialTheme.typography.bodyMedium)
     }
 }
 
@@ -1086,10 +1102,10 @@ private fun UnsupportedStub(kind: ContentKind) {
 }
 
 @Composable
-private fun ServiceMessage(kind: ServiceKind) {
+private fun ServiceMessage(body: MessageBody.Service) {
     Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
         Text(
-            serviceKindText(kind),
+            serviceText(body),
             modifier = Modifier
                 .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(12.dp))
                 .padding(horizontal = 10.dp, vertical = 4.dp),

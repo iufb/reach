@@ -151,6 +151,7 @@ class ChatsRepository @Inject constructor(
                 _chats.update { all -> all.mapValues { (_, chat) -> chat.withMute(scopeMute) } }
             }
             is TdApi.UpdateChatTitle -> edit(update.chatId) { copy(title = update.title) }
+            is TdApi.UpdateChatMessageAutoDeleteTime -> edit(update.chatId) { copy(autoDeleteTime = update.messageAutoDeleteTime) }
             is TdApi.UpdateChatHasScheduledMessages -> edit(update.chatId) {
                 copy(hasScheduledMessages = update.hasScheduledMessages)
             }
@@ -173,7 +174,7 @@ class ChatsRepository @Inject constructor(
             is TdApi.UpdateChatPhoto -> edit(update.chatId) { copy(photo = update.photo?.small?.toTdFile()) }
             is TdApi.UpdateChatAccentColors -> edit(update.chatId) { copy(accentColorId = update.accentColorId) }
             is TdApi.UpdateChatPermissions -> edit(update.chatId) {
-                copy(canSendBasicMessages = update.permissions.canSendBasicMessages)
+                copy(canSendBasicMessages = update.permissions.canSendBasicMessages, canChangeInfoByDefault = update.permissions.canChangeInfo)
             }
             is TdApi.UpdateChatReadInbox -> edit(update.chatId) { copy(unreadCount = update.unreadCount, lastReadInboxMessageId = update.lastReadInboxMessageId) }
             is TdApi.UpdateChatFolders -> _folders.value = ChatFolders(

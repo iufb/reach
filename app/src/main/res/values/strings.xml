@@ -47,6 +47,24 @@
         <item quantity="many">%d минут</item>
         <item quantity="other">%d минуты</item>
     </plurals>
+    <plurals name="days">
+        <item quantity="one">%d день</item>
+        <item quantity="few">%d дня</item>
+        <item quantity="many">%d дней</item>
+        <item quantity="other">%d дня</item>
+    </plurals>
+    <plurals name="weeks">
+        <item quantity="one">%d неделя</item>
+        <item quantity="few">%d недели</item>
+        <item quantity="many">%d недель</item>
+        <item quantity="other">%d недели</item>
+    </plurals>
+    <plurals name="months">
+        <item quantity="one">%d месяц</item>
+        <item quantity="few">%d месяца</item>
+        <item quantity="many">%d месяцев</item>
+        <item quantity="other">%d месяца</item>
+    </plurals>
     <plurals name="hours">
         <item quantity="one">%d час</item>
         <item quantity="few">%d часа</item>
@@ -335,5 +353,12 @@
     <string name="service_video_chat">Видеочат</string>
     <string name="service_payment">Платёж</string>
     <string name="service_other">Служебное сообщение</string>
+    <string name="service_auto_delete">Изменён таймер автоудаления</string>
+    <string name="service_auto_delete_on">Включено автоудаление: %1$s</string>
+    <string name="service_auto_delete_off">Автоудаление выключено</string>
+    <string name="auto_delete_title">Автоудаление</string>
+    <string name="auto_delete_off">Выключено</string>
+    <string name="auto_delete_enabled">Автоудаление включено</string>
+    <string name="auto_delete_hint">Новые сообщения в этом чате будут удаляться у всех участников через выбранное время.</string>
     <string name="chat_list_menu">Меню чатов</string>
 </resources>

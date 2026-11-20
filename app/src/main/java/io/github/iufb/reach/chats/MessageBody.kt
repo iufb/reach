@@ -43,7 +43,8 @@ sealed interface MessageBody {
     data class Unsupported(val kind: ContentKind, val caption: RichText = RichText.Empty) : MessageBody
 
     /** Служебное событие чата: вступление, смена названия, закреп… */
-    data class Service(val kind: ServiceKind) : MessageBody
+    /** [value] — число для части видов (секунды автоудаления), [text] — строка (название топика). */
+    data class Service(val kind: ServiceKind, val value: Int = 0, val text: String = "") : MessageBody
 }
 
 enum class ContentKind {
@@ -54,7 +55,7 @@ enum class ContentKind {
 
 enum class ServiceKind {
     ChatCreated, MembersAdded, MemberJoined, MemberLeft, TitleChanged, PhotoChanged, PhotoDeleted,
-    MessagePinned, ScreenshotTaken, ContactRegistered, VideoChat, Payment, Other,
+    MessagePinned, ScreenshotTaken, ContactRegistered, VideoChat, Payment, AutoDeleteSet, Other,
 }
 
 internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
@@ -91,6 +92,7 @@ internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
     is TdApi.MessageExpiredPhoto, is TdApi.MessageExpiredVideo, is TdApi.MessageExpiredVideoNote,
     is TdApi.MessageExpiredVoiceNote -> MessageBody.Unsupported(ContentKind.Expired)
 
+    is TdApi.MessageChatSetMessageAutoDeleteTime -> MessageBody.Service(ServiceKind.AutoDeleteSet, value = messageAutoDeleteTime)
     is TdApi.MessageBasicGroupChatCreate, is TdApi.MessageSupergroupChatCreate -> service(ServiceKind.ChatCreated)
     is TdApi.MessageChatAddMembers -> service(ServiceKind.MembersAdded)
     is TdApi.MessageChatJoinByLink, is TdApi.MessageChatJoinByRequest -> service(ServiceKind.MemberJoined)
@@ -106,7 +108,7 @@ internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
     is TdApi.MessagePaymentSuccessful, is TdApi.MessagePaymentSuccessfulBot,
     is TdApi.MessagePaymentRefunded -> service(ServiceKind.Payment)
     is TdApi.MessageChatUpgradeTo, is TdApi.MessageChatUpgradeFrom, is TdApi.MessageChatSetTheme,
-    is TdApi.MessageChatSetBackground, is TdApi.MessageChatSetMessageAutoDeleteTime, is TdApi.MessageChatBoost,
+    is TdApi.MessageChatSetBackground, is TdApi.MessageChatBoost,
     is TdApi.MessageForumTopicCreated, is TdApi.MessageForumTopicEdited, is TdApi.MessageCustomServiceAction,
     is TdApi.MessageGameScore, is TdApi.MessageBotWriteAccessAllowed, is TdApi.MessageProximityAlertTriggered,
     is TdApi.MessageChatOwnerLeft, is TdApi.MessageChatOwnerChanged -> service(ServiceKind.Other)
