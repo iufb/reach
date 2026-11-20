@@ -51,6 +51,28 @@ android {
         }
     }
 
+    buildTypes {
+        getByName("debug") {
+            buildConfigField("boolean", "USE_TEST_DC", "false")
+        }
+        getByName("release") {
+            buildConfigField("boolean", "USE_TEST_DC", "false")
+        }
+        // Debug-сборка на тестовых серверах Telegram (test DC): ставится рядом с основной,
+        // своя база TDLib (отдельный applicationId → свой filesDir). Push выключен: FCM-проект
+        // привязан к основному applicationId, а в test DC push всё равно не проверяем.
+        create("testdc") {
+            initWith(getByName("debug"))
+            applicationIdSuffix = ".testdc"
+            versionNameSuffix = "-testdc"
+            matchingFallbacks += "debug"
+            buildConfigField("boolean", "USE_TEST_DC", "true")
+            for (name in listOf("FCM_PROJECT_ID", "FCM_APP_ID", "FCM_API_KEY", "FCM_SENDER_ID")) {
+                buildConfigField("String", name, "\"\"")
+            }
+        }
+    }
+
     buildFeatures {
         compose = true
         buildConfig = true

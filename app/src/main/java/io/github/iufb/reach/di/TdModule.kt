@@ -22,5 +22,6 @@ object TdModule {
         filesDirectory = context.filesDir.resolve("tdlib-files").absolutePath,
         applicationVersion = BuildConfig.VERSION_NAME,
         logUpdates = BuildConfig.DEBUG,
+        useTestDc = BuildConfig.USE_TEST_DC,
     )
 }

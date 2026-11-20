@@ -2,7 +2,16 @@
 # Скачивает debug APK из последнего успешного прогона CI для текущей ветки и ставит на устройство.
 # Локально ничего не собираем (docs/adr/0001-ci-only-builds.md).
 # Требуется: gh (авторизован), adb, подключённое устройство или эмулятор.
+#
+# Использование: scripts/install-apk.sh [--testdc] [ветка]
+#   --testdc  поставить сборку на тестовых серверах Telegram («Reach Test», рядом с основной)
 set -euo pipefail
+
+artifact=reach-debug
+if [ "${1:-}" = "--testdc" ]; then
+  artifact=reach-testdc
+  shift
+fi
 
 branch="${1:-$(git rev-parse --abbrev-ref HEAD)}"
 
@@ -23,8 +32,8 @@ head=$(git rev-parse --short=7 "origin/$branch" 2>/dev/null || true)
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT
 
-echo "Скачиваю APK: ветка $branch, коммит $sha ($created), run $run_id"
-gh run download "$run_id" --name reach-debug --dir "$tmp"
+echo "Скачиваю $artifact: ветка $branch, коммит $sha ($created), run $run_id"
+gh run download "$run_id" --name "$artifact" --dir "$tmp"
 
 apk=$(find "$tmp" -name '*.apk' | head -1)
 [ -n "$apk" ] || { echo "Ошибка: в артефакте нет APK" >&2; exit 1; }
