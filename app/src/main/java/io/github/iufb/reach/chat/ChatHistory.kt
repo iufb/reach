@@ -241,6 +241,15 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         _state.update { it.merge(listOf(pending.toModel())) }
     }
 
+    /** Голосовое (OGG/Opus) с длительностью и waveform. */
+    suspend fun sendVoice(path: String, duration: Int, waveform: ByteArray, replyToMessageId: Long? = null) {
+        if (!_state.value.reachedNewest) open(lastReadInboxId = null)
+        val voice = TdApi.InputVoiceNote(TdApi.InputFileLocal(path), duration, waveform)
+        val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
+        val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, null, null, TdApi.InputMessageVoiceNote(voice, null, null)))
+        _state.update { it.merge(listOf(pending.toModel())) }
+    }
+
     /**
      * Правка своего сообщения: текст — `editMessageText`, подпись к медиа — `editMessageCaption`.
      * Новое содержимое придёт апдейтами `UpdateMessageContent` / `UpdateMessageEdited`.

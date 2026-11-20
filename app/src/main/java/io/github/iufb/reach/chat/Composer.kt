@@ -64,6 +64,7 @@ import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.LinkPreview
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
+import io.github.iufb.reach.media.RecorderState
 
 /** Поле ввода; `null` в [ChatContent] — писать нельзя, поле скрыто. */
 internal class ComposerState(
@@ -91,6 +92,8 @@ internal class ComposerState(
     /** Скрепка слева от поля: фото или файл; `null` — вложения недоступны. */
     val onAttachPhoto: (() -> Unit)? = null,
     val onAttachFile: (() -> Unit)? = null,
+    /** Голосовые; `null` — записывать нельзя. */
+    val voice: VoiceInput? = null,
 )
 
 /** «@запрос» перед курсором: участок от «@» до курсора и сам запрос. */
@@ -129,6 +132,11 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
     val colors = richTextColors()
     val transformation = remember(state.draft, colors) { RichVisualTransformation(state.draft, colors) }
     val canSend = state.draft.text.isNotBlank()
+    val voice = state.voice?.takeIf { state.editing == null }
+    val recording = voice != null && voice.state !is RecorderState.Idle
+    // Микрофон вместо «отправить», пока поле пустое и запись не зафиксирована
+    val showMic = voice != null && !canSend &&
+        (voice.state is RecorderState.Idle || (voice.state as? RecorderState.Recording)?.locked == false)
 
     Surface(color = MaterialTheme.colorScheme.surface) {
         Column(Modifier.navigationBarsPadding()) {
@@ -151,52 +159,61 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
                 modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                if (state.editing == null && (state.onAttachPhoto != null || state.onAttachFile != null)) {
-                    AttachButton(state.onAttachPhoto, state.onAttachFile)
-                }
-                TextField(
-                    colors = TextFieldDefaults.colors(
-                        focusedContainerColor = Color.Transparent,
-                        unfocusedContainerColor = Color.Transparent,
-                        errorContainerColor = Color.Transparent,
-                        focusedIndicatorColor = Color.Transparent,
-                        unfocusedIndicatorColor = Color.Transparent,
-                        errorIndicatorColor = Color.Transparent,
-                    ),
-                    value = field,
-                    onValueChange = {
-                        field = it
-                        if (it.text != state.draft.text) state.onDraftChange(it.text)
-                    },
-                    modifier = Modifier.weight(1f),
-                    placeholder = { Text(stringResource(R.string.chat_input_placeholder)) },
-                    isError = state.error != null,
-                    supportingText = state.error?.let { { Text(stringResource(R.string.chat_send_error, it)) } },
-                    maxLines = 6,
-                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                    visualTransformation = transformation,
-                    interactionSource = fieldInteraction,
-                    trailingIcon = {
-                        IconButton(onClick = {
-                            if (emojiOpen) keyboard?.show() else keyboard?.hide()
-                            emojiOpen = !emojiOpen
-                        }) {
-                            val description = stringResource(if (emojiOpen) R.string.emoji_keyboard else R.string.emoji_open)
-                            Text(
-                                if (emojiOpen) "⌨" else "☺",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.semantics { contentDescription = description },
-                            )
-                        }
-                    },
-                )
-                IconButton(onClick = state.onSend, enabled = canSend) {
-                    Icon(
-                        painterResource(R.drawable.ic_send),
-                        contentDescription = stringResource(R.string.chat_send),
-                        tint = if (canSend) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                if (recording) {
+                    RecordingBar(voice!!, Modifier.weight(1f))
+                } else {
+                    if (state.editing == null && (state.onAttachPhoto != null || state.onAttachFile != null)) {
+                        AttachButton(state.onAttachPhoto, state.onAttachFile)
+                    }
+                    TextField(
+                        colors = TextFieldDefaults.colors(
+                            focusedContainerColor = Color.Transparent,
+                            unfocusedContainerColor = Color.Transparent,
+                            errorContainerColor = Color.Transparent,
+                            focusedIndicatorColor = Color.Transparent,
+                            unfocusedIndicatorColor = Color.Transparent,
+                            errorIndicatorColor = Color.Transparent,
+                        ),
+                        value = field,
+                        onValueChange = {
+                            field = it
+                            if (it.text != state.draft.text) state.onDraftChange(it.text)
+                        },
+                        modifier = Modifier.weight(1f),
+                        placeholder = { Text(stringResource(R.string.chat_input_placeholder)) },
+                        isError = state.error != null,
+                        supportingText = state.error?.let { { Text(stringResource(R.string.chat_send_error, it)) } },
+                        maxLines = 6,
+                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                        visualTransformation = transformation,
+                        interactionSource = fieldInteraction,
+                        trailingIcon = {
+                            IconButton(onClick = {
+                                if (emojiOpen) keyboard?.show() else keyboard?.hide()
+                                emojiOpen = !emojiOpen
+                            }) {
+                                val description = stringResource(if (emojiOpen) R.string.emoji_keyboard else R.string.emoji_open)
+                                Text(
+                                    if (emojiOpen) "⌨" else "☺",
+                                    style = MaterialTheme.typography.titleLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.semantics { contentDescription = description },
+                                )
+                            }
+                        },
                     )
+                }
+                if (showMic) {
+                    MicButton(voice!!)
+                } else {
+                    val sendVoice = recording
+                    IconButton(onClick = if (sendVoice) voice!!.onSend else state.onSend, enabled = canSend || sendVoice) {
+                        Icon(
+                            painterResource(R.drawable.ic_send),
+                            contentDescription = stringResource(R.string.chat_send),
+                            tint = if (canSend || sendVoice) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
                 }
             }
             if (emojiOpen) {
