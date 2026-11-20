@@ -1,5 +1,7 @@
 package io.github.iufb.reach.chats
 
+import io.github.iufb.reach.files.TdFile
+import io.github.iufb.reach.files.toTdFile
 import org.drinkless.tdlib.TdApi
 
 /**
@@ -26,6 +28,12 @@ sealed interface MessageBody {
     /** Музыка (`MessageAudio`). */
     data class Audio(val audio: AudioInfo, val caption: RichText) : MessageBody
 
+    /**
+     * Сообщение из одного эмодзи с анимацией: [animation] — TGS-стикер (null — анимации нет,
+     * рисуем крупный символ), [emoji] — сам символ.
+     */
+    data class AnimatedEmoji(val emoji: String, val animation: TdFile?) : MessageBody
+
     /** Стикер — без пузыря и без подписи. */
     data class Sticker(val sticker: StickerInfo) : MessageBody
 
@@ -51,8 +59,10 @@ enum class ServiceKind {
 
 internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
     is TdApi.MessageText -> MessageBody.Text(text.toRichText(), linkPreview?.toModel())
-    // Одиночный анимированный эмодзи — это текст
-    is TdApi.MessageAnimatedEmoji -> MessageBody.Text(RichText(emoji))
+    is TdApi.MessageAnimatedEmoji -> MessageBody.AnimatedEmoji(
+        emoji,
+        animatedEmoji.sticker?.takeIf { it.format is TdApi.StickerFormatTgs }?.sticker?.toTdFile(),
+    )
 
     is TdApi.MessagePhoto -> MessageBody.Photo(photo.toInfo(), caption.toRichText())
     is TdApi.MessageVideo -> MessageBody.Video(toInfo(), caption.toRichText())

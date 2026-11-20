@@ -870,6 +870,15 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
             )
             if (!body.caption.isBlank()) RichTextView(body.caption)
         }
+        is MessageBody.AnimatedEmoji -> {
+            val (replay, onReplay) = rememberReplay()
+            AnimatedEmojiView(
+                body.emoji,
+                body.animation,
+                replay,
+                Modifier.messageLongPress(message, interactions, onClick = onReplay),
+            )
+        }
         is MessageBody.Sticker -> StickerView(
             body.sticker,
             Modifier.messageLongPress(message, interactions) { interactions.onStickerClick(body.sticker) },
@@ -1090,5 +1099,5 @@ private fun MessageBody.viewerItem(): ViewerItem? = when (this) {
     else -> null
 }
 
-/** Содержимое без пузыря: стикеры. */
-private fun MessageBody.isBare(): Boolean = this is MessageBody.Sticker
+/** Содержимое без пузыря: стикеры и большие эмодзи. */
+private fun MessageBody.isBare(): Boolean = this is MessageBody.Sticker || this is MessageBody.AnimatedEmoji
