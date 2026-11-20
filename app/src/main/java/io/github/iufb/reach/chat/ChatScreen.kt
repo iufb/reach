@@ -209,6 +209,9 @@ fun ChatScreen(
                         onDiscard = viewModel::discardRecording,
                         onTogglePreview = viewModel::toggleRecordingPreview,
                     ),
+                    sendMenu = SendMenu(onSilent = viewModel::sendSilently),
+                    silent = chat?.takeIf { it.kind == ChatKind.Channel }?.defaultSilent,
+                    onToggleSilent = viewModel::toggleDefaultSilent,
                 )
             } else {
                 null

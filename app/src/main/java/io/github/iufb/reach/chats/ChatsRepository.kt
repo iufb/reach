@@ -151,6 +151,9 @@ class ChatsRepository @Inject constructor(
                 _chats.update { all -> all.mapValues { (_, chat) -> chat.withMute(scopeMute) } }
             }
             is TdApi.UpdateChatTitle -> edit(update.chatId) { copy(title = update.title) }
+            is TdApi.UpdateChatDefaultDisableNotification -> edit(update.chatId) {
+                copy(defaultSilent = update.defaultDisableNotification)
+            }
             is TdApi.UpdateChatPosition -> edit(update.chatId) { copy(positions = positions.with(update.position)) }
             is TdApi.UpdateChatLastMessage -> edit(update.chatId) {
                 copy(

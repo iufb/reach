@@ -119,6 +119,10 @@
     <string name="chat_kind_channel">канал</string>
     <string name="chat_input_placeholder">Сообщение</string>
     <string name="chat_send">Отправить</string>
+    <string name="send_options">Варианты отправки</string>
+    <string name="send_silent">Отправить без звука</string>
+    <string name="send_silent_on">Без звука: включено</string>
+    <string name="send_silent_off">Без звука: выключено</string>
     <string name="chat_send_error">Не отправлено: %1$s</string>
     <string name="chat_status_sending">Отправляется</string>
     <string name="chat_status_sent">Отправлено</string>

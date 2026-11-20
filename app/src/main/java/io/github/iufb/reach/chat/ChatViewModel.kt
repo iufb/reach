@@ -354,8 +354,23 @@ class ChatViewModel @Inject constructor(
         _pickedPhotos.value = emptyList()
     }
 
+    /**
+     * Опции отправки: [silent] — разово «без звука» из меню отправки,
+     * иначе как настроено колокольчиком чата.
+     */
+    private fun sendOptions(silent: Boolean = false) = SendOptions(silent = silent || chat.value?.defaultSilent == true)
+
+    /** Колокольчик в поле ввода канала: переключает «без звука» по умолчанию для этого чата. */
+    fun toggleDefaultSilent() {
+        val current = chat.value?.defaultSilent ?: return
+        viewModelScope.launch {
+            runCatching { td.send(TdApi.ToggleChatDefaultDisableNotification(chatId, !current)) }
+                .onFailure { Log.w(TAG, "toggleChatDefaultDisableNotification failed", it) }
+        }
+    }
+
     /** Отправка выбранных фото с подписью; ответ, если он начат, уходит вместе с ними. */
-    fun sendPhotos(caption: String) {
+    fun sendPhotos(caption: String, silent: Boolean) {
         val uris = _pickedPhotos.value
         if (uris.isEmpty()) return
         _pickedPhotos.value = emptyList()
@@ -364,7 +379,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 val images = uris.map { importer.importImage(it) }
-                history.sendPhotos(images, RichText(caption.trim()), reply?.id)
+                history.sendPhotos(images, RichText(caption.trim()), reply?.id, sendOptions(silent))
             }.onFailure {
                 Log.e(TAG, "send photos failed", it)
                 _replyTo.value = reply
@@ -456,7 +471,7 @@ class ChatViewModel @Inject constructor(
         val reply = _replyTo.value
         _replyTo.value = null
         viewModelScope.launch {
-            runCatching { history.sendVoice(recording.path, recording.durationSec, recording.waveform, reply?.id) }.onFailure {
+            runCatching { history.sendVoice(recording.path, recording.durationSec, recording.waveform, reply?.id, sendOptions()) }.onFailure {
                 Log.e(TAG, "send voice failed", it)
                 _replyTo.value = reply
                 _sendError.value = it.message
@@ -492,7 +507,7 @@ class ChatViewModel @Inject constructor(
         val reply = _replyTo.value
         _replyTo.value = null
         viewModelScope.launch {
-            runCatching { history.sendDocument(importer.importFile(uri), reply?.id) }.onFailure {
+            runCatching { history.sendDocument(importer.importFile(uri), reply?.id, sendOptions()) }.onFailure {
                 Log.e(TAG, "send file failed", it)
                 _replyTo.value = reply
                 _sendError.value = it.message
@@ -559,7 +574,12 @@ class ChatViewModel @Inject constructor(
         _draft.update { it.toggle(kind, start, end) }
     }
 
-    fun send() {
+    fun send() = sendDraft(silent = false)
+
+    /** «Отправить без звука» из меню кнопки отправки. */
+    fun sendSilently() = sendDraft(silent = true)
+
+    private fun sendDraft(silent: Boolean) {
         _editing.value?.let { return saveEdit(it) }
         val text = _draft.value.trimmed()
         if (text.isBlank()) return
@@ -569,7 +589,7 @@ class ChatViewModel @Inject constructor(
         _replyTo.value = null
         dismissedPreviewUrl.value = null
         viewModelScope.launch {
-            runCatching { history.sendText(text, reply?.id, withLinkPreview = !noPreview) }.onFailure {
+            runCatching { history.sendText(text, reply?.id, withLinkPreview = !noPreview, options = sendOptions(silent)) }.onFailure {
                 Log.e(TAG, "sendMessage failed", it)
                 _draft.value = text
                 _replyTo.value = reply

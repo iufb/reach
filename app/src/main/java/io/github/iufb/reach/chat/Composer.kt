@@ -2,6 +2,13 @@ package io.github.iufb.reach.chat
 
 import androidx.annotation.StringRes
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.semantics.Role
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.heightIn
@@ -94,6 +101,16 @@ internal class ComposerState(
     val onAttachFile: (() -> Unit)? = null,
     /** Голосовые; `null` — записывать нельзя. */
     val voice: VoiceInput? = null,
+    /** Меню по долгому нажатию на «отправить»; `null` — меню нет. */
+    val sendMenu: SendMenu? = null,
+    /** Колокольчик «без звука по умолчанию» (каналы); `null` — не показываем. */
+    val silent: Boolean? = null,
+    val onToggleSilent: () -> Unit = {},
+)
+
+/** Варианты отправки из меню кнопки «отправить». */
+internal class SendMenu(
+    val onSilent: () -> Unit,
 )
 
 /** «@запрос» перед курсором: участок от «@» до курсора и сам запрос. */
@@ -188,17 +205,12 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
                         visualTransformation = transformation,
                         interactionSource = fieldInteraction,
                         trailingIcon = {
-                            IconButton(onClick = {
-                                if (emojiOpen) keyboard?.show() else keyboard?.hide()
-                                emojiOpen = !emojiOpen
-                            }) {
-                                val description = stringResource(if (emojiOpen) R.string.emoji_keyboard else R.string.emoji_open)
-                                Text(
-                                    if (emojiOpen) "⌨" else "☺",
-                                    style = MaterialTheme.typography.titleLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.semantics { contentDescription = description },
-                                )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                state.silent?.let { silent -> SilentToggle(silent, state.onToggleSilent) }
+                                EmojiToggle(emojiOpen) {
+                                    if (emojiOpen) keyboard?.show() else keyboard?.hide()
+                                    emojiOpen = !emojiOpen
+                                }
                             }
                         },
                     )
@@ -207,13 +219,12 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
                     MicButton(voice!!)
                 } else {
                     val sendVoice = recording
-                    IconButton(onClick = if (sendVoice) voice!!.onSend else state.onSend, enabled = canSend || sendVoice) {
-                        Icon(
-                            painterResource(R.drawable.ic_send),
-                            contentDescription = stringResource(R.string.chat_send),
-                            tint = if (canSend || sendVoice) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    SendButton(
+                        enabled = canSend || sendVoice,
+                        onClick = if (sendVoice) voice!!.onSend else state.onSend,
+                        // Меню — только для набранного текста, не для правки и не для голосового
+                        menu = state.sendMenu?.takeIf { !sendVoice && state.editing == null && canSend },
+                    )
                 }
             }
             if (emojiOpen) {
@@ -234,6 +245,80 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
                 linkFor = null
             },
             onDismiss = { linkFor = null },
+        )
+    }
+}
+
+/** «Отправить»: тап — отправка, долгое нажатие — меню вариантов ([SendMenu]). */
+@Composable
+private fun SendButton(enabled: Boolean, onClick: () -> Unit, menu: SendMenu?) {
+    var open by remember { mutableStateOf(false) }
+    val haptics = LocalHapticFeedback.current
+    val description = stringResource(R.string.chat_send)
+    val optionsLabel = stringResource(R.string.send_options)
+    Box {
+        Box(
+            modifier = Modifier
+                .size(48.dp)
+                .clip(CircleShape)
+                .combinedClickable(
+                    enabled = enabled,
+                    role = Role.Button,
+                    onLongClickLabel = if (menu != null) optionsLabel else null,
+                    onClick = onClick,
+                    onLongClick = menu?.let {
+                        {
+                            haptics.performHapticFeedback(HapticFeedbackType.LongPress)
+                            open = true
+                        }
+                    },
+                )
+                .semantics { contentDescription = description },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(
+                painterResource(R.drawable.ic_send),
+                contentDescription = null,
+                tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+        if (menu != null) {
+            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.send_silent)) },
+                    leadingIcon = { Icon(painterResource(R.drawable.ic_muted), contentDescription = null) },
+                    onClick = {
+                        open = false
+                        menu.onSilent()
+                    },
+                )
+            }
+        }
+    }
+}
+
+/** ☺ открывает панель эмодзи, ⌨ — возвращает клавиатуру. */
+@Composable
+private fun EmojiToggle(open: Boolean, onClick: () -> Unit) {
+    IconButton(onClick = onClick) {
+        val description = stringResource(if (open) R.string.emoji_keyboard else R.string.emoji_open)
+        Text(
+            if (open) "⌨" else "☺",
+            style = MaterialTheme.typography.titleLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.semantics { contentDescription = description },
+        )
+    }
+}
+
+/** Колокольчик: перечёркнут — сообщения уходят без звука. */
+@Composable
+private fun SilentToggle(silent: Boolean, onToggle: () -> Unit) {
+    IconButton(onClick = onToggle) {
+        Icon(
+            painterResource(if (silent) R.drawable.ic_muted else R.drawable.ic_unmute),
+            contentDescription = stringResource(if (silent) R.string.send_silent_on else R.string.send_silent_off),
+            tint = MaterialTheme.colorScheme.onSurfaceVariant,
         )
     }
 }
