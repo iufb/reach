@@ -33,7 +33,10 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlin.coroutines.resume
+import kotlin.coroutines.resumeWithException
 import java.io.File
 import java.util.UUID
 import kotlin.math.min
@@ -107,11 +110,19 @@ class VideoNoteCamera(private val context: Context) {
 
     /** Экран с превью готов: открыть камеру и, если запись ещё нужна, начать её. */
     suspend fun open(owner: LifecycleOwner) {
-        val cameraProvider = provider ?: ProcessCameraProvider.awaitInstance(context).also { provider = it }
+        val cameraProvider = provider ?: awaitCameraProvider().also { provider = it }
         this.owner = owner
         preview.setSurfaceProvider(previewView.surfaceProvider)
         bind(cameraProvider)
         if (phase == Phase.Starting && recording == null) beginRecording()
+    }
+
+    private suspend fun awaitCameraProvider(): ProcessCameraProvider = suspendCancellableCoroutine { cont ->
+        val future = ProcessCameraProvider.getInstance(context)
+        future.addListener(
+            { runCatching { future.get() }.onSuccess { cont.resume(it) }.onFailure { cont.resumeWithException(it) } },
+            ContextCompat.getMainExecutor(context),
+        )
     }
 
     fun flip() {
