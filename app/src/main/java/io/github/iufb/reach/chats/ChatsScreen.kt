@@ -81,9 +81,15 @@ fun ChatsScreen(
     onOpenSearch: () -> Unit,
     onBack: () -> Unit,
     onOpenAutoDownload: () -> Unit = {},
+    /** Форум открывается списком топиков. */
+    onOpenTopics: (Long) -> Unit = onChatClick,
     viewModel: ChatsViewModel = hiltViewModel(),
 ) {
     val chats by viewModel.chats.collectAsStateWithLifecycle()
+    val openForumAware: (Long) -> Unit = { id ->
+        val target = chats?.firstOrNull { it.id == id }
+        if (target != null && target.viewAsTopics && !target.isSavedMessages) onOpenTopics(id) else onChatClick(id)
+    }
     val allLoaded by viewModel.allLoaded.collectAsStateWithLifecycle()
     val loggingOut by viewModel.loggingOut.collectAsStateWithLifecycle()
     val activities by viewModel.activities.collectAsStateWithLifecycle()
@@ -96,7 +102,7 @@ fun ChatsScreen(
     val openChat by rememberUpdatedState(onChatClick)
     LaunchedEffect(viewModel) { viewModel.openChat.collect { openChat(it) } }
     ChatsContent(
-        list, chats, allLoaded, loggingOut, onChatClick, viewModel::loadMore, viewModel::logOut, activities,
+        list, chats, allLoaded, loggingOut, openForumAware, viewModel::loadMore, viewModel::logOut, activities,
         onChatLongClick = viewModel::openMenu,
         snackbar = snackbar,
         archive = archive,

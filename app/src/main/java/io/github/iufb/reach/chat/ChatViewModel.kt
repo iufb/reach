@@ -37,6 +37,7 @@ import io.github.iufb.reach.chats.toggle
 import io.github.iufb.reach.chats.trimmed
 import io.github.iufb.reach.chats.withEditedText
 import io.github.iufb.reach.chats.GroupsRepository
+import io.github.iufb.reach.chats.MemberStatus
 import io.github.iufb.reach.chats.canWrite
 import io.github.iufb.reach.core.td.TdClient
 import io.github.iufb.reach.navigation.ChatRoute
@@ -123,7 +124,10 @@ class ChatViewModel @Inject constructor(
      * вступления в группу обсуждения, если она не требует вступать (`join_to_send_messages`).
      */
     val canWrite: StateFlow<Boolean> = combine(chat, groups.statuses, _scopeInfo) { chat, statuses, info ->
-        chat != null && (chat.canWrite(chat.group?.let(statuses::get)) || info?.openToNonMembers == true)
+        val status = chat?.group?.let(statuses::get)
+        // В закрытый топик пишут только админы
+        val closed = info?.isClosed == true && status !is MemberStatus.Creator && status !is MemberStatus.Administrator
+        chat != null && !closed && (chat.canWrite(status) || info?.openToNonMembers == true)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), false)
 
     private val _draft = MutableStateFlow(RichText.Empty)

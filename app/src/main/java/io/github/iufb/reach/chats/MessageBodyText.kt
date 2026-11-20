@@ -56,6 +56,10 @@ fun ServiceKind.labelRes(): Int = when (this) {
     ServiceKind.VideoChat -> R.string.service_video_chat
     ServiceKind.Payment -> R.string.service_payment
     ServiceKind.AutoDeleteSet -> R.string.service_auto_delete
+    ServiceKind.TopicCreated -> R.string.service_topic_created
+    ServiceKind.TopicRenamed -> R.string.service_topic_renamed
+    ServiceKind.TopicClosed -> R.string.service_topic_closed
+    ServiceKind.TopicReopened -> R.string.service_topic_reopened
     ServiceKind.Other -> R.string.service_other
 }
 
@@ -67,6 +71,8 @@ fun serviceText(body: MessageBody.Service): String = when (body.kind) {
     } else {
         stringResource(R.string.service_auto_delete_off)
     }
+    ServiceKind.TopicCreated -> stringResource(R.string.service_topic_created_named, body.text)
+    ServiceKind.TopicRenamed -> stringResource(R.string.service_topic_renamed_named, body.text)
     else -> serviceKindText(body.kind)
 }
 

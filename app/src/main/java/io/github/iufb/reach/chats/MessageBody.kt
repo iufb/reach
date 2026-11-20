@@ -57,7 +57,8 @@ enum class ContentKind {
 
 enum class ServiceKind {
     ChatCreated, MembersAdded, MemberJoined, MemberLeft, TitleChanged, PhotoChanged, PhotoDeleted,
-    MessagePinned, ScreenshotTaken, ContactRegistered, VideoChat, Payment, AutoDeleteSet, Other,
+    MessagePinned, ScreenshotTaken, ContactRegistered, VideoChat, Payment, AutoDeleteSet,
+    TopicCreated, TopicRenamed, TopicClosed, TopicReopened, Other,
 }
 
 internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
@@ -94,6 +95,10 @@ internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
     is TdApi.MessageExpiredPhoto, is TdApi.MessageExpiredVideo, is TdApi.MessageExpiredVideoNote,
     is TdApi.MessageExpiredVoiceNote -> MessageBody.Unsupported(ContentKind.Expired)
 
+    is TdApi.MessageForumTopicCreated -> MessageBody.Service(ServiceKind.TopicCreated, text = name)
+    // Сменился только значок — имени в апдейте нет
+    is TdApi.MessageForumTopicEdited -> if (name.isNotEmpty()) MessageBody.Service(ServiceKind.TopicRenamed, text = name) else service(ServiceKind.Other)
+    is TdApi.MessageForumTopicIsClosedToggled -> service(if (isClosed) ServiceKind.TopicClosed else ServiceKind.TopicReopened)
     is TdApi.MessageChatSetMessageAutoDeleteTime -> MessageBody.Service(ServiceKind.AutoDeleteSet, value = messageAutoDeleteTime)
     is TdApi.MessageBasicGroupChatCreate, is TdApi.MessageSupergroupChatCreate -> service(ServiceKind.ChatCreated)
     is TdApi.MessageChatAddMembers -> service(ServiceKind.MembersAdded)
@@ -111,7 +116,7 @@ internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
     is TdApi.MessagePaymentRefunded -> service(ServiceKind.Payment)
     is TdApi.MessageChatUpgradeTo, is TdApi.MessageChatUpgradeFrom, is TdApi.MessageChatSetTheme,
     is TdApi.MessageChatSetBackground, is TdApi.MessageChatBoost,
-    is TdApi.MessageForumTopicCreated, is TdApi.MessageForumTopicEdited, is TdApi.MessageCustomServiceAction,
+    is TdApi.MessageCustomServiceAction,
     is TdApi.MessageGameScore, is TdApi.MessageBotWriteAccessAllowed, is TdApi.MessageProximityAlertTriggered,
     is TdApi.MessageChatOwnerLeft, is TdApi.MessageChatOwnerChanged -> service(ServiceKind.Other)
 

@@ -104,6 +104,8 @@ data class Chat(
     val autoDeleteTime: Int = 0,
     /** Общее разрешение участникам менять описание и настройки (`ChatPermissions.canChangeInfo`). */
     val canChangeInfoByDefault: Boolean = false,
+    /** Форум, который показывается списком топиков. */
+    val viewAsTopics: Boolean = false,
 ) {
     /** Есть что читать: непрочитанные сообщения или ручная пометка. */
     val hasUnread: Boolean get() = unreadCount > 0 || isMarkedAsUnread
@@ -160,6 +162,7 @@ internal fun TdApi.Chat.toModel() = Chat(
     hasScheduledMessages = hasScheduledMessages,
     autoDeleteTime = messageAutoDeleteTime,
     canChangeInfoByDefault = permissions.canChangeInfo,
+    viewAsTopics = viewAsTopics,
 )
 
 /** Черновики голосовых и видеокружков клиент не показывает. */
