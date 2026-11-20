@@ -62,6 +62,7 @@ fun ProfileScreen(
     onOpenChat: (Long) -> Unit,
     onOpenGallery: (chatId: Long) -> Unit,
     onOpenMembers: (chatId: Long) -> Unit = {},
+    onOpenPermissions: (chatId: Long) -> Unit = {},
     /** Вышли из группы или удалили её. */
     onLeft: () -> Unit = onBack,
     viewModel: ProfileViewModel = hiltViewModel(),
@@ -189,6 +190,11 @@ fun ProfileScreen(
                         stringResource(if (current.isChannel) R.string.members_subscribers else R.string.members_title),
                         Modifier.fillMaxWidth(),
                     )
+                }
+            }
+            if (current.canEditPermissions) {
+                TextButton(onClick = { onOpenPermissions(viewModel.chatId) }, modifier = Modifier.fillMaxWidth()) {
+                    Text(stringResource(R.string.permissions_title), Modifier.fillMaxWidth())
                 }
             }
             current.autoDeleteTime?.let { seconds ->

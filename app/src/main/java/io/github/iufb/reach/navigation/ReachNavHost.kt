@@ -27,6 +27,8 @@ import io.github.iufb.reach.topics.TopicsScreen
 import io.github.iufb.reach.contacts.ContactsScreen
 import io.github.iufb.reach.newchat.NewChatScreen
 import io.github.iufb.reach.members.MembersScreen
+import io.github.iufb.reach.rights.AdminRightsScreen
+import io.github.iufb.reach.rights.PermissionsScreen
 import io.github.iufb.reach.blocked.BlockedScreen
 import io.github.iufb.reach.contacts.ContactSyncScreen
 import io.github.iufb.reach.settings.SettingsScreen
@@ -64,6 +66,9 @@ import kotlinx.serialization.Serializable
 @Serializable data object BlockedRoute
 @Serializable data class NewChatRoute(val channel: Boolean)
 @Serializable data class MembersRoute(val chatId: Long)
+@Serializable data class AdminRightsRoute(val chatId: Long, val userId: Long)
+/** [userId] = 0 — общие разрешения группы. */
+@Serializable data class PermissionsRoute(val chatId: Long, val userId: Long = 0)
 
 /**
  * Два графа: вход и основной. Какой экран показан, решает [AuthState]:
@@ -160,6 +165,7 @@ fun ReachNavHost(authState: AuthState, openChatId: Long? = null, onOpenChatHandl
                     onOpenChat = { navController.navigate(ChatRoute(it)) },
                     onOpenGallery = { navController.navigate(GalleryRoute(it)) },
                     onOpenMembers = { navController.navigate(MembersRoute(it)) },
+                    onOpenPermissions = { navController.navigate(PermissionsRoute(it)) },
                     // Вышли из группы — её чата больше нет: назад к списку
                     onLeft = { navController.popBackStack<ChatsRoute>(inclusive = false) },
                 )
@@ -168,8 +174,12 @@ fun ReachNavHost(authState: AuthState, openChatId: Long? = null, onOpenChatHandl
                 MembersScreen(
                     onBack = { navController.popBackStack() },
                     onOpenUser = { navController.navigate(ProfileRoute(userId = it)) },
+                    onEditAdmin = { chatId, userId -> navController.navigate(AdminRightsRoute(chatId, userId)) },
+                    onRestrict = { chatId, userId -> navController.navigate(PermissionsRoute(chatId, userId)) },
                 )
             }
+            composable<AdminRightsRoute> { AdminRightsScreen(onBack = { navController.popBackStack() }) }
+            composable<PermissionsRoute> { PermissionsScreen(onBack = { navController.popBackStack() }) }
             composable<SettingsRoute> {
                 SettingsScreen(
                     onBack = { navController.popBackStack() },
