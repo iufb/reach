@@ -197,6 +197,8 @@ fun ChatScreen(
                 menu = menu,
                 onOpenMenu = viewModel::openMenu,
                 onDismissMenu = viewModel::closeMenu,
+                onReact = viewModel::toggleReaction,
+                onDoubleTap = viewModel::reactDefault,
                 onReply = if (canWrite) viewModel::startReply else null,
                 onEdit = viewModel::startEdit,
                 onDelete = viewModel::requestDelete,
@@ -276,6 +278,10 @@ private class MessageInteractions(
     val menu: MessageMenu?,
     val onOpenMenu: (Message) -> Unit,
     val onDismissMenu: () -> Unit,
+    /** Поставить или снять реакцию (меню, чип под сообщением). */
+    val onReact: (Message, ReactionKey) -> Unit,
+    /** Двойной тап по сообщению — реакция по умолчанию. */
+    val onDoubleTap: (Message) -> Unit,
     /** `null` — писать нельзя, ответить тоже. */
     val onReply: ((Message) -> Unit)?,
     val onEdit: (Message) -> Unit,
@@ -626,7 +632,7 @@ private fun MessageBubble(
             }
             reply()
             if (album.size > 1) AlbumContent(album, interactions) else MessageContent(message, interactions)
-            ReactionChips(message.reactions)
+            ReactionChips(message.reactions, onClick = reactionClick(message, interactions))
             Row(
                 modifier = Modifier.align(Alignment.End),
                 horizontalArrangement = Arrangement.spacedBy(4.dp),
@@ -653,6 +659,7 @@ private fun MessagePopup(message: Message, interactions: MessageInteractions) {
         onDelete = interactions.onDelete,
         onForward = interactions.onForward,
         onSelect = interactions.onStartSelection,
+        onReact = interactions.onReact,
     )
 }
 
@@ -677,12 +684,17 @@ private fun Modifier.messageLongPress(
     val selecting = interactions.selection.isNotEmpty()
     return combinedClickable(
         onClick = { if (selecting) interactions.onToggleSelect(message) else onClick() },
+        onDoubleClick = if (selecting) null else ({ interactions.onDoubleTap(message) }),
         onLongClick = {
             haptics.performHapticFeedback(HapticFeedbackType.LongPress)
             if (selecting) interactions.onToggleSelect(message) else interactions.onOpenMenu(message)
         },
     )
 }
+
+/** В режиме выбора чипы не нажимаются: тап отмечает сообщение. */
+private fun reactionClick(message: Message, interactions: MessageInteractions): ((ReactionKey) -> Unit)? =
+    if (interactions.selection.isEmpty()) ({ key -> interactions.onReact(message, key) }) else null
 
 /** Отправляется — часы, ошибка — «!», отправлено — галочка. */
 @Composable
@@ -724,7 +736,7 @@ private fun ChannelPost(
         MessagePopup(message, interactions)
         reply()
         if (album.size > 1) AlbumContent(album, interactions) else MessageContent(message, interactions)
-        ReactionChips(message.reactions)
+        ReactionChips(message.reactions, onClick = reactionClick(message, interactions))
         Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             Text(
                 message.authorSignature,
@@ -947,7 +959,7 @@ private fun ChatPreview() {
             senders, onBack = {}, header = HeaderInfo(), onOpenProfile = {}, selectionBar = null, onLoadOlder = {}, onLoadNewer = {}, onVisibleMessagesChange = {},
             composer = ComposerState(RichText("Как дела?"), null, null, null, {}, { _, _, _ -> }, {}, {}, {}),
             interactions = MessageInteractions(
-                null, {}, {}, {}, {}, {}, {}, {}, emptySet(), {}, {}, { _, _ -> }, { emptyFlow() }, {}, emptyMap(), {},
+                null, {}, {}, { _, _ -> }, {}, {}, {}, {}, {}, {}, emptySet(), {}, {}, { _, _ -> }, { emptyFlow() }, {}, emptyMap(), {},
                 emptyMap(), {}, null, {},
             ),
         )

@@ -2,6 +2,7 @@ package io.github.iufb.reach.chat
 
 import android.content.ClipData
 import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -36,8 +37,12 @@ data class MessageActions(
     val isEmpty: Boolean get() = copyText == null && !canReply && !canEdit && !canDelete && !canForward
 }
 
-/** Открытое меню действий над [message]. */
-data class MessageMenu(val message: Message, val actions: MessageActions)
+/** Открытое меню действий над [message]; [reactions] — ряд реакций сверху. */
+data class MessageMenu(
+    val message: Message,
+    val actions: MessageActions,
+    val reactions: AvailableReactions = AvailableReactions.None,
+)
 
 /** Текст, который копируется из сообщения: сам текст или подпись к медиа. */
 internal fun MessageBody.copyableText(): String? = when (this) {
@@ -91,12 +96,17 @@ internal fun MessageMenuPopup(
     onDelete: (MessageMenu) -> Unit,
     onForward: (Message) -> Unit,
     onSelect: (MessageMenu) -> Unit,
+    onReact: (Message, ReactionKey) -> Unit,
 ) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     DropdownMenu(expanded = menu != null, onDismissRequest = onDismiss) {
         val current = menu ?: return@DropdownMenu
         val actions = current.actions
+        if (!current.reactions.isEmpty) {
+            ReactionPicker(current.reactions, current.message.reactions) { onReact(current.message, it) }
+            HorizontalDivider()
+        }
         if (actions.canReply) {
             DropdownMenuItem(
                 text = { Text(stringResource(R.string.message_action_reply)) },
