@@ -24,13 +24,18 @@ import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.StickerInfo
 import io.github.iufb.reach.media.MediaKind
 import io.github.iufb.reach.media.currentAutoDownloadRules
+import io.github.iufb.reach.media.rememberTgsComposition
+import com.airbnb.lottie.compose.LottieAnimation
+import com.airbnb.lottie.compose.LottieConstants
+import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 
 /**
- * Стикер без пузыря, с прозрачностью. Сначала миниатюра, поверх — сам WebP.
- * Анимированные и видеостикеры (до v0.6) — миниатюра, а без неё — крупный эмодзи.
+ * Стикер без пузыря, с прозрачностью. Сначала миниатюра, поверх — сам WebP или TGS-анимация
+ * по кругу (играет, пока стикер в ленте: ушедшие с экрана элементы LazyColumn не рисуются).
+ * Видеостикеры (до v0.6) — миниатюра, а без неё — крупный эмодзи.
  */
 @Composable
 internal fun StickerView(sticker: StickerInfo, modifier: Modifier = Modifier) {
@@ -43,10 +48,12 @@ internal fun StickerView(sticker: StickerInfo, modifier: Modifier = Modifier) {
     ) {
         val rules = currentAutoDownloadRules()
         var requested by remember(sticker.file) { mutableStateOf(false) }
-        val load = sticker.isStatic && (requested || rules.allows(MediaKind.Sticker))
+        val allowed = requested || rules.allows(MediaKind.Sticker)
+        val load = sticker.isStatic && allowed
         val main = rememberAsyncImagePainter(if (load) sticker.file else null)
         val state by main.state.collectAsState()
-        val loaded = load && state is AsyncImagePainter.State.Success
+        val animation = rememberTgsComposition(sticker.file.takeIf { sticker.isTgs && allowed })
+        val loaded = (load && state is AsyncImagePainter.State.Success) || animation != null
         if (!loaded) {
             if (sticker.thumbnail != null) {
                 AsyncImage(sticker.thumbnail, sticker.emoji, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
@@ -55,7 +62,11 @@ internal fun StickerView(sticker: StickerInfo, modifier: Modifier = Modifier) {
             }
         }
         if (load) Image(main, sticker.emoji, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-        if (sticker.isStatic && !load) DownloadBadge(0, onClick = { requested = true })
+        if (animation != null) {
+            val progress by animateLottieCompositionAsState(animation, iterations = LottieConstants.IterateForever)
+            LottieAnimation(animation, progress = { progress }, modifier = Modifier.fillMaxSize())
+        }
+        if ((sticker.isStatic || sticker.isTgs) && !allowed) DownloadBadge(0, onClick = { requested = true })
     }
 }
 
