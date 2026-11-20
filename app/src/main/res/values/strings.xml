@@ -53,6 +53,12 @@
         <item quantity="many">Синхронизировано %d номеров</item>
         <item quantity="other">Синхронизировано %d номера</item>
     </plurals>
+    <plurals name="new_chat_selected">
+        <item quantity="one">Выбран %d</item>
+        <item quantity="few">Выбрано %d</item>
+        <item quantity="many">Выбрано %d</item>
+        <item quantity="other">Выбрано %d</item>
+    </plurals>
     <plurals name="comments">
         <item quantity="one">%d комментарий</item>
         <item quantity="few">%d комментария</item>
@@ -422,6 +428,20 @@
     <string name="unblock_confirm">Разблокировать %1$s?</string>
     <string name="block_pick">Кого заблокировать</string>
     <string name="blocked_empty">Список пуст</string>
+    <string name="new_group">Новая группа</string>
+    <string name="new_channel">Новый канал</string>
+    <string name="new_group_title">Название группы</string>
+    <string name="new_channel_title">Название канала</string>
+    <string name="new_chat_photo">Фото</string>
+    <string name="new_chat_create">Создать</string>
+    <string name="new_chat_done">Готово</string>
+    <string name="new_chat_privacy_failed">Некоторых пользователей не удалось добавить: их настройки приватности не позволяют</string>
+    <string name="new_channel_private">Частный канал</string>
+    <string name="new_channel_private_hint">Вступить можно только по ссылке-приглашению</string>
+    <string name="new_channel_public">Публичный канал</string>
+    <string name="new_channel_public_hint">Канал можно найти в поиске, вступить может любой</string>
+    <string name="invite_link_title">Ссылка-приглашение</string>
+    <string name="picker_already_member">Уже участник</string>
     <string name="contacts_title">Контакты</string>
     <string name="contacts_search">Поиск контактов</string>
     <string name="contacts_empty">Контактов пока нет</string>

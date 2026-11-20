@@ -82,6 +82,8 @@ fun ChatsScreen(
     onBack: () -> Unit,
     onOpenSettings: () -> Unit = {},
     onOpenContacts: () -> Unit = {},
+    /** «Новая группа» (`false`) / «Новый канал» (`true`). */
+    onNewChat: (channel: Boolean) -> Unit = {},
     /** Форум открывается списком топиков. */
     onOpenTopics: (Long) -> Unit = onChatClick,
     viewModel: ChatsViewModel = hiltViewModel(),
@@ -113,6 +115,7 @@ fun ChatsScreen(
         onOpenSaved = viewModel::openSavedMessages,
         onOpenSettings = onOpenSettings,
         onOpenContacts = onOpenContacts,
+        onNewChat = onNewChat,
         tabs = tabs,
         onSelectList = viewModel::selectList,
     )
@@ -146,6 +149,7 @@ private fun ChatsContent(
     onOpenSaved: () -> Unit = {},
     onOpenSettings: () -> Unit = {},
     onOpenContacts: () -> Unit = {},
+    onNewChat: (channel: Boolean) -> Unit = {},
     tabs: List<FolderTab> = emptyList(),
     onSelectList: (ChatListType) -> Unit = {},
 ) {
@@ -188,6 +192,20 @@ private fun ChatsContent(
                                     onClick = {
                                         menuOpen = false
                                         onOpenSaved()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.new_group)) },
+                                    onClick = {
+                                        menuOpen = false
+                                        onNewChat(false)
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.new_channel)) },
+                                    onClick = {
+                                        menuOpen = false
+                                        onNewChat(true)
                                     },
                                 )
                                 DropdownMenuItem(

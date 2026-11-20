@@ -25,6 +25,7 @@ import io.github.iufb.reach.chat.ChatScreen
 import io.github.iufb.reach.chat.ScheduledScreen
 import io.github.iufb.reach.topics.TopicsScreen
 import io.github.iufb.reach.contacts.ContactsScreen
+import io.github.iufb.reach.newchat.NewChatScreen
 import io.github.iufb.reach.blocked.BlockedScreen
 import io.github.iufb.reach.contacts.ContactSyncScreen
 import io.github.iufb.reach.settings.SettingsScreen
@@ -60,6 +61,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object SettingsRoute
 @Serializable data object ContactSyncRoute
 @Serializable data object BlockedRoute
+@Serializable data class NewChatRoute(val channel: Boolean)
 
 /**
  * Два графа: вход и основной. Какой экран показан, решает [AuthState]:
@@ -107,6 +109,14 @@ fun ReachNavHost(authState: AuthState, openChatId: Long? = null, onOpenChatHandl
                     onOpenSettings = { navController.navigate(SettingsRoute) },
                     onOpenTopics = { navController.navigate(TopicsRoute(it)) },
                     onOpenContacts = { navController.navigate(ContactsRoute) },
+                    onNewChat = { channel -> navController.navigate(NewChatRoute(channel)) },
+                )
+            }
+            composable<NewChatRoute> {
+                NewChatScreen(
+                    onBack = { navController.popBackStack() },
+                    // Созданный чат открывается вместо мастера: «назад» из него — в список
+                    onCreated = { navController.navigate(ChatRoute(it)) { popUpTo(ChatsRoute()) } },
                 )
             }
             composable<ContactsRoute> {
