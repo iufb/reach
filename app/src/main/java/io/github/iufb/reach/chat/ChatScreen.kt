@@ -81,6 +81,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -98,6 +99,7 @@ import io.github.iufb.reach.presence.activityText
 import io.github.iufb.reach.presence.userStatusText
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
+import io.github.iufb.reach.chats.customEmojiOnlyCount
 import io.github.iufb.reach.chats.TextSpan
 import io.github.iufb.reach.chats.ServiceKind
 import io.github.iufb.reach.chats.contentKindText
@@ -1022,8 +1024,19 @@ private fun CommentsBar(message: Message, senders: Map<Sender, SenderInfo>, onCl
 private fun MessageContent(message: Message, interactions: MessageInteractions) {
     when (val body = message.content) {
         is MessageBody.Text -> {
-            RichTextView(body.text)
-            body.preview?.let { LinkPreviewCard(it) }
+            val bigEmoji = body.bigEmojiCount()
+            if (bigEmoji > 0) {
+                // Только кастомные эмодзи — крупно и без пузыря, как большие анимированные
+                val size = BIG_CUSTOM_EMOJI_SP[bigEmoji - 1]
+                RichTextView(
+                    body.text,
+                    Modifier.messageLongPress(message, interactions),
+                    style = MaterialTheme.typography.bodyLarge.copy(fontSize = size, lineHeight = size * 1.3f),
+                )
+            } else {
+                RichTextView(body.text)
+                body.preview?.let { LinkPreviewCard(it) }
+            }
         }
         is MessageBody.Photo -> {
             val spoiler = rememberMediaSpoiler(message.id, body.hasSpoiler)
@@ -1379,4 +1392,11 @@ private fun MessageBody.viewerItem(): ViewerItem? = when (this) {
 }
 
 /** Содержимое без пузыря: стикеры и большие эмодзи. */
-private fun MessageBody.isBare(): Boolean = this is MessageBody.Sticker || this is MessageBody.AnimatedEmoji
+private fun MessageBody.isBare(): Boolean =
+    this is MessageBody.Sticker || this is MessageBody.AnimatedEmoji || (this is MessageBody.Text && bigEmojiCount() > 0)
+
+/** 1–3 кастомных эмодзи без другого текста и превью — показываем крупно; иначе 0. */
+private fun MessageBody.Text.bigEmojiCount(): Int =
+    if (preview != null) 0 else text.customEmojiOnlyCount().takeIf { it <= BIG_CUSTOM_EMOJI_SP.size } ?: 0
+
+private val BIG_CUSTOM_EMOJI_SP = listOf(80.sp, 64.sp, 52.sp)

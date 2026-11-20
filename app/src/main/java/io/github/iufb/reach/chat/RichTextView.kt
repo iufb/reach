@@ -30,6 +30,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextIndent
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.em
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.text.InlineTextContent
+import androidx.compose.foundation.text.appendInlineContent
+import androidx.compose.ui.text.Placeholder
+import androidx.compose.ui.text.PlaceholderVerticalAlign
+import io.github.iufb.reach.media.CustomEmojiView
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
 
@@ -46,7 +53,10 @@ internal fun RichTextView(
     var revealed by remember(text) { mutableStateOf(false) }
     val hide = !revealed && text.spans.any { it.kind == SpanKind.Spoiler }
     val spoilers = if (hide) Spoilers.Hidden(onReveal = { revealed = true }) else Spoilers.Plain
-    val annotated = remember(text, colors, mentions, hide) { text.toAnnotatedString(colors, mentions = mentions, spoilers = spoilers) }
+    val annotated = remember(text, colors, mentions, hide) {
+        text.toAnnotatedString(colors, mentions = mentions, spoilers = spoilers, inlineEmoji = true)
+    }
+    val inlineContent = remember(text) { customEmojiContent(text) }
     val uriHandler = LocalUriHandler.current
     val safeHandler = remember(uriHandler) { SafeUriHandler(uriHandler) }
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
@@ -55,10 +65,23 @@ internal fun RichTextView(
             annotated,
             modifier = modifier.then(if (hide) Modifier.spoilerDust(text, layout) else Modifier),
             style = style,
+            inlineContent = inlineContent,
             onTextLayout = { layout = it },
         )
     }
 }
+
+/** Вставки для кастомных эмодзи текста: квадрат чуть больше строки, по центру строки. */
+private fun customEmojiContent(text: RichText): Map<String, InlineTextContent> =
+    text.spans.mapNotNull { (it.kind as? SpanKind.CustomEmoji)?.id }.distinct().associate { id ->
+        customEmojiKey(id) to InlineTextContent(
+            Placeholder(CUSTOM_EMOJI_EM.em, CUSTOM_EMOJI_EM.em, PlaceholderVerticalAlign.TextCenter),
+        ) { fallback -> CustomEmojiView(id, fallback, Modifier.fillMaxSize()) }
+    }
+
+private fun customEmojiKey(id: Long) = "custom_emoji:$id"
+
+private const val CUSTOM_EMOJI_EM = 1.2f
 
 /** Частицы поверх скрытых участков; текст под ними прозрачный (см. [Spoilers.Hidden]). */
 @Composable
@@ -128,11 +151,23 @@ internal fun RichText.toAnnotatedString(
     clickableLinks: Boolean = true,
     mentions: MentionHandler? = null,
     spoilers: Spoilers = Spoilers.Plain,
+    inlineEmoji: Boolean = false,
 ): AnnotatedString = buildAnnotatedString {
-    append(text)
     val hidden = if (spoilers is Spoilers.Hidden) spans.filter { it.kind == SpanKind.Spoiler } else emptyList()
     // Ссылка внутри скрытого не должна открываться случайным тапом
     fun isHidden(start: Int, end: Int) = hidden.any { it.start < end && start < it.end }
+    // Кастомные эмодзи — вставки поверх своего запасного символа: длина текста и смещения те же
+    var pos = 0
+    if (inlineEmoji) {
+        for (span in spans.sortedBy { it.start }) {
+            val kind = span.kind as? SpanKind.CustomEmoji ?: continue
+            if (span.start < pos || isHidden(span.start, span.end)) continue
+            append(text, pos, span.start)
+            appendInlineContent(customEmojiKey(kind.id), text.substring(span.start, span.end))
+            pos = span.end
+        }
+    }
+    append(text, pos, text.length)
     val paragraphs = mutableListOf<IntRange>()
     fun paragraph(start: Int, end: Int, style: ParagraphStyle) {
         val range = start until end
@@ -189,6 +224,7 @@ internal fun RichText.toAnnotatedString(
             }
             // По тапу пока ничего: поиск по хэштегу — вместе с поиском (v0.3)
             is SpanKind.Hashtag -> addStyle(SpanStyle(color = colors.link), start, end)
+            is SpanKind.CustomEmoji -> Unit
         }
     }
     if (spoilers is Spoilers.Hidden) {
