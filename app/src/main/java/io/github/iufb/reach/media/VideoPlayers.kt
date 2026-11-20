@@ -112,6 +112,7 @@ internal interface MediaEntryPoint {
     fun audioPlayer(): AudioPlayer
     fun autoDownload(): AutoDownload
     fun tgsLoader(): TgsLoader
+    fun videoStickers(): VideoStickers
 }
 
 /** [VideoPlayers] из Compose — для экранов без своей ViewModel (полноэкранный просмотр). */

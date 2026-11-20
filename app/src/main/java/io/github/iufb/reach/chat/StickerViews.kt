@@ -23,6 +23,7 @@ import coil3.compose.rememberAsyncImagePainter
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.StickerInfo
 import io.github.iufb.reach.media.MediaKind
+import io.github.iufb.reach.media.VideoStickerImage
 import io.github.iufb.reach.media.currentAutoDownloadRules
 import io.github.iufb.reach.media.rememberTgsComposition
 import com.airbnb.lottie.compose.LottieAnimation
@@ -33,9 +34,9 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 
 /**
- * Стикер без пузыря, с прозрачностью. Сначала миниатюра, поверх — сам WebP или TGS-анимация
- * по кругу (играет, пока стикер в ленте: ушедшие с экрана элементы LazyColumn не рисуются).
- * Видеостикеры (до v0.6) — миниатюра, а без неё — крупный эмодзи.
+ * Стикер без пузыря, с прозрачностью. Сначала миниатюра (а без неё — крупный эмодзи), поверх —
+ * сам WebP, TGS-анимация или видеостикер по кругу (играют, пока стикер в ленте: ушедшие с экрана
+ * элементы LazyColumn не рисуются).
  */
 @Composable
 internal fun StickerView(sticker: StickerInfo, modifier: Modifier = Modifier) {
@@ -54,19 +55,25 @@ internal fun StickerView(sticker: StickerInfo, modifier: Modifier = Modifier) {
         val state by main.state.collectAsState()
         val animation = rememberTgsComposition(sticker.file.takeIf { sticker.isTgs && allowed })
         val loaded = (load && state is AsyncImagePainter.State.Success) || animation != null
-        if (!loaded) {
+        val placeholder = @Composable {
             if (sticker.thumbnail != null) {
                 AsyncImage(sticker.thumbnail, sticker.emoji, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
             } else {
                 Text(sticker.emoji, style = MaterialTheme.typography.displayMedium)
             }
         }
+        if (sticker.isWebm && allowed) {
+            // Видеостикер прозрачный: миниатюру показывает сам, пока нет первого кадра
+            VideoStickerImage(sticker.file, Modifier.fillMaxSize(), placeholder)
+        } else if (!loaded) {
+            placeholder()
+        }
         if (load) Image(main, sticker.emoji, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
         if (animation != null) {
             val progress by animateLottieCompositionAsState(animation, iterations = LottieConstants.IterateForever)
             LottieAnimation(animation, progress = { progress }, modifier = Modifier.fillMaxSize())
         }
-        if ((sticker.isStatic || sticker.isTgs) && !allowed) DownloadBadge(0, onClick = { requested = true })
+        if (!allowed) DownloadBadge(0, onClick = { requested = true })
     }
 }
 
