@@ -18,6 +18,7 @@ import io.github.iufb.reach.core.td.TdLibInfo
 import io.github.iufb.reach.files.FilesRepository
 import io.github.iufb.reach.files.TdFileFetcher
 import io.github.iufb.reach.media.AutoDownload
+import io.github.iufb.reach.contacts.ContactSync
 import io.github.iufb.reach.users.UsersRepository
 import javax.inject.Inject
 
@@ -44,6 +45,8 @@ class ReachApp : Application(), SingletonImageLoader.Factory {
 
     @Inject lateinit var autoDownload: AutoDownload
 
+    @Inject lateinit var contactSync: ContactSync
+
     override fun onCreate() {
         super.onCreate()
         // Единые эмодзи (PRODUCT.md §4.5): шрифт Noto из APK вместо системного, на любом устройстве.
@@ -53,6 +56,7 @@ class ReachApp : Application(), SingletonImageLoader.Factory {
         notifier.start()
         pushRegistrar.start()
         autoDownload.start()
+        contactSync.start()
     }
 
     /** Coil умеет грузить [io.github.iufb.reach.files.TdFile] через TDLib. */
