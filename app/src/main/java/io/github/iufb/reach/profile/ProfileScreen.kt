@@ -10,7 +10,11 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.RadioButton
+import androidx.compose.foundation.selection.selectable
+import androidx.compose.ui.semantics.Role
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
@@ -42,6 +46,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chat.PhotoViewer
 import io.github.iufb.reach.chat.RichTextView
+import io.github.iufb.reach.chats.autoDeleteLabel
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import io.github.iufb.reach.ui.components.Avatar
 import io.github.iufb.reach.ui.theme.reachBarColors
 
@@ -57,8 +64,12 @@ fun ProfileScreen(
     val open by rememberUpdatedState(onOpenChat)
     LaunchedEffect(viewModel) { viewModel.openChat.collect { open(it) } }
     var viewingPhoto by remember { mutableStateOf(false) }
+    var choosingAutoDelete by remember { mutableStateOf(false) }
+    val snackbar = remember { SnackbarHostState() }
+    LaunchedEffect(viewModel) { viewModel.error.collect { snackbar.showSnackbar(it) } }
 
     Scaffold(
+        snackbarHost = { SnackbarHost(snackbar) },
         topBar = {
             TopAppBar(
                 colors = reachBarColors(),
@@ -117,6 +128,20 @@ fun ProfileScreen(
                     Switch(checked = !muted, onCheckedChange = viewModel::setNotificationsEnabled)
                 }
             }
+            current.autoDeleteTime?.let { seconds ->
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .clickable(enabled = current.canChangeAutoDelete) { choosingAutoDelete = true },
+                ) {
+                    Text(stringResource(R.string.auto_delete_title), style = MaterialTheme.typography.bodyLarge)
+                    Text(
+                        autoDeleteLabel(seconds),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
             if (current.phoneNumber.isNotBlank()) InfoRow("+${current.phoneNumber}", R.string.profile_phone)
             if (current.username.isNotBlank()) InfoRow("@${current.username}", R.string.profile_username)
             if (current.username.isNotBlank() && !current.isUser) {
@@ -134,6 +159,16 @@ fun ProfileScreen(
             }
         }
         if (viewingPhoto) current.fullPhoto?.let { PhotoViewer(listOf(it), 0) { viewingPhoto = false } }
+        if (choosingAutoDelete) {
+            AutoDeleteDialog(
+                current = current.autoDeleteTime ?: 0,
+                onPick = {
+                    choosingAutoDelete = false
+                    viewModel.setAutoDelete(it)
+                },
+                onDismiss = { choosingAutoDelete = false },
+            )
+        }
     }
 }
 
@@ -144,3 +179,42 @@ private fun InfoRow(value: String, @StringRes label: Int) {
         Text(stringResource(label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
+
+/** Выбор таймера автоудаления: выкл, сутки, неделя, месяц. */
+@Composable
+private fun AutoDeleteDialog(current: Int, onPick: (Int) -> Unit, onDismiss: () -> Unit) {
+    val options = buildList {
+        addAll(AUTO_DELETE_OPTIONS)
+        // Значение, выставленное в другом клиенте, тоже показываем
+        if (current !in AUTO_DELETE_OPTIONS) add(current)
+    }
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.auto_delete_title)) },
+        text = {
+            Column {
+                options.forEach { seconds ->
+                    Row(
+                        Modifier
+                            .fillMaxWidth()
+                            .selectable(selected = seconds == current, role = Role.RadioButton) { onPick(seconds) }
+                            .padding(vertical = 8.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                    ) {
+                        RadioButton(selected = seconds == current, onClick = null)
+                        Text(autoDeleteLabel(seconds), Modifier.padding(start = 12.dp))
+                    }
+                }
+                Text(
+                    stringResource(R.string.auto_delete_hint),
+                    modifier = Modifier.padding(top = 8.dp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
+    )
+}
+
+private val AUTO_DELETE_OPTIONS = listOf(0, 86_400, 7 * 86_400, 31 * 86_400)

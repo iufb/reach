@@ -2,6 +2,7 @@ package io.github.iufb.reach.chats
 
 import androidx.annotation.StringRes
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import io.github.iufb.reach.R
 
@@ -54,8 +55,37 @@ fun ServiceKind.labelRes(): Int = when (this) {
     ServiceKind.ContactRegistered -> R.string.service_contact_registered
     ServiceKind.VideoChat -> R.string.service_video_chat
     ServiceKind.Payment -> R.string.service_payment
+    ServiceKind.AutoDeleteSet -> R.string.service_auto_delete
     ServiceKind.Other -> R.string.service_other
 }
+
+/** Текст служебного сообщения в ленте: с подробностями, где они есть. */
+@Composable
+fun serviceText(body: MessageBody.Service): String = when (body.kind) {
+    ServiceKind.AutoDeleteSet -> if (body.value > 0) {
+        stringResource(R.string.service_auto_delete_on, autoDeleteLabel(body.value))
+    } else {
+        stringResource(R.string.service_auto_delete_off)
+    }
+    else -> serviceKindText(body.kind)
+}
+
+/** «1 день», «1 неделя», «1 месяц» или точное значение. */
+@Composable
+fun autoDeleteLabel(seconds: Int): String = when {
+    seconds <= 0 -> stringResource(R.string.auto_delete_off)
+    seconds % MONTH == 0 -> pluralStringResource(R.plurals.months, seconds / MONTH, seconds / MONTH)
+    seconds % WEEK == 0 -> pluralStringResource(R.plurals.weeks, seconds / WEEK, seconds / WEEK)
+    seconds % DAY == 0 -> pluralStringResource(R.plurals.days, seconds / DAY, seconds / DAY)
+    seconds % HOUR == 0 -> pluralStringResource(R.plurals.hours, seconds / HOUR, seconds / HOUR)
+    else -> pluralStringResource(R.plurals.minutes, seconds / 60, seconds / 60)
+}
+
+private const val HOUR = 3600
+private const val DAY = 24 * HOUR
+private const val WEEK = 7 * DAY
+/** Telegram считает месяц за 31 день. */
+private const val MONTH = 31 * DAY
 
 /** Одна строка для превью в списке чатов. */
 @Composable

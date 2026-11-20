@@ -22,7 +22,7 @@ sealed interface GroupRef {
 /** Статус текущего пользователя в группе или канале — только то, что нужно для права писать. */
 sealed interface MemberStatus {
     data class Creator(val isMember: Boolean) : MemberStatus
-    data class Administrator(val canPostMessages: Boolean) : MemberStatus
+    data class Administrator(val canPostMessages: Boolean, val canChangeInfo: Boolean = false) : MemberStatus
     data object Member : MemberStatus
     data class Restricted(val isMember: Boolean, val canSendText: Boolean) : MemberStatus
     data object Left : MemberStatus
@@ -55,7 +55,7 @@ class GroupsRepository @Inject constructor(td: TdClient, @ApplicationScope scope
 
 private fun TdApi.ChatMemberStatus.toModel(): MemberStatus = when (this) {
     is TdApi.ChatMemberStatusCreator -> MemberStatus.Creator(isMember)
-    is TdApi.ChatMemberStatusAdministrator -> MemberStatus.Administrator(rights.canPostMessages)
+    is TdApi.ChatMemberStatusAdministrator -> MemberStatus.Administrator(rights.canPostMessages, rights.canChangeInfo)
     is TdApi.ChatMemberStatusMember -> MemberStatus.Member
     is TdApi.ChatMemberStatusRestricted -> MemberStatus.Restricted(isMember, permissions.canSendBasicMessages)
     else -> MemberStatus.Left
@@ -74,5 +74,16 @@ fun Chat.canWrite(status: MemberStatus?): Boolean {
         is MemberStatus.Administrator -> kind != ChatKind.Channel || status.canPostMessages
         MemberStatus.Member -> kind != ChatKind.Channel && canSendBasicMessages
         is MemberStatus.Restricted -> kind != ChatKind.Channel && status.isMember && status.canSendText
+    }
+}
+
+/** Можно ли менять настройки чата (название, описание, автоудаление): личка — всегда, группа — по правам. */
+fun Chat.canChangeInfo(status: MemberStatus?): Boolean {
+    if (group == null) return !isSavedMessages
+    return when (status) {
+        is MemberStatus.Creator -> status.isMember
+        is MemberStatus.Administrator -> status.canChangeInfo
+        MemberStatus.Member -> kind == ChatKind.Group && canChangeInfoByDefault
+        else -> false
     }
 }

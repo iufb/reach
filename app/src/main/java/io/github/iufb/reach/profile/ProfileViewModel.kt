@@ -9,6 +9,8 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.iufb.reach.chats.ChatKind
 import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.chats.GroupRef
+import io.github.iufb.reach.chats.GroupsRepository
+import io.github.iufb.reach.chats.canChangeInfo
 import io.github.iufb.reach.chats.PhotoInfo
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.toInfo
@@ -50,6 +52,10 @@ data class Profile(
     val canWrite: Boolean = false,
     /** Уведомления чата выключены; `null` — профиль открыт не из чата, переключателя нет. */
     val isMuted: Boolean? = null,
+    /** Автоудаление, секунды; `null` — профиль открыт не из чата. */
+    val autoDeleteTime: Int? = null,
+    /** Можно менять автоудаление (личка или право менять настройки группы). */
+    val canChangeAutoDelete: Boolean = false,
 )
 
 /** Полная информация, которую TDLib отдаёт отдельным запросом. */
@@ -71,6 +77,7 @@ class ProfileViewModel @Inject constructor(
     private val td: TdClient,
     private val chats: ChatsRepository,
     users: UsersRepository,
+    groups: GroupsRepository,
 ) : ViewModel() {
 
     private val route = savedStateHandle.toRoute<ProfileRoute>()
@@ -84,9 +91,10 @@ class ProfileViewModel @Inject constructor(
 
     private val full = MutableStateFlow(FullInfo())
 
-    val profile: StateFlow<Profile?> = combine(chats.chats, users.users, full) { chatMap, userMap, info ->
+    val profile: StateFlow<Profile?> = combine(chats.chats, users.users, full, groups.statuses) { chatMap, userMap, info, statuses ->
         val user = userId?.let(userMap::get)
         val chat = chatMap[route.chatId]
+        val canChangeInfo = chat != null && chat.canChangeInfo(chat.group?.let(statuses::get))
         when {
             user != null -> Profile(
                 title = user.fullName,
@@ -99,6 +107,8 @@ class ProfileViewModel @Inject constructor(
                 canWrite = route.userId != 0L,
                 isUser = true,
                 isMuted = chat?.isMuted,
+                autoDeleteTime = chat?.takeUnless { it.isSavedMessages }?.autoDeleteTime,
+                canChangeAutoDelete = canChangeInfo,
             )
             chat != null -> Profile(
                 title = chat.title,
@@ -110,6 +120,8 @@ class ProfileViewModel @Inject constructor(
                 memberCount = info.memberCount,
                 isChannel = chat.kind == ChatKind.Channel,
                 isMuted = chat.isMuted,
+                autoDeleteTime = chat.autoDeleteTime,
+                canChangeAutoDelete = canChangeInfo,
             )
             else -> null
         }
@@ -169,6 +181,22 @@ class ProfileViewModel @Inject constructor(
                 .onFailure { Log.w(TAG, "setMuteFor failed", it) }
         }
     }
+
+    /** Таймер автоудаления новых сообщений; 0 — выключить. */
+    fun setAutoDelete(seconds: Int) {
+        if (route.chatId == 0L) return
+        viewModelScope.launch {
+            runCatching { td.send(TdApi.SetChatMessageAutoDeleteTime(route.chatId, seconds)) }
+                .onFailure {
+                    Log.w(TAG, "setChatMessageAutoDeleteTime failed", it)
+                    _error.emit(it.message.orEmpty())
+                }
+        }
+    }
+
+    private val _error = MutableSharedFlow<String>(extraBufferCapacity = 1)
+    /** Ошибка действия в профиле — показать снэкбаром. */
+    val error: SharedFlow<String> = _error.asSharedFlow()
 
     fun write() {
         val id = userId ?: return
