@@ -47,6 +47,12 @@
         <item quantity="many">%d минут</item>
         <item quantity="other">%d минуты</item>
     </plurals>
+    <plurals name="contact_sync_done">
+        <item quantity="one">Синхронизирован %d номер</item>
+        <item quantity="few">Синхронизировано %d номера</item>
+        <item quantity="many">Синхронизировано %d номеров</item>
+        <item quantity="other">Синхронизировано %d номера</item>
+    </plurals>
     <plurals name="comments">
         <item quantity="one">%d комментарий</item>
         <item quantity="few">%d комментария</item>
@@ -407,6 +413,9 @@
     <string name="username_too_many">Слишком много публичных имён</string>
     <string name="username_unavailable">Публичное имя сейчас недоступно</string>
     <string name="username_remove_hint">Пустое поле — убрать имя пользователя</string>
+    <string name="contact_sync_switch">Синхронизировать контакты</string>
+    <string name="contact_sync_explain">Номера из телефонной книги будут отправлены в Telegram, чтобы показать, кто из ваших знакомых уже там. Синхронизация повторяется при изменении книги. Выключение удаляет загруженные номера с сервера.</string>
+    <string name="contact_sync_denied">Нет доступа к контактам. Разрешение можно выдать в настройках Android → Приложения → Reach → Разрешения.</string>
     <string name="contacts_title">Контакты</string>
     <string name="contacts_search">Поиск контактов</string>
     <string name="contacts_empty">Контактов пока нет</string>
