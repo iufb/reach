@@ -75,6 +75,11 @@ data class Message(
     val mediaAlbumId: Long = 0,
     val reactions: List<Reaction> = emptyList(),
     val isPinned: Boolean = false,
+    /** У поста канала есть комментарии (привязана группа обсуждения). */
+    val hasComments: Boolean = false,
+    val replyCount: Int = 0,
+    /** Последние комментаторы — аватарки на плашке комментариев. */
+    val recentRepliers: List<Sender> = emptyList(),
 )
 
 /** Тип реакции. Кастомные эмодзи и платные (звёзды) пока рисуются заглушкой. */
@@ -119,7 +124,16 @@ internal fun TdApi.Message.toModel() = Message(
     mediaAlbumId = mediaAlbumId,
     reactions = interactionInfo.toReactions(),
     isPinned = isPinned,
+    hasComments = isChannelPost && interactionInfo?.replyInfo != null,
+    replyCount = interactionInfo?.replyInfo?.replyCount ?: 0,
+    recentRepliers = interactionInfo?.replyInfo?.recentReplierIds.orEmpty().map { it.toSender(chatId) },
 )
+
+internal fun TdApi.MessageSender.toSender(fallbackChatId: Long): Sender = when (this) {
+    is TdApi.MessageSenderUser -> Sender.User(userId)
+    is TdApi.MessageSenderChat -> Sender.Chat(chatId)
+    else -> Sender.Chat(fallbackChatId)
+}
 
 /** Участник группы в подсказках упоминаний. */
 data class MentionCandidate(

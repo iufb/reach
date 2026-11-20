@@ -69,6 +69,19 @@ import kotlinx.coroutines.async
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+/**
+ * Тред комментариев или топик. [title] — название топика; [root] — пост, к которому комментарии
+ * (показывается над самым старым комментарием).
+ */
+data class ScopeInfo(
+    val title: String?,
+    val root: List<Message> = emptyList(),
+    val replyCount: Int = 0,
+    val isClosed: Boolean = false,
+    /** Писать можно, не вступая в группу. */
+    val openToNonMembers: Boolean = false,
+)
+
 /** Имя и аватарка автора сообщения в группе. */
 data class SenderInfo(val name: String, val photo: io.github.iufb.reach.files.TdFile?, val accentColorId: Int)
 
@@ -88,19 +101,29 @@ class ChatViewModel @Inject constructor(
     private val recorder: VoiceRecorder,
 ) : ViewModel() {
 
-    private val chatId: Long = savedStateHandle.toRoute<ChatRoute>().chatId
+    private val route = savedStateHandle.toRoute<ChatRoute>()
+    private val chatId: Long = route.chatId
     /** Сообщение, на котором открыть чат; 0 — обычное открытие. */
-    private val startMessageId: Long = savedStateHandle.toRoute<ChatRoute>().messageId
-    private val history = ChatHistory(chatId, td)
+    private val startMessageId: Long = route.messageId
+    /** Весь чат, тред комментариев или топик форума. */
+    val scope: ChatScope = ChatScope.of(route.threadId, route.topicId)
+    private val history = ChatHistory(chatId, td, scope)
+
+    private val _scopeInfo = MutableStateFlow<ScopeInfo?>(null)
+    /** Шапка и корень треда / топика; `null` — открыт весь чат или ещё грузится. */
+    val scopeInfo: StateFlow<ScopeInfo?> = _scopeInfo.asStateFlow()
 
     val chat: StateFlow<Chat?> = chatsRepository.chats.map { it[chatId] }
         .stateIn(viewModelScope, SharingStarted.Eagerly, chatsRepository.chats.value[chatId])
 
     val state: StateFlow<ChatHistory.State> = history.state
 
-    /** Можно ли писать: в канале без прав поле ввода не показываем. */
-    val canWrite: StateFlow<Boolean> = combine(chat, groups.statuses) { chat, statuses ->
-        chat != null && chat.canWrite(chat.group?.let(statuses::get))
+    /**
+     * Можно ли писать: в канале без прав поле ввода не показываем. Комментировать пост можно и без
+     * вступления в группу обсуждения, если она не требует вступать (`join_to_send_messages`).
+     */
+    val canWrite: StateFlow<Boolean> = combine(chat, groups.statuses, _scopeInfo) { chat, statuses, info ->
+        chat != null && (chat.canWrite(chat.group?.let(statuses::get)) || info?.openToNonMembers == true)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), false)
 
     private val _draft = MutableStateFlow(RichText.Empty)
@@ -218,15 +241,22 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch { loadPinned() }
         viewModelScope.launch {
             val opened = chat.mapNotNull { it }.first()
-            // Черновик восстанавливаем, только если пользователь ещё ничего не набрал
-            opened.draft?.let { draft ->
-                _draft.compareAndSet(RichText.Empty, draft.text)
-                draft.replyToMessageId?.let { restoreReply(it) }
+            // Черновик восстанавливаем, только если пользователь ещё ничего не набрал; у тредов и топиков черновиков нет
+            if (scope == ChatScope.Whole) {
+                opened.draft?.let { draft ->
+                    _draft.compareAndSet(RichText.Empty, draft.text)
+                    draft.replyToMessageId?.let { restoreReply(it) }
+                }
+            }
+            val lastRead = if (scope == ChatScope.Whole) {
+                opened.lastReadInboxMessageId.takeIf { opened.unreadCount > 0 }
+            } else {
+                loadScopeInfo(opened)
             }
             if (startMessageId != 0L && history.openAround(startMessageId)) {
                 _scrollTarget.value = startMessageId
             } else {
-                history.open(opened.lastReadInboxMessageId.takeIf { opened.unreadCount > 0 })
+                history.open(lastRead)
             }
         }
     }
@@ -251,6 +281,52 @@ class ChatViewModel @Inject constructor(
         appScope.launch { runCatching { td.send(TdApi.CloseChat(chatId)) }.onFailure { Log.e(TAG, "closeChat failed", it) } }
     }
 
+    /** Тред или топик: заголовок, корень треда; возвращает последнее прочитанное, если есть непрочитанные. */
+    private suspend fun loadScopeInfo(opened: Chat): Long? {
+        val openToNonMembers = suspend {
+            val group = opened.group as? GroupRef.Super
+            group != null && runCatching { !td.send(TdApi.GetSupergroup(group.id)).joinToSendMessages }.getOrDefault(false)
+        }
+        return when (val current = scope) {
+            ChatScope.Whole -> null
+            is ChatScope.Thread -> runCatching { td.send(TdApi.GetMessageThread(chatId, current.threadId)) }
+                .onFailure { Log.w(TAG, "getMessageThread failed", it) }
+                .getOrNull()
+                ?.let { info ->
+                    _scopeInfo.value = ScopeInfo(
+                        title = null,
+                        root = info.messages.map { it.toModel() }.sortedBy { it.id },
+                        replyCount = info.replyInfo?.replyCount ?: 0,
+                        openToNonMembers = openToNonMembers(),
+                    )
+                    info.replyInfo?.lastReadInboxMessageId?.takeIf { info.unreadMessageCount > 0 }
+                }
+            is ChatScope.Topic -> runCatching { td.send(TdApi.GetForumTopic(chatId, current.topicId)) }
+                .onFailure { Log.w(TAG, "getForumTopic failed", it) }
+                .getOrNull()
+                ?.let { topic ->
+                    _scopeInfo.value = ScopeInfo(title = topic.info.name, isClosed = topic.info.isClosed)
+                    topic.lastReadInboxMessageId.takeIf { topic.unreadCount > 0 }
+                }
+        }
+    }
+
+    private val _openThread = MutableSharedFlow<Pair<Long, Long>>(extraBufferCapacity = 1)
+    /** Открыть комментарии: (чат обсуждения, id треда). */
+    val openThread: SharedFlow<Pair<Long, Long>> = _openThread.asSharedFlow()
+
+    /** Плашка «N комментариев» под постом канала. */
+    fun openComments(message: Message) {
+        viewModelScope.launch {
+            runCatching { td.send(TdApi.GetMessageThread(chatId, message.id)) }
+                .onSuccess { _openThread.emit(it.chatId to it.messageThreadId) }
+                .onFailure {
+                    Log.w(TAG, "getMessageThread(${message.id}) failed", it)
+                    _sendError.value = it.message
+                }
+        }
+    }
+
     private fun restoreReply(messageId: Long) {
         viewModelScope.launch {
             val message = runCatching { td.send(TdApi.GetMessage(chatId, messageId)) }
@@ -262,6 +338,7 @@ class ChatViewModel @Inject constructor(
 
     /** Уходим с экрана — сохраняем набранное и ответ как черновик (или стираем черновик, если всё пусто). */
     private fun saveDraft() {
+        if (scope != ChatScope.Whole) return
         // Во время редактирования в поле правка, а черновик — отложенный текст
         val editing = _editing.value != null
         val text = (if (editing) stashedDraft else _draft.value).trimmed()
@@ -302,7 +379,7 @@ class ChatViewModel @Inject constructor(
             .debounce(VIEW_DEBOUNCE_MS)
             .collect { ids ->
                 runCatching {
-                    td.send(TdApi.ViewMessages(chatId, ids.toLongArray(), TdApi.MessageSourceChatHistory(), false))
+                    td.send(TdApi.ViewMessages(chatId, ids.toLongArray(), scope.viewSource(), false))
                 }.onFailure { Log.e(TAG, "viewMessages failed", it) }
             }
     }
@@ -319,7 +396,7 @@ class ChatViewModel @Inject constructor(
         if (now - lastTypingSent < TYPING_INTERVAL_MS) return
         lastTypingSent = now
         viewModelScope.launch {
-            runCatching { td.send(TdApi.SendChatAction(chatId, null, "", TdApi.ChatActionTyping())) }
+            runCatching { td.send(TdApi.SendChatAction(chatId, scope.toTd(), "", TdApi.ChatActionTyping())) }
                 .onFailure { Log.w(TAG, "sendChatAction failed", it) }
         }
     }
@@ -782,7 +859,7 @@ class ChatViewModel @Inject constructor(
     /** Закреплённые сообщения чата, новые первыми. */
     private suspend fun loadPinned() {
         runCatching {
-            td.send(TdApi.SearchChatMessages(chatId, null, "", null, 0, 0, PINNED_LIMIT, TdApi.SearchMessagesFilterPinned()))
+            td.send(TdApi.SearchChatMessages(chatId, scope.toTd(), "", null, 0, 0, PINNED_LIMIT, TdApi.SearchMessagesFilterPinned()))
         }.onSuccess { found ->
             pinnedMessages.value = found.messages.map { it.toModel() }
         }.onFailure { Log.w(TAG, "load pinned failed", it) }

@@ -47,6 +47,12 @@
         <item quantity="many">%d минут</item>
         <item quantity="other">%d минуты</item>
     </plurals>
+    <plurals name="comments">
+        <item quantity="one">%d комментарий</item>
+        <item quantity="few">%d комментария</item>
+        <item quantity="many">%d комментариев</item>
+        <item quantity="other">%d комментария</item>
+    </plurals>
     <plurals name="poll_votes">
         <item quantity="one">%d голос</item>
         <item quantity="few">%d голоса</item>
@@ -149,6 +155,9 @@
     <string name="send_silent">Отправить без звука</string>
     <string name="send_silent_on">Без звука: включено</string>
     <string name="send_silent_off">Без звука: выключено</string>
+    <string name="comments_title">Комментарии</string>
+    <string name="comments_start">Начало обсуждения</string>
+    <string name="comments_leave">Прокомментировать</string>
     <string name="attach_poll">Опрос</string>
     <string name="content_quiz">Викторина</string>
     <string name="poll_new">Новый опрос</string>
