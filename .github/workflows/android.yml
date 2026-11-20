@@ -37,7 +37,7 @@ jobs:
             echo "::warning::DEBUG_KEYSTORE_BASE64 не задан — APK подписан случайным ключом и не встанет поверх установленного"
           fi
 
-      - run: ./gradlew assembleDebug
+      - run: ./gradlew assembleDebug assembleDctest
         env:
           APP_ID: ${{ secrets.APP_ID }}
           APP_HASH: ${{ secrets.APP_HASH }}
@@ -50,5 +50,13 @@ jobs:
         with:
           name: reach-debug
           path: app/build/outputs/apk/debug/*.apk
+          retention-days: 14
+          if-no-files-found: error
+
+      # Сборка на тестовых серверах Telegram (buildTypes.dctest) — для проверок агентом на устройстве
+      - uses: actions/upload-artifact@v7
+        with:
+          name: reach-testdc
+          path: app/build/outputs/apk/dctest/*.apk
           retention-days: 14
           if-no-files-found: error
