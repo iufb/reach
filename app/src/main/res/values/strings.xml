@@ -292,6 +292,9 @@
     <string name="player_previous">Предыдущий трек</string>
     <string name="player_next">Следующий трек</string>
     <string name="voice_record">Записать голосовое</string>
+    <string name="video_note_record">Записать видеосообщение</string>
+    <string name="video_note_flip">Сменить камеру</string>
+    <string name="video_note_permission">Для видеосообщений нужен доступ к камере и микрофону</string>
     <string name="voice_slide_to_cancel">‹ Влево — отмена</string>
     <string name="voice_lock">Зафиксировать запись</string>
     <string name="voice_stop">Остановить запись</string>

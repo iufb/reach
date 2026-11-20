@@ -1,6 +1,7 @@
 package io.github.iufb.reach.chat
 
 import android.util.Log
+import io.github.iufb.reach.media.VideoNoteRecording
 import io.github.iufb.reach.core.td.TdClient
 import io.github.iufb.reach.files.ImportedImage
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -294,6 +295,18 @@ class ChatHistory(private val chatId: Long, private val td: TdClient, private va
         val voice = TdApi.InputVoiceNote(TdApi.InputFileLocal(path), duration, waveform)
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
         val pending = td.send(TdApi.SendMessage(chatId, scope.toTd(), replyTo, options.toTd(), null, TdApi.InputMessageVoiceNote(voice, null, null)))
+        mergeSent(listOf(pending))
+    }
+
+    /** Видеокружок из записанного файла. */
+    suspend fun sendVideoNote(note: VideoNoteRecording, replyToMessageId: Long? = null, options: SendOptions = SendOptions()) {
+        if (!_state.value.reachedNewest) open(lastReadInboxId = null)
+        val thumbnail = note.thumbnailPath?.let {
+            TdApi.InputThumbnail(TdApi.InputFileLocal(it), note.thumbnailWidth, note.thumbnailHeight)
+        }
+        val input = TdApi.InputVideoNote(TdApi.InputFileLocal(note.path), thumbnail, note.durationSec, note.length)
+        val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
+        val pending = td.send(TdApi.SendMessage(chatId, scope.toTd(), replyTo, options.toTd(), null, TdApi.InputMessageVideoNote(input, null)))
         mergeSent(listOf(pending))
     }
 

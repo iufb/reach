@@ -7,6 +7,10 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.key
+import io.github.iufb.reach.media.RecorderState
+import kotlinx.coroutines.delay
+import android.os.SystemClock
+import io.github.iufb.reach.media.VideoNoteCamera
 import androidx.compose.runtime.collectAsState
 import io.github.iufb.reach.files.TdFile
 import io.github.iufb.reach.files.FileState
@@ -180,6 +184,16 @@ fun ChatScreen(
     val reactionEffect by viewModel.reactionEffect.collectAsStateWithLifecycle()
     val emojiEffects by viewModel.emojiEffects.collectAsStateWithLifecycle()
     val recorderState by viewModel.recorderState.collectAsStateWithLifecycle()
+    val camera = remember { VideoNoteCamera(context.applicationContext) }
+    val canSendVideoNotes by viewModel.canSendVideoNotes.collectAsStateWithLifecycle()
+    var videoMode by rememberSaveable { mutableStateOf(false) }
+    val recordingNote = camera.phase == VideoNoteCamera.Phase.Recording
+    LaunchedEffect(recordingNote) {
+        while (recordingNote) {
+            viewModel.sendRecordingVideoNoteAction()
+            delay(CHAT_ACTION_INTERVAL_MS)
+        }
+    }
     stickerSetTitle?.let { StickerSetDialog(it, viewModel::dismissStickerSet) }
     var creatingPoll by remember { mutableStateOf(false) }
     val pollMaxOptions by viewModel.pollMaxOptions.collectAsStateWithLifecycle()
@@ -209,6 +223,7 @@ fun ChatScreen(
             onDismiss = viewModel::closePollVoters,
         )
     }
+    Box(Modifier.fillMaxSize()) {
     CompositionLocalProvider(LocalMentionHandler provides mentionHandler) {
         ChatContent(
             chat, state, senders, onBack,
@@ -252,16 +267,40 @@ fun ChatScreen(
                     onAttachFile = { filePicker.launch(arrayOf("*/*")) },
                     // В личных чатах опросов нет
                     onAttachPoll = if (chat?.kind == ChatKind.Group || chat?.kind == ChatKind.Channel) ({ creatingPoll = true }) else null,
-                    voice = VoiceInput(
-                        state = recorderState,
-                        onStart = viewModel::startRecording,
-                        onLock = viewModel::lockRecording,
-                        onRelease = viewModel::releaseRecording,
-                        onStop = viewModel::stopRecordingForPreview,
-                        onSend = viewModel::sendRecording,
-                        onDiscard = viewModel::discardRecording,
-                        onTogglePreview = viewModel::toggleRecordingPreview,
-                    ),
+                    voice = if (videoMode && canSendVideoNotes) {
+                        // Кружок: та же кнопка и полоска записи, без предпрослушивания — «стоп» отправляет
+                        VoiceInput(
+                            state = if (camera.phase == VideoNoteCamera.Phase.Idle) {
+                                RecorderState.Idle
+                            } else {
+                                RecorderState.Recording(camera.startedAt.takeIf { it > 0 } ?: SystemClock.elapsedRealtime(), 0f, camera.locked)
+                            },
+                            onStart = {
+                                viewModel.onVideoNoteRecordingStarted()
+                                camera.start(viewModel::sendVideoNote)
+                            },
+                            onLock = camera::lock,
+                            onRelease = { camera.finish(send = true) },
+                            onStop = { camera.finish(send = true) },
+                            onSend = { camera.finish(send = true) },
+                            onDiscard = { camera.finish(send = false) },
+                            onTogglePreview = {},
+                            videoMode = true,
+                            onToggleMode = { videoMode = false },
+                        )
+                    } else {
+                        VoiceInput(
+                            state = recorderState,
+                            onStart = viewModel::startRecording,
+                            onLock = viewModel::lockRecording,
+                            onRelease = viewModel::releaseRecording,
+                            onStop = viewModel::stopRecordingForPreview,
+                            onSend = viewModel::sendRecording,
+                            onDiscard = viewModel::discardRecording,
+                            onTogglePreview = viewModel::toggleRecordingPreview,
+                            onToggleMode = if (canSendVideoNotes) ({ videoMode = true }) else null,
+                        )
+                    },
                     sendMenu = SendMenu(
                         onSilent = viewModel::sendSilently,
                         onSchedule = viewModel::sendScheduled,
@@ -320,7 +359,11 @@ fun ChatScreen(
             ),
         )
     }
+    if (camera.phase != VideoNoteCamera.Phase.Idle) VideoNoteCameraOverlay(camera)
+    }
 }
+
+private const val CHAT_ACTION_INTERVAL_MS = 5_000L
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
