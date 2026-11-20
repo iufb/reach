@@ -19,6 +19,15 @@
             </intent-filter>
         </activity>
 
+        <!-- Push от Telegram через собственный FCM-проект (ADR-0005) -->
+        <service
+            android:name=".push.ReachMessagingService"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.google.firebase.MESSAGING_EVENT" />
+            </intent-filter>
+        </service>
+
         <!-- Открытие скачанных документов во внешних приложениях -->
         <provider
             android:name="androidx.core.content.FileProvider"

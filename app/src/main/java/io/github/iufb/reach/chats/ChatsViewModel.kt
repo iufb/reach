@@ -8,6 +8,7 @@ import io.github.iufb.reach.navigation.ChatsRoute
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.iufb.reach.auth.AuthRepository
+import io.github.iufb.reach.push.PushRegistrar
 import io.github.iufb.reach.chat.Sender
 import io.github.iufb.reach.presence.ActivityKind
 import io.github.iufb.reach.presence.PresenceRepository
@@ -38,6 +39,7 @@ data class ArchiveSummary(val total: Int, val unreadChats: Int, val titles: List
 @HiltViewModel
 class ChatsViewModel @Inject constructor(
     private val auth: AuthRepository,
+    private val pushRegistrar: PushRegistrar,
     private val chatsRepository: ChatsRepository,
     presence: PresenceRepository,
     savedStateHandle: SavedStateHandle,
@@ -178,7 +180,11 @@ class ChatsViewModel @Inject constructor(
         if (_loggingOut.value) return
         _loggingOut.value = true
         viewModelScope.launch {
-            runCatching { auth.logOut() }.onFailure {
+            runCatching {
+                // Сначала отвязываем push: после выхода сессии уже нет
+                pushRegistrar.unregister()
+                auth.logOut()
+            }.onFailure {
                 Log.e(TAG, "logOut failed", it)
                 _loggingOut.value = false
             }

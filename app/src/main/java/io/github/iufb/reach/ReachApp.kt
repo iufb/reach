@@ -9,6 +9,7 @@ import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import dagger.hilt.android.HiltAndroidApp
 import io.github.iufb.reach.chat.ReactionsRepository
+import io.github.iufb.reach.push.PushRegistrar
 import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.chats.GroupsRepository
 import io.github.iufb.reach.core.td.TdClient
@@ -35,12 +36,15 @@ class ReachApp : Application(), SingletonImageLoader.Factory {
 
     @Inject lateinit var reactionsRepository: ReactionsRepository
 
+    @Inject lateinit var pushRegistrar: PushRegistrar
+
     override fun onCreate() {
         super.onCreate()
         // Единые эмодзи (PRODUCT.md §4.5): шрифт Noto из APK вместо системного, на любом устройстве.
         // Compose-текст подхватывает EmojiCompat сам, как только шрифт загружен.
         EmojiCompat.init(BundledEmojiCompatConfig(this).setReplaceAll(true))
         Log.i("Reach", "TDLib ${TdLibInfo.version()}")
+        pushRegistrar.start()
     }
 
     /** Coil умеет грузить [io.github.iufb.reach.files.TdFile] через TDLib. */

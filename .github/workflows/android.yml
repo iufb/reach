@@ -1,7 +1,8 @@
 name: Android
 
 # Все сборки APK — только здесь (docs/adr/0001-ci-only-builds.md).
-# Секреты: APP_ID, APP_HASH (ADR-0003), DEBUG_KEYSTORE_BASE64 — фиксированный debug-keystore.
+# Секреты: APP_ID, APP_HASH (ADR-0003), FCM_* — клиентский конфиг Firebase (ADR-0005),
+# DEBUG_KEYSTORE_BASE64 — фиксированный debug-keystore.
 # В PR из форков секретов нет: сборка всё равно проходит.
 
 on:
@@ -40,6 +41,10 @@ jobs:
         env:
           APP_ID: ${{ secrets.APP_ID }}
           APP_HASH: ${{ secrets.APP_HASH }}
+          FCM_PROJECT_ID: ${{ secrets.FCM_PROJECT_ID }}
+          FCM_APP_ID: ${{ secrets.FCM_APP_ID }}
+          FCM_API_KEY: ${{ secrets.FCM_API_KEY }}
+          FCM_SENDER_ID: ${{ secrets.FCM_SENDER_ID }}
 
       - uses: actions/upload-artifact@v7
         with:
