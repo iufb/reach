@@ -34,9 +34,14 @@ data class MessageActions(
     val canForward: Boolean,
     /** Можно закрепить или открепить (`canBePinned`); что именно — по `Message.isPinned`. */
     val canPin: Boolean = false,
+    /** Своё сообщение с открытым опросом: «Остановить опрос». */
+    val canStopPoll: Boolean = false,
+    /** «Отменить голос». */
+    val canRetractVote: Boolean = false,
 ) {
     val canDelete: Boolean get() = canDeleteForAll || canDeleteForSelf
-    val isEmpty: Boolean get() = copyText == null && !canReply && !canEdit && !canDelete && !canForward && !canPin
+    val isEmpty: Boolean get() = copyText == null && !canReply && !canEdit && !canDelete && !canForward && !canPin &&
+        !canStopPoll && !canRetractVote
 }
 
 /** Открытое меню действий над [message]; [reactions] — ряд реакций сверху. */
@@ -55,6 +60,7 @@ internal fun MessageBody.copyableText(): String? = when (this) {
     is MessageBody.Animation -> caption.text.ifBlank { null }
     is MessageBody.Sticker -> null
     is MessageBody.AnimatedEmoji -> emoji
+    is MessageBody.Poll -> null
     is MessageBody.Voice -> caption.text.ifBlank { null }
     is MessageBody.Audio -> caption.text.ifBlank { null }
     is MessageBody.Document -> caption.text.ifBlank { null }
@@ -66,6 +72,7 @@ internal fun messageActions(message: Message, properties: TdApi.MessagePropertie
     // Защищённый контент (запрет копирования в чате) копировать нельзя
     val protected = properties != null &&
         (properties.hasProtectedContentByCurrentUser || properties.hasProtectedContentByOtherUser)
+    val poll = (message.content as? MessageBody.Poll)?.poll
     return MessageActions(
         copyText = message.content.copyableText().takeUnless { protected },
         canReply = properties?.canBeReplied == true,
@@ -74,6 +81,9 @@ internal fun messageActions(message: Message, properties: TdApi.MessagePropertie
         canDeleteForSelf = properties?.canBeDeletedOnlyForSelf == true,
         canForward = properties?.canBeForwarded == true,
         canPin = properties?.canBePinned == true,
+        // stopPoll проверяется по can_be_edited
+        canStopPoll = poll != null && !poll.isClosed && message.isOutgoing && properties?.canBeEdited == true,
+        canRetractVote = poll?.canRetract == true,
     )
 }
 
@@ -86,6 +96,7 @@ internal fun MessageBody.editableText(): RichText? = when (this) {
     is MessageBody.Animation -> caption
     is MessageBody.Sticker -> null
     is MessageBody.AnimatedEmoji -> null
+    is MessageBody.Poll -> null
     is MessageBody.Voice -> caption
     is MessageBody.Audio -> caption
     is MessageBody.Document -> caption
@@ -113,6 +124,8 @@ internal fun MessageMenuPopup(
     onSelect: (MessageMenu) -> Unit,
     onReact: (Message, ReactionKey) -> Unit,
     onPin: (Message, Boolean) -> Unit,
+    onRetractVote: (Message) -> Unit = {},
+    onStopPoll: (Message) -> Unit = {},
 ) {
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
@@ -150,6 +163,18 @@ internal fun MessageMenuPopup(
                 text = { Text(stringResource(if (pinned) R.string.message_action_unpin else R.string.message_action_pin)) },
                 leadingIcon = { Icon(painterResource(R.drawable.ic_pin), contentDescription = null) },
                 onClick = { onPin(current.message, !pinned) },
+            )
+        }
+        if (actions.canRetractVote) {
+            DropdownMenuItem(
+                text = { Text(stringResource(R.string.poll_retract)) },
+                onClick = { onRetractVote(current.message) },
+            )
+        }
+        if (actions.canStopPoll) {
+            DropdownMenuItem(
+                text = { Text(stringResource(if ((current.message.content as? MessageBody.Poll)?.poll?.quiz != null) R.string.quiz_stop else R.string.poll_stop)) },
+                onClick = { onStopPoll(current.message) },
             )
         }
         // Выбрать можно любое сообщение, у которого открылось меню

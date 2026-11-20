@@ -47,6 +47,12 @@
         <item quantity="many">%d минут</item>
         <item quantity="other">%d минуты</item>
     </plurals>
+    <plurals name="poll_votes">
+        <item quantity="one">%d голос</item>
+        <item quantity="few">%d голоса</item>
+        <item quantity="many">%d голосов</item>
+        <item quantity="other">%d голоса</item>
+    </plurals>
     <plurals name="days">
         <item quantity="one">%d день</item>
         <item quantity="few">%d дня</item>
@@ -143,6 +149,30 @@
     <string name="send_silent">Отправить без звука</string>
     <string name="send_silent_on">Без звука: включено</string>
     <string name="send_silent_off">Без звука: выключено</string>
+    <string name="attach_poll">Опрос</string>
+    <string name="content_quiz">Викторина</string>
+    <string name="poll_new">Новый опрос</string>
+    <string name="quiz_new">Новая викторина</string>
+    <string name="poll_question">Вопрос</string>
+    <string name="poll_options">Варианты ответа</string>
+    <string name="poll_option_hint">Вариант %1$d</string>
+    <string name="poll_option_remove">Убрать вариант</string>
+    <string name="poll_setting_anonymous">Анонимное голосование</string>
+    <string name="poll_setting_multiple">Несколько ответов</string>
+    <string name="poll_setting_quiz">Режим викторины</string>
+    <string name="quiz_pick_correct">Отметьте правильный ответ слева от варианта.</string>
+    <string name="quiz_explanation">Объяснение</string>
+    <string name="poll_vote">Голосовать</string>
+    <string name="poll_no_votes">Пока никто не голосовал</string>
+    <string name="poll_closed">Итоги</string>
+    <string name="poll_anonymous">Анонимный опрос</string>
+    <string name="poll_public">Публичный опрос</string>
+    <string name="quiz_anonymous">Анонимная викторина</string>
+    <string name="quiz_public">Викторина</string>
+    <string name="poll_retract">Отменить голос</string>
+    <string name="poll_stop">Остановить опрос</string>
+    <string name="quiz_stop">Остановить викторину</string>
+    <string name="poll_voters_more">Показать ещё</string>
     <string name="send_with_spoiler">Скрыть под спойлер</string>
     <string name="send_scheduled">Отправить позже</string>
     <string name="send_when_online">Когда будет в сети</string>
