@@ -50,6 +50,7 @@ import coil3.compose.AsyncImagePainter
 import coil3.compose.rememberAsyncImagePainter
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.PhotoInfo
+import io.github.iufb.reach.chats.VideoInfo
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -91,25 +92,42 @@ internal fun PhotoThumbnail(photo: PhotoInfo, modifier: Modifier = Modifier, squ
     }
 }
 
-/** Полноэкранный просмотр: листание между [photos], зум щипком и двойным тапом, закрытие свайпом вниз. */
+/** Что листается в полноэкранном просмотре: фото и видео (альбомы бывают смешанными). */
+sealed interface ViewerItem {
+    data class Photo(val photo: PhotoInfo) : ViewerItem
+    data class Video(val video: VideoInfo) : ViewerItem
+}
+
+/** Просмотр одних фото (аватарки в профиле). */
+@Composable
+internal fun PhotoViewer(photos: List<PhotoInfo>, initial: Int, onDismiss: () -> Unit) =
+    MediaViewer(photos.map(ViewerItem::Photo), initial, onDismiss)
+
+/**
+ * Полноэкранный просмотр: листание между [items], у фото — зум щипком и двойным тапом,
+ * у видео — плеер; закрытие свайпом вниз. Играет только видео на открытой странице.
+ */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
-internal fun PhotoViewer(photos: List<PhotoInfo>, initial: Int, onDismiss: () -> Unit) {
+internal fun MediaViewer(items: List<ViewerItem>, initial: Int, onDismiss: () -> Unit) {
     Dialog(
         onDismissRequest = onDismiss,
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
-        val pager = rememberPagerState(initialPage = initial.coerceIn(0, (photos.size - 1).coerceAtLeast(0))) { photos.size }
+        val pager = rememberPagerState(initialPage = initial.coerceIn(0, (items.size - 1).coerceAtLeast(0))) { items.size }
         Box(Modifier.fillMaxSize().background(Color.Black)) {
             HorizontalPager(pager, Modifier.fillMaxSize(), key = { it }) { page ->
-                ZoomableImage(photos[page], onDismiss)
+                when (val item = items[page]) {
+                    is ViewerItem.Photo -> ZoomableImage(item.photo, onDismiss)
+                    is ViewerItem.Video -> VideoPage(item.video, active = page == pager.settledPage, onDismiss)
+                }
             }
             IconButton(onClick = onDismiss, modifier = Modifier.statusBarsPadding().padding(8.dp)) {
                 Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.back), tint = Color.White)
             }
-            if (photos.size > 1) {
+            if (items.size > 1) {
                 Text(
-                    "${pager.currentPage + 1} / ${photos.size}",
+                    "${pager.currentPage + 1} / ${items.size}",
                     modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 20.dp),
                     color = Color.White,
                     style = MaterialTheme.typography.titleMedium,
@@ -196,8 +214,8 @@ private fun ZoomableImage(photo: PhotoInfo, onDismiss: () -> Unit) {
     }
 }
 
-private const val MIN_RATIO = 0.6f
-private const val MAX_RATIO = 2f
+internal const val MIN_RATIO = 0.6f
+internal const val MAX_RATIO = 2f
 private const val MAX_SCALE = 5f
 private const val DOUBLE_TAP_SCALE = 2.5f
-private const val DISMISS_FRACTION = 0.2f
+internal const val DISMISS_FRACTION = 0.2f

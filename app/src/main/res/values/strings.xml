@@ -148,6 +148,9 @@
     <string name="format_link_apply">Готово</string>
     <string name="link_preview_remove">Отправить без превью</string>
     <string name="photo_load_error">Не удалось загрузить</string>
+    <string name="video_play">Воспроизвести</string>
+    <string name="video_pause">Пауза</string>
+    <string name="video_play_error">Не удалось воспроизвести видео</string>
     <string name="attach">Прикрепить</string>
     <string name="attach_photo">Фото</string>
     <string name="attach_file">Файл</string>
