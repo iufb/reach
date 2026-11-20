@@ -156,7 +156,8 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
     suspend fun followUpdates() {
         td.updates.collect { update ->
             when (update) {
-                is TdApi.UpdateNewMessage -> if (update.message.chatId == chatId) {
+                // Отложенные живут на своём экране, в истории их нет
+                is TdApi.UpdateNewMessage -> if (update.message.chatId == chatId && update.message.schedulingState == null) {
                     val message = update.message.toModel()
                     // До open копим всё: open решит, нужны ли они
                     _state.update { s -> if (s.reachedNewest || !s.opened) s.merge(listOf(message)) else s }
@@ -184,10 +185,10 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
                     edit(update.messageId) { copy(viewCount = views, reactions = reactions) }
                 }
                 // Отправка завершилась: временный id меняется на постоянный
-                is TdApi.UpdateMessageSendSucceeded -> if (update.message.chatId == chatId) {
+                is TdApi.UpdateMessageSendSucceeded -> if (update.message.chatId == chatId && update.message.schedulingState == null) {
                     replace(update.oldMessageId, update.message.toModel())
                 }
-                is TdApi.UpdateMessageSendFailed -> if (update.message.chatId == chatId) {
+                is TdApi.UpdateMessageSendFailed -> if (update.message.chatId == chatId && update.message.schedulingState == null) {
                     Log.w(TAG, "send failed: ${update.error.code} ${update.error.message}")
                     replace(update.oldMessageId, update.message.toModel())
                 }
@@ -216,7 +217,7 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         val content = TdApi.InputMessageText(text.toFormattedText(), previewOptions, true)
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
         val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, options.toTd(), null, content))
-        _state.update { it.merge(listOf(pending.toModel())) }
+        mergeSent(listOf(pending))
     }
 
     /** Фото: одно — обычным сообщением, несколько — альбомом; подпись у первого. */
@@ -239,7 +240,7 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         } else {
             td.send(TdApi.SendMessageAlbum(chatId, null, replyTo, options.toTd(), contents.toTypedArray<TdApi.InputMessageContent>())).messages.toList()
         }
-        _state.update { it.merge(pending.map { m -> m.toModel() }) }
+        mergeSent(pending)
     }
 
     /** Документ из локального файла [path]; имя берётся из пути. */
@@ -248,7 +249,7 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         val document = TdApi.InputDocument(TdApi.InputFileLocal(path), null, false)
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
         val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, options.toTd(), null, TdApi.InputMessageDocument(document, null)))
-        _state.update { it.merge(listOf(pending.toModel())) }
+        mergeSent(listOf(pending))
     }
 
     /** Голосовое (OGG/Opus) с длительностью и waveform. */
@@ -263,21 +264,16 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         val voice = TdApi.InputVoiceNote(TdApi.InputFileLocal(path), duration, waveform)
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
         val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, options.toTd(), null, TdApi.InputMessageVoiceNote(voice, null, null)))
-        _state.update { it.merge(listOf(pending.toModel())) }
+        mergeSent(listOf(pending))
     }
 
-    /**
-     * Правка своего сообщения: текст — `editMessageText`, подпись к медиа — `editMessageCaption`.
-     * Новое содержимое придёт апдейтами `UpdateMessageContent` / `UpdateMessageEdited`.
-     */
-    suspend fun editText(message: Message, text: RichText) {
-        val formatted = text.toFormattedText()
-        when (message.content) {
-            is MessageBody.Text -> td.send(
-                TdApi.EditMessageText(chatId, message.id, null, TdApi.InputMessageText(formatted, null, false)),
-            )
-            else -> td.send(TdApi.EditMessageCaption(chatId, message.id, null, formatted, false))
-        }
+    /** Новое содержимое придёт апдейтами `UpdateMessageContent` / `UpdateMessageEdited`. */
+    suspend fun editText(message: Message, text: RichText) = td.editMessageText(chatId, message, text)
+
+    /** Только что отправленное — в ленту; отложенное в историю не попадает. */
+    private fun mergeSent(sent: List<TdApi.Message>) {
+        val now = sent.filter { it.schedulingState == null }.map { it.toModel() }
+        if (now.isNotEmpty()) _state.update { it.merge(now) }
     }
 
     private fun replace(oldId: Long, message: Message) {
@@ -304,5 +300,16 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
     private companion object {
         const val TAG = "ChatHistory"
         const val PAGE = 50
+    }
+}
+
+/** Правка своего сообщения: текст — `editMessageText`, подпись к медиа — `editMessageCaption`. */
+internal suspend fun TdClient.editMessageText(chatId: Long, message: Message, text: RichText) {
+    val formatted = text.toFormattedText()
+    when (message.content) {
+        is MessageBody.Text -> send(
+            TdApi.EditMessageText(chatId, message.id, null, TdApi.InputMessageText(formatted, null, false)),
+        )
+        else -> send(TdApi.EditMessageCaption(chatId, message.id, null, formatted, false))
     }
 }
