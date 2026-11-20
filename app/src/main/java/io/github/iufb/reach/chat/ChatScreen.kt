@@ -90,7 +90,6 @@ import io.github.iufb.reach.chats.GroupRef
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.presence.activityText
 import io.github.iufb.reach.presence.userStatusText
-import io.github.iufb.reach.chats.PhotoInfo
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
 import io.github.iufb.reach.chats.TextSpan
@@ -148,7 +147,7 @@ fun ChatScreen(
         onPauseOrDispose { viewModel.onPause() }
     }
     deleting?.let { DeleteDialog(it, viewModel::confirmDelete, viewModel::cancelDelete) }
-    var viewer by remember { mutableStateOf<Pair<List<PhotoInfo>, Int>?>(null) }
+    var viewer by remember { mutableStateOf<Pair<List<ViewerItem>, Int>?>(null) }
     val pickedPhotos by viewModel.pickedPhotos.collectAsStateWithLifecycle()
     val photoPicker = rememberLauncherForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_PICKED_PHOTOS)) {
         viewModel.onPhotosPicked(it)
@@ -160,7 +159,7 @@ fun ChatScreen(
     val downloads by viewModel.downloads.collectAsStateWithLifecycle()
     val context = LocalContext.current
     LaunchedEffect(viewModel) { viewModel.openFile.collect { openFile(context, it) } }
-    viewer?.let { (photos, index) -> PhotoViewer(photos, index) { viewer = null } }
+    viewer?.let { (items, index) -> MediaViewer(items, index) { viewer = null } }
     CompositionLocalProvider(LocalMentionHandler provides mentionHandler) {
         ChatContent(
             chat, state, senders, onBack,
@@ -214,7 +213,7 @@ fun ChatScreen(
                 selection = selection,
                 onToggleSelect = viewModel::toggleSelection,
                 onStartSelection = viewModel::startSelection,
-                onOpenPhotos = { photos, index -> viewer = photos to index },
+                onOpenMedia = { items, index -> viewer = items to index },
                 uploadProgress = viewModel::uploadProgress,
                 onCancelSending = viewModel::cancelSending,
                 downloads = downloads,
@@ -304,8 +303,8 @@ private class MessageInteractions(
     val selection: Set<Long>,
     val onToggleSelect: (Message) -> Unit,
     val onStartSelection: (MessageMenu) -> Unit,
-    /** Тап по фото: полноэкранный просмотр с листанием по [photos]. */
-    val onOpenPhotos: (photos: List<PhotoInfo>, index: Int) -> Unit,
+    /** Тап по фото или видео: полноэкранный просмотр с листанием по [items]. */
+    val onOpenMedia: (items: List<ViewerItem>, index: Int) -> Unit,
     /** Прогресс загрузки своего отправляющегося файла. */
     val uploadProgress: (TdFile) -> Flow<Float>,
     val onCancelSending: (Message) -> Unit,
@@ -786,9 +785,22 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
                     Modifier
                         .padding(vertical = 2.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .messageLongPress(message, interactions) { interactions.onOpenPhotos(listOf(body.photo), 0) },
+                        .messageLongPress(message, interactions) { interactions.onOpenMedia(listOf(ViewerItem.Photo(body.photo)), 0) },
                 )
                 UploadOverlay(message, body.photo.full, interactions)
+            }
+            if (!body.caption.isBlank()) RichTextView(body.caption)
+        }
+        is MessageBody.Video -> {
+            Box(contentAlignment = Alignment.Center) {
+                VideoThumbnail(
+                    body.video,
+                    Modifier
+                        .padding(vertical = 2.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .messageLongPress(message, interactions) { interactions.onOpenMedia(listOf(ViewerItem.Video(body.video)), 0) },
+                )
+                UploadOverlay(message, body.video.file, interactions)
             }
             if (!body.caption.isBlank()) RichTextView(body.caption)
         }
@@ -818,9 +830,9 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
  */
 @Composable
 private fun AlbumContent(album: List<Message>, interactions: MessageInteractions) {
-    val photos = album.mapNotNull { (it.content as? MessageBody.Photo)?.photo }
+    val media = album.mapNotNull { it.content.viewerItem() }
     // Альбом файлов (или музыки) — столбиком, как отдельные сообщения
-    if (photos.isEmpty()) {
+    if (media.isEmpty()) {
         album.forEach { MessageContent(it, interactions) }
         return
     }
@@ -842,11 +854,21 @@ private fun AlbumContent(album: List<Message>, interactions: MessageInteractions
                             PhotoThumbnail(
                                 body.photo,
                                 Modifier.messageLongPress(message, interactions) {
-                                    interactions.onOpenPhotos(photos, photos.indexOf(body.photo).coerceAtLeast(0))
+                                    interactions.onOpenMedia(media, media.indexOf(ViewerItem.Photo(body.photo)).coerceAtLeast(0))
                                 },
                                 square = row.size > 1,
                             )
                             UploadOverlay(message, body.photo.full, interactions)
+                        }
+                        is MessageBody.Video -> Box(cell, contentAlignment = Alignment.Center) {
+                            VideoThumbnail(
+                                body.video,
+                                Modifier.messageLongPress(message, interactions) {
+                                    interactions.onOpenMedia(media, media.indexOf(ViewerItem.Video(body.video)).coerceAtLeast(0))
+                                },
+                                square = row.size > 1,
+                            )
+                            UploadOverlay(message, body.video.file, interactions)
                         }
                         else -> Box(
                             cell
@@ -866,6 +888,7 @@ private fun AlbumContent(album: List<Message>, interactions: MessageInteractions
     album.firstNotNullOfOrNull { m ->
         when (val body = m.content) {
             is MessageBody.Photo -> body.caption
+            is MessageBody.Video -> body.caption
             is MessageBody.Unsupported -> body.caption
             is MessageBody.Document -> body.caption
             else -> null
@@ -976,4 +999,11 @@ private fun ChatPreview() {
             ),
         )
     }
+}
+
+/** Фото и видео альбома листаются в просмотре вместе. */
+private fun MessageBody.viewerItem(): ViewerItem? = when (this) {
+    is MessageBody.Photo -> ViewerItem.Photo(photo)
+    is MessageBody.Video -> ViewerItem.Video(video)
+    else -> null
 }

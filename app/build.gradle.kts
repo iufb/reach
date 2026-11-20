@@ -70,6 +70,7 @@ dependencies {
     implementation(libs.androidx.emoji2.bundled)
     implementation(platform(libs.firebase.bom))
     implementation(libs.firebase.messaging)
+    implementation(libs.media3.exoplayer)
 
     implementation(platform(libs.compose.bom))
     implementation(libs.compose.ui)
