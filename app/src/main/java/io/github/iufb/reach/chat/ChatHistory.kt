@@ -212,8 +212,8 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
         options: SendOptions = SendOptions(),
     ) {
         if (!_state.value.reachedNewest) open(lastReadInboxId = null)
-        val options = if (withLinkPreview) null else TdApi.LinkPreviewOptions(true, "", false, false, false)
-        val content = TdApi.InputMessageText(text.toFormattedText(), options, true)
+        val previewOptions = if (withLinkPreview) null else TdApi.LinkPreviewOptions(true, "", false, false, false)
+        val content = TdApi.InputMessageText(text.toFormattedText(), previewOptions, true)
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
         val pending = td.send(TdApi.SendMessage(chatId, null, replyTo, options.toTd(), null, content))
         _state.update { it.merge(listOf(pending.toModel())) }
