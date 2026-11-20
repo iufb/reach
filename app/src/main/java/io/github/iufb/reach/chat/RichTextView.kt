@@ -5,7 +5,13 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -36,12 +42,55 @@ internal fun RichTextView(
 ) {
     val colors = richTextColors()
     val mentions = LocalMentionHandler.current
-    val annotated = remember(text, colors, mentions) { text.toAnnotatedString(colors, mentions = mentions) }
+    // Тап по любому спойлеру раскрывает все спойлеры текста
+    var revealed by remember(text) { mutableStateOf(false) }
+    val hide = !revealed && text.spans.any { it.kind == SpanKind.Spoiler }
+    val spoilers = if (hide) Spoilers.Hidden(onReveal = { revealed = true }) else Spoilers.Plain
+    val annotated = remember(text, colors, mentions, hide) { text.toAnnotatedString(colors, mentions = mentions, spoilers = spoilers) }
     val uriHandler = LocalUriHandler.current
     val safeHandler = remember(uriHandler) { SafeUriHandler(uriHandler) }
+    var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
     CompositionLocalProvider(LocalUriHandler provides safeHandler) {
-        Text(annotated, modifier = modifier, style = style)
+        Text(
+            annotated,
+            modifier = modifier.then(if (hide) Modifier.spoilerDust(text, layout) else Modifier),
+            style = style,
+            onTextLayout = { layout = it },
+        )
     }
+}
+
+/** Частицы поверх скрытых участков; текст под ними прозрачный (см. [Spoilers.Hidden]). */
+@Composable
+private fun Modifier.spoilerDust(text: RichText, layout: TextLayoutResult?): Modifier {
+    val phase = rememberSpoilerPhase()
+    val color = MaterialTheme.colorScheme.onSurface
+    val areas = remember(text, layout) {
+        val l = layout ?: return@remember emptyList()
+        text.spans.filter { it.kind == SpanKind.Spoiler }.map { span ->
+            val end = span.end.coerceAtMost(l.layoutInput.text.length)
+            val start = span.start.coerceAtMost(end)
+            l.getPathForRange(start, end)
+        }
+    }
+    return drawWithContent {
+        drawContent()
+        for (path in areas) {
+            clipPath(path) { drawSpoilerParticles(path.getBounds(), phase.value, color) }
+        }
+    }
+}
+
+/** Как рисовать спойлеры. */
+internal sealed interface Spoilers {
+    /** Обычным текстом: раскрытые в сообщении. */
+    data object Plain : Spoilers
+
+    /** Подсветкой фона: поле ввода, где автор видит, что спрятал. */
+    data object Marked : Spoilers
+
+    /** Скрыты: прозрачный текст, по тапу — [onReveal]. */
+    class Hidden(val onReveal: () -> Unit) : Spoilers
 }
 
 /** Что делать по тапу на упоминание; задаёт экран чата. */
@@ -60,13 +109,14 @@ private class SafeUriHandler(private val delegate: UriHandler) : UriHandler {
     }
 }
 
-internal data class RichTextColors(val link: Color, val codeBackground: Color, val quote: Color)
+internal data class RichTextColors(val link: Color, val codeBackground: Color, val quote: Color, val spoiler: Color)
 
 @Composable
 internal fun richTextColors() = RichTextColors(
     link = MaterialTheme.colorScheme.primary,
     codeBackground = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
     quote = MaterialTheme.colorScheme.primary,
+    spoiler = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
 )
 
 /**
@@ -77,8 +127,12 @@ internal fun RichText.toAnnotatedString(
     colors: RichTextColors,
     clickableLinks: Boolean = true,
     mentions: MentionHandler? = null,
+    spoilers: Spoilers = Spoilers.Plain,
 ): AnnotatedString = buildAnnotatedString {
     append(text)
+    val hidden = if (spoilers is Spoilers.Hidden) spans.filter { it.kind == SpanKind.Spoiler } else emptyList()
+    // Ссылка внутри скрытого не должна открываться случайным тапом
+    fun isHidden(start: Int, end: Int) = hidden.any { it.start < end && start < it.end }
     val paragraphs = mutableListOf<IntRange>()
     fun paragraph(start: Int, end: Int, style: ParagraphStyle) {
         val range = start until end
@@ -94,7 +148,12 @@ internal fun RichText.toAnnotatedString(
             SpanKind.Italic -> addStyle(SpanStyle(fontStyle = FontStyle.Italic), start, end)
             SpanKind.Underline -> addStyle(SpanStyle(textDecoration = TextDecoration.Underline), start, end)
             SpanKind.Strikethrough -> addStyle(SpanStyle(textDecoration = TextDecoration.LineThrough), start, end)
-            SpanKind.Spoiler -> Unit
+            SpanKind.Spoiler -> when (spoilers) {
+                Spoilers.Plain -> Unit
+                Spoilers.Marked -> addStyle(SpanStyle(background = colors.spoiler), start, end)
+                // Стиль добавляется последним (ниже), чтобы прозрачность перекрыла цвета ссылок и цитат
+                is Spoilers.Hidden -> Unit
+            }
             SpanKind.Code -> addStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = colors.codeBackground), start, end)
             is SpanKind.Pre -> {
                 addStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = colors.codeBackground), start, end)
@@ -107,7 +166,11 @@ internal fun RichText.toAnnotatedString(
             is SpanKind.Link -> {
                 val style = SpanStyle(color = colors.link, textDecoration = TextDecoration.Underline)
                 // В поле ввода ссылка только выглядит ссылкой: тап ставит курсор, а не открывает её
-                if (clickableLinks) addLink(LinkAnnotation.Url(kind.url, TextLinkStyles(style)), start, end) else addStyle(style, start, end)
+                if (clickableLinks && !isHidden(start, end)) {
+                    addLink(LinkAnnotation.Url(kind.url, TextLinkStyles(style)), start, end)
+                } else {
+                    addStyle(style, start, end)
+                }
             }
             is SpanKind.Mention, is SpanKind.MentionUser -> {
                 val style = SpanStyle(color = colors.link)
@@ -118,7 +181,7 @@ internal fun RichText.toAnnotatedString(
                         else -> null
                     }
                 }
-                if (clickableLinks && open != null) {
+                if (clickableLinks && open != null && !isHidden(start, end)) {
                     addLink(LinkAnnotation.Clickable("mention", TextLinkStyles(style)) { open() }, start, end)
                 } else {
                     addStyle(style, start, end)
@@ -128,6 +191,18 @@ internal fun RichText.toAnnotatedString(
             is SpanKind.Hashtag -> addStyle(SpanStyle(color = colors.link), start, end)
         }
     }
+    if (spoilers is Spoilers.Hidden) {
+        val invisible = SpanStyle(color = Color.Transparent, background = colors.spoiler)
+        for (span in hidden) {
+            addLink(
+                LinkAnnotation.Clickable(SPOILER_TAG, TextLinkStyles(invisible)) { spoilers.onReveal() },
+                span.start,
+                span.end,
+            )
+        }
+    }
 }
+
+private const val SPOILER_TAG = "spoiler"
 
 private val QUOTE_INDENT = 12.sp

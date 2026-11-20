@@ -125,6 +125,7 @@
     <string name="send_silent">Отправить без звука</string>
     <string name="send_silent_on">Без звука: включено</string>
     <string name="send_silent_off">Без звука: выключено</string>
+    <string name="send_with_spoiler">Скрыть под спойлер</string>
     <string name="send_scheduled">Отправить позже</string>
     <string name="send_when_online">Когда будет в сети</string>
     <string name="schedule_next">Далее</string>
@@ -159,6 +160,7 @@
     <string name="format_underline">Подчёркнутый</string>
     <string name="format_strikethrough">Зачёркнутый</string>
     <string name="format_code">Моноширинный</string>
+    <string name="format_spoiler">Спойлер</string>
     <string name="format_link">Ссылка</string>
     <string name="format_link_title">Ссылка</string>
     <string name="format_link_hint">https://…</string>

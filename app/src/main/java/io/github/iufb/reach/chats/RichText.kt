@@ -22,7 +22,7 @@ sealed interface SpanKind {
     data object Italic : SpanKind
     data object Underline : SpanKind
     data object Strikethrough : SpanKind
-    /** Пока рисуется обычным текстом; анимация скрытия — v0.5. */
+    /** Скрытый текст: закрыт частицами до тапа. */
     data object Spoiler : SpanKind
     data object Code : SpanKind
     /** Блок кода, [language] может быть пустым. */
@@ -35,6 +35,23 @@ sealed interface SpanKind {
     data class MentionUser(val userId: Long) : SpanKind
     /** Хэштег или кэштег. */
     data class Hashtag(val tag: String) : SpanKind
+}
+
+/** Текст для превью (список чатов, ответы, уведомления): спойлеры заменены на «▒». */
+fun RichText.masked(): String {
+    val hidden = spans.filter { it.kind == SpanKind.Spoiler }
+    if (hidden.isEmpty()) return text
+    return buildString {
+        text.forEachIndexed { i, c ->
+            val inSpoiler = hidden.any { i >= it.start && i < it.end }
+            when {
+                !inSpoiler || c.isWhitespace() -> append(c)
+                // Вторая половина суррогатной пары: символ уже заменён
+                Character.isLowSurrogate(c) && i > 0 && Character.isHighSurrogate(text[i - 1]) -> Unit
+                else -> append('▒')
+            }
+        }
+    }
 }
 
 internal fun TdApi.FormattedText?.toRichText(): RichText {

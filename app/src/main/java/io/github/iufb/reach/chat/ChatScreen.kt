@@ -863,27 +863,37 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
             body.preview?.let { LinkPreviewCard(it) }
         }
         is MessageBody.Photo -> {
+            val spoiler = rememberMediaSpoiler(message.id, body.hasSpoiler)
             Box(contentAlignment = Alignment.Center) {
                 PhotoThumbnail(
                     body.photo,
                     Modifier
                         .padding(vertical = 2.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .messageLongPress(message, interactions) { interactions.onOpenMedia(listOf(ViewerItem.Photo(body.photo)), 0) },
+                        .spoilerBlur(spoiler.hidden)
+                        .messageLongPress(message, interactions) {
+                            spoiler.open { interactions.onOpenMedia(listOf(ViewerItem.Photo(body.photo)), 0) }
+                        },
                 )
+                MediaSpoilerCover(spoiler.hidden, Modifier.matchParentSize().padding(vertical = 2.dp).clip(RoundedCornerShape(8.dp)))
                 UploadOverlay(message, body.photo.full, interactions)
             }
             if (!body.caption.isBlank()) RichTextView(body.caption)
         }
         is MessageBody.Video -> {
+            val spoiler = rememberMediaSpoiler(message.id, body.hasSpoiler)
             Box(contentAlignment = Alignment.Center) {
                 VideoThumbnail(
                     body.video,
                     Modifier
                         .padding(vertical = 2.dp)
                         .clip(RoundedCornerShape(8.dp))
-                        .messageLongPress(message, interactions) { interactions.onOpenMedia(listOf(ViewerItem.Video(body.video)), 0) },
+                        .spoilerBlur(spoiler.hidden)
+                        .messageLongPress(message, interactions) {
+                            spoiler.open { interactions.onOpenMedia(listOf(ViewerItem.Video(body.video)), 0) }
+                        },
                 )
+                MediaSpoilerCover(spoiler.hidden, Modifier.matchParentSize().padding(vertical = 2.dp).clip(RoundedCornerShape(8.dp)))
                 UploadOverlay(message, body.video.file, interactions)
             }
             if (!body.caption.isBlank()) RichTextView(body.caption)
@@ -923,13 +933,20 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
             Modifier.messageLongPress(message, interactions) { interactions.onStickerClick(body.sticker) },
         )
         is MessageBody.Animation -> {
-            AnimationThumbnail(
-                body.animation,
-                Modifier
-                    .padding(vertical = 2.dp)
-                    .clip(RoundedCornerShape(8.dp))
-                    .messageLongPress(message, interactions) { interactions.onOpenMedia(listOf(ViewerItem.Animation(body.animation)), 0) },
-            )
+            val spoiler = rememberMediaSpoiler(message.id, body.hasSpoiler)
+            Box(contentAlignment = Alignment.Center) {
+                AnimationThumbnail(
+                    body.animation,
+                    Modifier
+                        .padding(vertical = 2.dp)
+                        .clip(RoundedCornerShape(8.dp))
+                        .spoilerBlur(spoiler.hidden)
+                        .messageLongPress(message, interactions) {
+                            spoiler.open { interactions.onOpenMedia(listOf(ViewerItem.Animation(body.animation)), 0) }
+                        },
+                )
+                MediaSpoilerCover(spoiler.hidden, Modifier.matchParentSize().padding(vertical = 2.dp).clip(RoundedCornerShape(8.dp)))
+            }
             if (!body.caption.isBlank()) RichTextView(body.caption)
         }
         is MessageBody.Document -> {
@@ -979,23 +996,31 @@ private fun AlbumContent(album: List<Message>, interactions: MessageInteractions
                         .clip(RoundedCornerShape(4.dp))
                     when (val body = message.content) {
                         is MessageBody.Photo -> Box(cell, contentAlignment = Alignment.Center) {
+                            val spoiler = rememberMediaSpoiler(message.id, body.hasSpoiler)
                             PhotoThumbnail(
                                 body.photo,
-                                Modifier.messageLongPress(message, interactions) {
-                                    interactions.onOpenMedia(media, media.indexOf(ViewerItem.Photo(body.photo)).coerceAtLeast(0))
+                                Modifier.spoilerBlur(spoiler.hidden).messageLongPress(message, interactions) {
+                                    spoiler.open {
+                                        interactions.onOpenMedia(media, media.indexOf(ViewerItem.Photo(body.photo)).coerceAtLeast(0))
+                                    }
                                 },
                                 square = row.size > 1,
                             )
+                            MediaSpoilerCover(spoiler.hidden, Modifier.matchParentSize())
                             UploadOverlay(message, body.photo.full, interactions)
                         }
                         is MessageBody.Video -> Box(cell, contentAlignment = Alignment.Center) {
+                            val spoiler = rememberMediaSpoiler(message.id, body.hasSpoiler)
                             VideoThumbnail(
                                 body.video,
-                                Modifier.messageLongPress(message, interactions) {
-                                    interactions.onOpenMedia(media, media.indexOf(ViewerItem.Video(body.video)).coerceAtLeast(0))
+                                Modifier.spoilerBlur(spoiler.hidden).messageLongPress(message, interactions) {
+                                    spoiler.open {
+                                        interactions.onOpenMedia(media, media.indexOf(ViewerItem.Video(body.video)).coerceAtLeast(0))
+                                    }
                                 },
                                 square = row.size > 1,
                             )
+                            MediaSpoilerCover(spoiler.hidden, Modifier.matchParentSize())
                             UploadOverlay(message, body.video.file, interactions)
                         }
                         else -> Box(

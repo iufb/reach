@@ -35,9 +35,10 @@ import io.github.iufb.reach.R
 
 /** Выбранные фото перед отправкой: превью и подпись. */
 @Composable
-internal fun SendPhotosDialog(uris: List<Uri>, onSend: (caption: String, silent: Boolean) -> Unit, onDismiss: () -> Unit) {
+internal fun SendPhotosDialog(uris: List<Uri>, onSend: (caption: String, silent: Boolean, spoiler: Boolean) -> Unit, onDismiss: () -> Unit) {
     var caption by rememberSaveable { mutableStateOf("") }
     var silent by rememberSaveable { mutableStateOf(false) }
+    var spoiler by rememberSaveable { mutableStateOf(false) }
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(pluralStringResource(R.plurals.send_photos_title, uris.size, uris.size)) },
@@ -60,17 +61,23 @@ internal fun SendPhotosDialog(uris: List<Uri>, onSend: (caption: String, silent:
                     placeholder = { Text(stringResource(R.string.photo_caption_hint)) },
                     maxLines = 4,
                 )
-                Row(
-                    modifier = Modifier.fillMaxWidth().toggleable(silent, role = Role.Checkbox) { silent = it },
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    Checkbox(checked = silent, onCheckedChange = null)
-                    Spacer(Modifier.width(8.dp))
-                    Text(stringResource(R.string.send_silent))
-                }
+                CheckRow(stringResource(R.string.send_with_spoiler), spoiler) { spoiler = it }
+                CheckRow(stringResource(R.string.send_silent), silent) { silent = it }
             }
         },
-        confirmButton = { TextButton(onClick = { onSend(caption, silent) }) { Text(stringResource(R.string.chat_send)) } },
+        confirmButton = { TextButton(onClick = { onSend(caption, silent, spoiler) }) { Text(stringResource(R.string.chat_send)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
     )
+}
+
+@Composable
+private fun CheckRow(label: String, checked: Boolean, onChange: (Boolean) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth().toggleable(checked, role = Role.Checkbox, onValueChange = onChange),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Checkbox(checked = checked, onCheckedChange = null)
+        Spacer(Modifier.width(8.dp))
+        Text(label)
+    }
 }
