@@ -15,6 +15,9 @@ data class PhotoEdit(
     val crop: NormRect = NormRect.Full,
     /** Пропорции рамки (ширина / высота в пикселях); `null` — свободная. */
     val aspect: Float? = null,
+    /** Рисунок кистью и ластиком, по порядку. */
+    val strokes: List<BrushStroke> = emptyList(),
+    val texts: List<TextItem> = emptyList(),
 ) {
     val isEmpty: Boolean get() = this == None
 
@@ -26,14 +29,42 @@ data class PhotoEdit(
         rotation = (rotation + if (flipped) 270 else 90) % 360,
         crop = crop.rotatedClockwise(),
         aspect = aspect?.let { 1f / it },
+        strokes = strokes.map { s -> s.copy(points = s.points.map(NormPoint::rotatedClockwise)) },
+        texts = texts.map { it.copy(center = it.center.rotatedClockwise(), rotation = it.rotation + 90f) },
     )
 
-    fun flippedHorizontally(): PhotoEdit = copy(flipped = !flipped, crop = crop.flippedHorizontally())
+    /** Отражение картинки; текст остаётся читаемым — отражается только его место и наклон. */
+    fun flippedHorizontally(): PhotoEdit = copy(
+        flipped = !flipped,
+        crop = crop.flippedHorizontally(),
+        strokes = strokes.map { s -> s.copy(points = s.points.map(NormPoint::flippedHorizontally)) },
+        texts = texts.map { it.copy(center = it.center.flippedHorizontally(), rotation = -it.rotation) },
+    )
 
     companion object {
         val None = PhotoEdit()
     }
 }
+
+/** Точка в долях изображения. */
+data class NormPoint(val x: Float, val y: Float) {
+    /** Пиксель (px, py) картинки W×H после поворота — (H − py, px) в картинке H×W; в долях — (1 − y, x). */
+    fun rotatedClockwise() = NormPoint(1f - y, x)
+
+    fun flippedHorizontally() = NormPoint(1f - x, y)
+}
+
+/**
+ * Штрих кисти. [width] — доля меньшей стороны (не меняется при повороте), [color] — ARGB,
+ * [eraser] — стирает уже нарисованное (не само фото).
+ */
+data class BrushStroke(val points: List<NormPoint>, val color: Int, val width: Float, val eraser: Boolean = false)
+
+/**
+ * Надпись: [center] — середина, [size] — высота шрифта в долях меньшей стороны,
+ * [rotation] — наклон по часовой, градусы.
+ */
+data class TextItem(val text: String, val center: NormPoint, val size: Float, val rotation: Float, val color: Int)
 
 /** Прямоугольник в долях изображения. */
 data class NormRect(val left: Float, val top: Float, val right: Float, val bottom: Float) {

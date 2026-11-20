@@ -299,6 +299,17 @@
     <string name="photo_edit_flip">Отразить</string>
     <string name="photo_edit_aspect_free">Свободно</string>
     <string name="photo_edit_aspect_original">Исходные</string>
+    <string name="photo_edit_undo">Отменить</string>
+    <string name="photo_edit_redo">Повторить</string>
+    <string name="photo_edit_tab_crop">Кадр</string>
+    <string name="photo_edit_tab_draw">Рисунок</string>
+    <string name="photo_edit_tab_text">Текст</string>
+    <string name="photo_edit_brush">Кисть</string>
+    <string name="photo_edit_eraser">Ластик</string>
+    <string name="photo_edit_text_add">Добавить текст</string>
+    <string name="photo_edit_text_edit">Изменить</string>
+    <string name="photo_edit_text_delete">Удалить</string>
+    <string name="photo_edit_text_hint">Текст</string>
     <string name="video_note_record">Записать видеосообщение</string>
     <string name="video_note_flip">Сменить камеру</string>
     <string name="video_note_permission">Для видеосообщений нужен доступ к камере и микрофону</string>

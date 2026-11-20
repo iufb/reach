@@ -2,6 +2,8 @@ package io.github.iufb.reach.photoedit
 
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.RectF
 import android.graphics.ImageDecoder
 import android.graphics.Matrix
 import android.net.Uri
@@ -67,10 +69,15 @@ class PhotoEditRenderer @Inject constructor(@ApplicationContext private val cont
             return Bitmap.createBitmap(source, 0, 0, source.width, source.height, matrix, true)
         }
 
-        /** Поворот → кроп. */
+        /** Поворот → рисунок и надписи → кроп. */
         fun render(source: Bitmap, edit: PhotoEdit): Bitmap {
-            val oriented = orient(source, edit)
-            return crop(oriented, edit.crop)
+            var image = orient(source, edit)
+            if (edit.strokes.isNotEmpty() || edit.texts.isNotEmpty()) {
+                if (!image.isMutable || image === source) image = image.copy(Bitmap.Config.ARGB_8888, true)
+                val area = RectF(0f, 0f, image.width.toFloat(), image.height.toFloat())
+                OverlayPainter.draw(Canvas(image), edit, area)
+            }
+            return crop(image, edit.crop)
         }
 
         private fun crop(bitmap: Bitmap, rect: NormRect): Bitmap {
