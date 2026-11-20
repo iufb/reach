@@ -98,6 +98,8 @@ data class Chat(
     val isSavedMessages: Boolean = false,
     /** Отправлять без звука по умолчанию (`default_disable_notification`): колокольчик в поле ввода канала. */
     val defaultSilent: Boolean = false,
+    /** Есть отложенные сообщения: в шапке чата вход на их экран. */
+    val hasScheduledMessages: Boolean = false,
 ) {
     /** Есть что читать: непрочитанные сообщения или ручная пометка. */
     val hasUnread: Boolean get() = unreadCount > 0 || isMarkedAsUnread
@@ -151,6 +153,7 @@ internal fun TdApi.Chat.toModel() = Chat(
     muteFor = notificationSettings.ownMuteFor,
     isMarkedAsUnread = isMarkedAsUnread,
     defaultSilent = defaultDisableNotification,
+    hasScheduledMessages = hasScheduledMessages,
 )
 
 /** Черновики голосовых и видеокружков клиент не показывает. */

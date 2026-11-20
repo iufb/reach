@@ -55,6 +55,8 @@
     </plurals>
 
     <string name="cancel">Отмена</string>
+    <string name="ok">ОК</string>
+    <string name="save">Сохранить</string>
     <string name="close">Закрыть</string>
     <string name="logout">Выйти</string>
     <string name="logout_confirm_title">Выйти из аккаунта?</string>
@@ -123,6 +125,16 @@
     <string name="send_silent">Отправить без звука</string>
     <string name="send_silent_on">Без звука: включено</string>
     <string name="send_silent_off">Без звука: выключено</string>
+    <string name="send_scheduled">Отправить позже</string>
+    <string name="send_when_online">Когда будет в сети</string>
+    <string name="schedule_next">Далее</string>
+    <string name="schedule_time_title">Время отправки</string>
+    <string name="schedule_confirm">Запланировать</string>
+    <string name="scheduled_title">Отложенные сообщения</string>
+    <string name="scheduled_empty">Отложенных сообщений нет</string>
+    <string name="scheduled_at">Отправится %1$s</string>
+    <string name="scheduled_send_now">Отправить сейчас</string>
+    <string name="scheduled_reschedule">Изменить время</string>
     <string name="chat_send_error">Не отправлено: %1$s</string>
     <string name="chat_status_sending">Отправляется</string>
     <string name="chat_status_sent">Отправлено</string>

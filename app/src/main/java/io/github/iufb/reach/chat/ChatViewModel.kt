@@ -40,6 +40,7 @@ import io.github.iufb.reach.chats.GroupsRepository
 import io.github.iufb.reach.chats.canWrite
 import io.github.iufb.reach.core.td.TdClient
 import io.github.iufb.reach.navigation.ChatRoute
+import io.github.iufb.reach.users.UserStatus
 import io.github.iufb.reach.users.UsersRepository
 import io.github.iufb.reach.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
@@ -358,7 +359,14 @@ class ChatViewModel @Inject constructor(
      * Опции отправки: [silent] — разово «без звука» из меню отправки,
      * иначе как настроено колокольчиком чата.
      */
-    private fun sendOptions(silent: Boolean = false) = SendOptions(silent = silent || chat.value?.defaultSilent == true)
+    private fun sendOptions(silent: Boolean = false, schedule: Schedule? = null) =
+        SendOptions(silent = silent || chat.value?.defaultSilent == true, schedule = schedule)
+
+    /** «Когда будет в сети»: только в личке с пользователем, который показывает свой статус. */
+    val canScheduleWhenOnline: StateFlow<Boolean> = combine(chat, users.users) { chat, userMap ->
+        val status = chat?.takeUnless { it.isSavedMessages }?.userId?.let { userMap[it]?.status }
+        status is UserStatus.Online || status is UserStatus.Offline
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), false)
 
     /** Колокольчик в поле ввода канала: переключает «без звука» по умолчанию для этого чата. */
     fun toggleDefaultSilent() {
@@ -574,12 +582,15 @@ class ChatViewModel @Inject constructor(
         _draft.update { it.toggle(kind, start, end) }
     }
 
-    fun send() = sendDraft(silent = false)
+    fun send() = sendDraft(sendOptions())
 
     /** «Отправить без звука» из меню кнопки отправки. */
-    fun sendSilently() = sendDraft(silent = true)
+    fun sendSilently() = sendDraft(sendOptions(silent = true))
 
-    private fun sendDraft(silent: Boolean) {
+    /** «Отправить позже»: сообщение уходит в отложенные, в истории его нет. */
+    fun sendScheduled(schedule: Schedule) = sendDraft(sendOptions(schedule = schedule))
+
+    private fun sendDraft(options: SendOptions) {
         _editing.value?.let { return saveEdit(it) }
         val text = _draft.value.trimmed()
         if (text.isBlank()) return
@@ -589,7 +600,7 @@ class ChatViewModel @Inject constructor(
         _replyTo.value = null
         dismissedPreviewUrl.value = null
         viewModelScope.launch {
-            runCatching { history.sendText(text, reply?.id, withLinkPreview = !noPreview, options = sendOptions(silent)) }.onFailure {
+            runCatching { history.sendText(text, reply?.id, withLinkPreview = !noPreview, options = options) }.onFailure {
                 Log.e(TAG, "sendMessage failed", it)
                 _draft.value = text
                 _replyTo.value = reply

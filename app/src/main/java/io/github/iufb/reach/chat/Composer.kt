@@ -111,6 +111,10 @@ internal class ComposerState(
 /** Варианты отправки из меню кнопки «отправить». */
 internal class SendMenu(
     val onSilent: () -> Unit,
+    /** «Отправить позже»; `null` — недоступно. */
+    val onSchedule: ((Schedule) -> Unit)? = null,
+    /** Показывать «Когда будет в сети». */
+    val whenOnline: Boolean = false,
 )
 
 /** «@запрос» перед курсором: участок от «@» до курсора и сам запрос. */
@@ -253,6 +257,7 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
 @Composable
 private fun SendButton(enabled: Boolean, onClick: () -> Unit, menu: SendMenu?) {
     var open by remember { mutableStateOf(false) }
+    var picking by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
     val description = stringResource(R.string.chat_send)
     val optionsLabel = stringResource(R.string.send_options)
@@ -292,8 +297,38 @@ private fun SendButton(enabled: Boolean, onClick: () -> Unit, menu: SendMenu?) {
                         menu.onSilent()
                     },
                 )
+                menu.onSchedule?.let { schedule ->
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.send_scheduled)) },
+                        leadingIcon = { Icon(painterResource(R.drawable.ic_schedule), contentDescription = null) },
+                        onClick = {
+                            open = false
+                            picking = true
+                        },
+                    )
+                    if (menu.whenOnline) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.send_when_online)) },
+                            onClick = {
+                                open = false
+                                schedule(Schedule.WhenOnline)
+                            },
+                        )
+                    }
+                }
             }
         }
+    }
+    val schedule = menu?.onSchedule
+    if (picking && schedule != null) {
+        ScheduleDialog(
+            initial = null,
+            onPick = { date ->
+                picking = false
+                schedule(Schedule.At(date))
+            },
+            onDismiss = { picking = false },
+        )
     }
 }
 

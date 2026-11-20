@@ -114,6 +114,7 @@ fun ChatScreen(
     onOpenChat: (Long) -> Unit,
     onOpenProfile: (chatId: Long) -> Unit,
     onOpenUserProfile: (userId: Long) -> Unit,
+    onOpenScheduled: (chatId: Long) -> Unit,
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val chat by viewModel.chat.collectAsStateWithLifecycle()
@@ -132,6 +133,7 @@ fun ChatScreen(
     val mentionSuggestions by viewModel.mentionSuggestions.collectAsStateWithLifecycle()
     val linkPreview by viewModel.linkPreview.collectAsStateWithLifecycle()
     val header by viewModel.header.collectAsStateWithLifecycle()
+    val canScheduleWhenOnline by viewModel.canScheduleWhenOnline.collectAsStateWithLifecycle()
     val openChat by rememberUpdatedState(onOpenChat)
     LaunchedEffect(viewModel) { viewModel.openChat.collect { openChat(it) } }
     val openUserProfile by rememberUpdatedState(onOpenUserProfile)
@@ -173,6 +175,7 @@ fun ChatScreen(
             chat, state, senders, onBack,
             header = header,
             onOpenProfile = { chat?.let { onOpenProfile(it.id) } },
+            onOpenScheduled = { chat?.let { onOpenScheduled(it.id) } },
             selectionBar = selectionActions?.let { actions ->
                 {
                     SelectionBar(
@@ -209,7 +212,11 @@ fun ChatScreen(
                         onDiscard = viewModel::discardRecording,
                         onTogglePreview = viewModel::toggleRecordingPreview,
                     ),
-                    sendMenu = SendMenu(onSilent = viewModel::sendSilently),
+                    sendMenu = SendMenu(
+                        onSilent = viewModel::sendSilently,
+                        onSchedule = viewModel::sendScheduled,
+                        whenOnline = canScheduleWhenOnline,
+                    ),
                     silent = chat?.takeIf { it.kind == ChatKind.Channel }?.defaultSilent,
                     onToggleSilent = viewModel::toggleDefaultSilent,
                 )
@@ -263,6 +270,8 @@ private fun ChatContent(
     onBack: () -> Unit,
     header: HeaderInfo,
     onOpenProfile: () -> Unit,
+    /** Значок отложенных в шапке, пока они есть. */
+    onOpenScheduled: () -> Unit = {},
     /** Шапка режима выбора; `null` — обычная шапка чата. */
     selectionBar: (@Composable () -> Unit)?,
     onLoadOlder: () -> Unit,
@@ -289,6 +298,13 @@ private fun ChatContent(
                             }
                         },
                         title = { if (chat != null) ChatHeader(chat, header, senders, onOpenProfile) },
+                        actions = {
+                            if (chat?.hasScheduledMessages == true) {
+                                IconButton(onClick = onOpenScheduled) {
+                                    Icon(painterResource(R.drawable.ic_schedule), contentDescription = stringResource(R.string.scheduled_title))
+                                }
+                            }
+                        },
                     )
                 }
                 if (pinned != null) PinnedBar(pinned, onPinnedClick)
