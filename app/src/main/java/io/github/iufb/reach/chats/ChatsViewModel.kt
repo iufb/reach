@@ -136,6 +136,9 @@ class ChatsViewModel @Inject constructor(
         chatsRepository.moveToList(chat.id, if (archived) ChatListType.Archive else ChatListType.Main)
     }
 
+    /** Без звука на [seconds] секунд; 0 — включить звук. */
+    fun setMuteFor(chat: Chat, seconds: Int) = chatAction { chatsRepository.setMuteFor(chat.id, seconds) }
+
     /** Действие из меню: меню закрывается сразу, ошибка TDLib уходит в [errors]. */
     private fun chatAction(action: suspend () -> Unit) {
         dismissMenu()

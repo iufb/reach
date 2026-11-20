@@ -88,7 +88,34 @@ data class Chat(
     val draft: Draft? = null,
     /** Собеседник личного (и секретного) чата. */
     val userId: Long? = null,
-)
+    /** Своя настройка «без звука», секунды; `null` — по умолчанию для типа чата. */
+    val muteFor: Int? = null,
+    /** Итог с учётом настроек по умолчанию: уведомления выключены. */
+    val isMuted: Boolean = false,
+) {
+    val notificationScope: NotificationScope
+        get() = when (kind) {
+            ChatKind.Private, ChatKind.Secret -> NotificationScope.Private
+            ChatKind.Group -> NotificationScope.Group
+            ChatKind.Channel -> NotificationScope.Channel
+        }
+
+    /** Пересчитывает [isMuted] по настройкам по умолчанию [scopes] (секунды «без звука» по типу чата). */
+    fun withMute(scopes: Map<NotificationScope, Int>): Chat =
+        copy(isMuted = (muteFor ?: scopes[notificationScope] ?: 0) > 0)
+}
+
+/** Тип чата для настроек уведомлений по умолчанию. */
+enum class NotificationScope { Private, Group, Channel }
+
+internal fun TdApi.NotificationSettingsScope.toModel(): NotificationScope = when (this) {
+    is TdApi.NotificationSettingsScopePrivateChats -> NotificationScope.Private
+    is TdApi.NotificationSettingsScopeGroupChats -> NotificationScope.Group
+    else -> NotificationScope.Channel
+}
+
+internal val TdApi.ChatNotificationSettings.ownMuteFor: Int?
+    get() = muteFor.takeUnless { useDefaultMuteFor }
 
 internal fun TdApi.Chat.toModel() = Chat(
     id = id,
@@ -112,6 +139,7 @@ internal fun TdApi.Chat.toModel() = Chat(
         is TdApi.ChatTypeSecret -> t.userId
         else -> null
     },
+    muteFor = notificationSettings.ownMuteFor,
 )
 
 /** Черновики голосовых и видеокружков клиент не показывает. */

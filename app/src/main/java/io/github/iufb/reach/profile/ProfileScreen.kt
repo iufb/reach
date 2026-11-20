@@ -19,6 +19,8 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.foundation.layout.Row
+import androidx.compose.material3.Switch
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -104,6 +106,12 @@ fun ProfileScreen(
                 Button(onClick = viewModel::write) { Text(stringResource(R.string.profile_write)) }
             }
             HorizontalDivider()
+            current.isMuted?.let { muted ->
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Text(stringResource(R.string.profile_notifications), Modifier.weight(1f), style = MaterialTheme.typography.bodyLarge)
+                    Switch(checked = !muted, onCheckedChange = viewModel::setNotificationsEnabled)
+                }
+            }
             if (current.phoneNumber.isNotBlank()) InfoRow("+${current.phoneNumber}", R.string.profile_phone)
             if (current.username.isNotBlank()) InfoRow("@${current.username}", R.string.profile_username)
             if (current.username.isNotBlank() && !current.isUser) {

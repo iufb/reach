@@ -68,6 +68,14 @@
     <string name="chat_action_unpin">Открепить</string>
     <string name="chat_action_archive">В архив</string>
     <string name="chat_action_unarchive">Из архива</string>
+    <string name="chat_action_mute">Без звука</string>
+    <string name="chat_action_unmute">Включить звук</string>
+    <string name="chat_muted">Без звука</string>
+    <string name="mute_1_hour">Без звука на 1 час</string>
+    <string name="mute_8_hours">Без звука на 8 часов</string>
+    <string name="mute_2_days">Без звука на 2 дня</string>
+    <string name="mute_forever">Без звука навсегда</string>
+    <string name="profile_notifications">Уведомления</string>
     <string name="archive_title">Архив</string>
     <string name="folder_all_chats">Все чаты</string>
     <string name="archive_empty">В архиве пусто</string>
