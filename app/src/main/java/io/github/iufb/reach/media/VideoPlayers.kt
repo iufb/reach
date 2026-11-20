@@ -110,6 +110,7 @@ private const val MAX_INLINE_PLAYERS = 3
 internal interface MediaEntryPoint {
     fun videoPlayers(): VideoPlayers
     fun audioPlayer(): AudioPlayer
+    fun autoDownload(): AutoDownload
 }
 
 /** [VideoPlayers] из Compose — для экранов без своей ViewModel (полноэкранный просмотр). */

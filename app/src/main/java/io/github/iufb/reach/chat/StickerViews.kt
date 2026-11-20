@@ -22,6 +22,11 @@ import coil3.compose.AsyncImagePainter
 import coil3.compose.rememberAsyncImagePainter
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.StickerInfo
+import io.github.iufb.reach.media.MediaKind
+import io.github.iufb.reach.media.currentAutoDownloadRules
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 
 /**
  * Стикер без пузыря, с прозрачностью. Сначала миниатюра, поверх — сам WebP.
@@ -36,9 +41,12 @@ internal fun StickerView(sticker: StickerInfo, modifier: Modifier = Modifier) {
             .aspectRatio(ratio.coerceIn(0.5f, 2f)),
         contentAlignment = Alignment.Center,
     ) {
-        val main = rememberAsyncImagePainter(if (sticker.isStatic) sticker.file else null)
+        val rules = currentAutoDownloadRules()
+        var requested by remember(sticker.file) { mutableStateOf(false) }
+        val load = sticker.isStatic && (requested || rules.allows(MediaKind.Sticker))
+        val main = rememberAsyncImagePainter(if (load) sticker.file else null)
         val state by main.state.collectAsState()
-        val loaded = sticker.isStatic && state is AsyncImagePainter.State.Success
+        val loaded = load && state is AsyncImagePainter.State.Success
         if (!loaded) {
             if (sticker.thumbnail != null) {
                 AsyncImage(sticker.thumbnail, sticker.emoji, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
@@ -46,7 +54,8 @@ internal fun StickerView(sticker: StickerInfo, modifier: Modifier = Modifier) {
                 Text(sticker.emoji, style = MaterialTheme.typography.displayMedium)
             }
         }
-        if (sticker.isStatic) Image(main, sticker.emoji, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+        if (load) Image(main, sticker.emoji, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+        if (sticker.isStatic && !load) DownloadBadge(0, onClick = { requested = true })
     }
 }
 

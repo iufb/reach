@@ -32,6 +32,10 @@ import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.VoiceInfo
 import io.github.iufb.reach.chats.formatDuration
 import io.github.iufb.reach.media.AudioState
+import io.github.iufb.reach.media.MediaKind
+import io.github.iufb.reach.media.currentAutoDownloadRules
+import io.github.iufb.reach.media.rememberAutoDownload
+import androidx.compose.runtime.LaunchedEffect
 
 /**
  * Голосовое в пузыре: ▶/⏸, waveform (проигранная часть закрашена, тап/перетаскивание — перемотка),
@@ -48,6 +52,10 @@ internal fun VoiceNoteView(
     modifier: Modifier = Modifier,
 ) {
     val playing = playback?.isPlaying == true
+    // Голосовые маленькие: если правила разрешают — качаем заранее, тогда ▶ стартует мгновенно
+    val autoDownload = rememberAutoDownload()
+    val rules = currentAutoDownloadRules()
+    LaunchedEffect(voice.file, rules) { if (rules.allows(MediaKind.Voice)) autoDownload.preload(voice.file) }
     Column(modifier.padding(vertical = 2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             FilledIconButton(onClick = onToggle, modifier = Modifier.size(44.dp), shape = CircleShape) {

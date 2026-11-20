@@ -80,6 +80,7 @@ fun ChatsScreen(
     onOpenArchive: () -> Unit,
     onOpenSearch: () -> Unit,
     onBack: () -> Unit,
+    onOpenAutoDownload: () -> Unit = {},
     viewModel: ChatsViewModel = hiltViewModel(),
 ) {
     val chats by viewModel.chats.collectAsStateWithLifecycle()
@@ -103,6 +104,7 @@ fun ChatsScreen(
         onBack = onBack,
         onOpenSearch = onOpenSearch,
         onOpenSaved = viewModel::openSavedMessages,
+        onOpenAutoDownload = onOpenAutoDownload,
         tabs = tabs,
         onSelectList = viewModel::selectList,
     )
@@ -134,6 +136,7 @@ private fun ChatsContent(
     onBack: () -> Unit = {},
     onOpenSearch: () -> Unit = {},
     onOpenSaved: () -> Unit = {},
+    onOpenAutoDownload: () -> Unit = {},
     tabs: List<FolderTab> = emptyList(),
     onSelectList: (ChatListType) -> Unit = {},
 ) {
@@ -176,6 +179,14 @@ private fun ChatsContent(
                                     onClick = {
                                         menuOpen = false
                                         onOpenSaved()
+                                    },
+                                )
+                                DropdownMenuItem(
+                                    text = { Text(stringResource(R.string.autodownload_title)) },
+                                    leadingIcon = { Icon(painterResource(R.drawable.ic_download), contentDescription = null) },
+                                    onClick = {
+                                        menuOpen = false
+                                        onOpenAutoDownload()
                                     },
                                 )
                                 DropdownMenuItem(

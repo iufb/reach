@@ -51,15 +51,19 @@ import coil3.compose.rememberAsyncImagePainter
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.PhotoInfo
 import io.github.iufb.reach.chats.VideoInfo
+import io.github.iufb.reach.media.MediaKind
+import io.github.iufb.reach.media.currentAutoDownloadRules
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
 /**
  * Фото в пузыре: сразу миниатюра (размытая), поверх — превью нужного размера.
  * Пропорции известны заранее, поэтому пузырь не прыгает при загрузке.
+ * [autoDownload] — слушаться правил автозагрузки фото (постеры видео и GIF грузятся всегда:
+ * это маленькие миниатюры); если качать нельзя — миниатюра и кнопка скачивания с размером.
  */
 @Composable
-internal fun PhotoThumbnail(photo: PhotoInfo, modifier: Modifier = Modifier, square: Boolean = false) {
+internal fun PhotoThumbnail(photo: PhotoInfo, modifier: Modifier = Modifier, square: Boolean = false, autoDownload: Boolean = true) {
     val ratio = if (square) {
         1f
     } else if (photo.width > 0 && photo.height > 0) {
@@ -67,7 +71,10 @@ internal fun PhotoThumbnail(photo: PhotoInfo, modifier: Modifier = Modifier, squ
     } else {
         1f
     }
-    val painter = rememberAsyncImagePainter(photo.preview)
+    val rules = currentAutoDownloadRules()
+    var requested by remember(photo.preview) { mutableStateOf(false) }
+    val load = !autoDownload || photo.downloaded || requested || rules.allows(MediaKind.Photo, photo.size)
+    val painter = rememberAsyncImagePainter(if (load) photo.preview else null)
     val state by painter.state.collectAsState()
     Box(
         modifier = modifier
@@ -82,7 +89,9 @@ internal fun PhotoThumbnail(photo: PhotoInfo, modifier: Modifier = Modifier, squ
             }
         }
         Image(painter, null, Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
-        if (photo.preview != null) {
+        if (!load && photo.preview != null) {
+            DownloadBadge(photo.size, onClick = { requested = true })
+        } else if (photo.preview != null) {
             when (state) {
                 is AsyncImagePainter.State.Loading -> CircularProgressIndicator(Modifier.size(32.dp), strokeWidth = 2.dp)
                 is AsyncImagePainter.State.Error -> Text(stringResource(R.string.photo_load_error), style = MaterialTheme.typography.labelMedium)

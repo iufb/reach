@@ -15,6 +15,8 @@ data class VideoInfo(
     val duration: Int,
     val poster: PhotoInfo,
     val file: TdFile,
+    /** Размер ролика в байтах; 0 — неизвестен. */
+    val size: Long = 0,
 )
 
 internal fun TdApi.MessageVideo.toInfo(): VideoInfo {
@@ -35,6 +37,7 @@ internal fun TdApi.MessageVideo.toInfo(): VideoInfo {
             full = coverInfo?.full ?: thumbnail?.file?.toTdFile(),
         ),
         file = video.video.toTdFile(),
+        size = video.video.size.takeIf { it > 0 } ?: video.video.expectedSize,
     )
 }
 
@@ -54,6 +57,7 @@ internal fun TdApi.MessageAnimation.toInfo(): VideoInfo {
             full = thumbnail?.file?.toTdFile(),
         ),
         file = animation.animation.toTdFile(),
+        size = animation.animation.size.takeIf { it > 0 } ?: animation.animation.expectedSize,
     )
 }
 

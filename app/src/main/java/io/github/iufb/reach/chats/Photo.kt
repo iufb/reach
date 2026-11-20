@@ -14,6 +14,10 @@ class PhotoInfo(
     val minithumbnail: ByteArray?,
     val preview: TdFile?,
     val full: TdFile?,
+    /** Размер [preview] в байтах (0 — неизвестен) — для правил автозагрузки. */
+    val size: Long = 0,
+    /** [preview] уже на диске: показываем без оглядки на автозагрузку. */
+    val downloaded: Boolean = false,
 ) {
     // Сравнение по файлам: байты миниатюры для одного и того же фото не меняются
     override fun equals(other: Any?): Boolean =
@@ -31,6 +35,8 @@ internal fun TdApi.Photo.toInfo(): PhotoInfo {
         minithumbnail = minithumbnail?.data,
         preview = preview?.photo?.toTdFile(),
         full = largest?.photo?.toTdFile(),
+        size = preview?.photo?.let { it.size.takeIf { s -> s > 0 } ?: it.expectedSize } ?: 0,
+        downloaded = preview?.photo?.local?.isDownloadingCompleted == true,
     )
 }
 
