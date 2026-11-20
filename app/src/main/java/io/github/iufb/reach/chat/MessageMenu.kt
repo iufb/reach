@@ -54,6 +54,7 @@ internal fun MessageBody.copyableText(): String? = when (this) {
     is MessageBody.Video -> caption.text.ifBlank { null }
     is MessageBody.Animation -> caption.text.ifBlank { null }
     is MessageBody.Sticker -> null
+    is MessageBody.Voice -> caption.text.ifBlank { null }
     is MessageBody.Document -> caption.text.ifBlank { null }
     is MessageBody.Service -> null
 }
@@ -82,6 +83,7 @@ internal fun MessageBody.editableText(): RichText? = when (this) {
     is MessageBody.Video -> caption
     is MessageBody.Animation -> caption
     is MessageBody.Sticker -> null
+    is MessageBody.Voice -> caption
     is MessageBody.Document -> caption
     is MessageBody.Service -> null
 }

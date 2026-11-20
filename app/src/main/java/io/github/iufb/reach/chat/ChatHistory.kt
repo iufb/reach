@@ -165,6 +165,13 @@ class ChatHistory(private val chatId: Long, private val td: TdClient) {
                     val body = update.newContent.toBody()
                     edit(update.messageId) { copy(content = body) }
                 }
+                // Голосовое прослушано (нами или собеседником)
+                is TdApi.UpdateMessageContentOpened -> if (update.chatId == chatId) {
+                    edit(update.messageId) {
+                        val body = content
+                        if (body is MessageBody.Voice) copy(content = body.copy(isListened = true)) else this
+                    }
+                }
                 is TdApi.UpdateMessageIsPinned -> if (update.chatId == chatId) {
                     edit(update.messageId) { copy(isPinned = update.isPinned) }
                 }

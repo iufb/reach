@@ -10,6 +10,9 @@ import io.github.iufb.reach.chats.Chat
 import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.StickerInfo
+import io.github.iufb.reach.media.AudioPlayer
+import io.github.iufb.reach.media.AudioState
+import io.github.iufb.reach.media.AudioTrack
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
 import io.github.iufb.reach.chats.toFormattedText
@@ -77,6 +80,7 @@ class ChatViewModel @Inject constructor(
     private val files: FilesRepository,
     presence: PresenceRepository,
     private val reactions: ReactionsRepository,
+    private val audioPlayer: AudioPlayer,
 ) : ViewModel() {
 
     private val chatId: Long = savedStateHandle.toRoute<ChatRoute>().chatId
@@ -368,6 +372,29 @@ class ChatViewModel @Inject constructor(
     /** Состояние документов, которые качаются или скачаны в этом экране; по id файла. */
     val downloads: StateFlow<Map<Int, FileState>> = _downloads.asStateFlow()
     private val downloadJobs = HashMap<Int, Job>()
+
+    /** Аудиоплеер, если играет что-то из этого чата; иначе пустое состояние. */
+    val audio: StateFlow<AudioState> = audioPlayer.state
+        .map { if (it.track?.chatId == chatId) it else AudioState() }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, AudioState())
+
+    /** Тап по ▶ голосового: играть его, а за ним — следующие голосовые чата (из загруженных). */
+    fun onVoiceToggle(message: Message) {
+        val track = message.voiceTrack() ?: return
+        val following = history.state.value.messages
+            .filter { it.id > message.id }
+            .sortedBy { it.id }
+            .mapNotNull { it.voiceTrack() }
+        audioPlayer.toggle(track, following)
+    }
+
+    fun onAudioSeek(fraction: Float) = audioPlayer.seekTo(fraction)
+
+    private fun Message.voiceTrack(): AudioTrack? {
+        val body = content as? MessageBody.Voice ?: return null
+        if (sendingState != null) return null
+        return AudioTrack(chatId, id, body.voice.file, isVoice = true, duration = body.voice.duration)
+    }
 
     private val _stickerSetTitle = MutableStateFlow<String?>(null)
 

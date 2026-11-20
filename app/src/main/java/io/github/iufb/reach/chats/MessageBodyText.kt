@@ -73,6 +73,7 @@ inline fun summarize(body: MessageBody, string: (Int) -> String): String {
         is MessageBody.Photo -> joinParts(string(ContentKind.Photo.labelRes()), body.caption.text)
         is MessageBody.Video -> joinParts(string(ContentKind.Video.labelRes()), body.caption.text)
         is MessageBody.Animation -> joinParts(string(ContentKind.Animation.labelRes()), body.caption.text)
+        is MessageBody.Voice -> joinParts(string(ContentKind.VoiceNote.labelRes()), body.caption.text)
         is MessageBody.Sticker -> joinParts(body.sticker.emoji, string(ContentKind.Sticker.labelRes()))
         is MessageBody.Service -> string(body.kind.labelRes())
     }
