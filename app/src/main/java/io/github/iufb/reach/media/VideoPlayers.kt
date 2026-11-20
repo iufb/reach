@@ -113,6 +113,7 @@ internal interface MediaEntryPoint {
     fun autoDownload(): AutoDownload
     fun tgsLoader(): TgsLoader
     fun videoStickers(): VideoStickers
+    fun customEmojis(): CustomEmojis
 }
 
 /** [VideoPlayers] из Compose — для экранов без своей ViewModel (полноэкранный просмотр). */

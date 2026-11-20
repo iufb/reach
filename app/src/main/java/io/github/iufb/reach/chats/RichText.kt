@@ -35,6 +35,24 @@ sealed interface SpanKind {
     data class MentionUser(val userId: Long) : SpanKind
     /** Хэштег или кэштег. */
     data class Hashtag(val tag: String) : SpanKind
+    /** Кастомный эмодзи; сам текст участка — запасной обычный эмодзи. */
+    data class CustomEmoji(val id: Long) : SpanKind
+}
+
+/**
+ * Сколько кастомных эмодзи в тексте, если кроме них только пробелы; 0 — есть другой текст
+ * или эмодзи нет. Для крупного показа, как у больших анимированных эмодзи.
+ */
+fun RichText.customEmojiOnlyCount(): Int {
+    val emojis = spans.filter { it.kind is SpanKind.CustomEmoji }.sortedBy { it.start }
+    if (emojis.isEmpty()) return 0
+    var pos = 0
+    for (span in emojis) {
+        if (span.start < pos) return 0
+        if (text.substring(pos, span.start).isNotBlank()) return 0
+        pos = span.end
+    }
+    return if (text.substring(pos).isBlank()) emojis.size else 0
 }
 
 /** Текст для превью (список чатов, ответы, уведомления): спойлеры заменены на «▒». */
@@ -84,7 +102,8 @@ private fun TdApi.TextEntityType.toSpanKind(covered: String): SpanKind? = when (
     is TdApi.TextEntityTypeMention -> SpanKind.Mention(covered.removePrefix("@"))
     is TdApi.TextEntityTypeMentionName -> SpanKind.MentionUser(userId)
     is TdApi.TextEntityTypeHashtag, is TdApi.TextEntityTypeCashtag -> SpanKind.Hashtag(covered)
-    // Остальное (команды ботов, кастомные эмодзи…) — обычный текст
+    is TdApi.TextEntityTypeCustomEmoji -> SpanKind.CustomEmoji(customEmojiId)
+    // Остальное (команды ботов…) — обычный текст
     else -> null
 }
 
@@ -114,6 +133,8 @@ private fun SpanKind.toEntityType(covered: String): TdApi.TextEntityType? = when
     is SpanKind.MentionUser -> TdApi.TextEntityTypeMentionName(userId)
     // @username и хэштеги сервер тоже распознаёт сам
     is SpanKind.Mention, is SpanKind.Hashtag -> null
+    // Сохраняем при редактировании своего сообщения; новые без Premium не вставить
+    is SpanKind.CustomEmoji -> TdApi.TextEntityTypeCustomEmoji(id)
 }
 
 /**
