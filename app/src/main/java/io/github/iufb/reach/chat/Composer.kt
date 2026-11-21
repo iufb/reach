@@ -273,6 +273,8 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
                     val selection = field.selection
                     val text = field.text.replaceRange(selection.min, selection.max, emoji)
                     field = TextFieldValue(text, TextRange(selection.min + emoji.length))
+                    sentTexts.addLast(text)
+                    if (sentTexts.size > MAX_SENT_TEXTS) sentTexts.removeFirst()
                     state.onDraftChange(text)
                 })
             }
