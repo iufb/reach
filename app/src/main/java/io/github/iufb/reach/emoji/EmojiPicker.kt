@@ -1,15 +1,23 @@
 package io.github.iufb.reach.emoji
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.font.FontWeight
+import io.github.iufb.reach.ui.components.SearchField
+import io.github.iufb.reach.ui.format.AppLocale
+import io.github.iufb.reach.ui.theme.ReachTheme
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.ExperimentalLayoutApi
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -17,10 +25,7 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Tab
 import androidx.compose.material3.Text
-import androidx.compose.material3.SecondaryScrollableTabRow
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
@@ -89,12 +94,17 @@ class EmojiPickerViewModel @Inject constructor(private val repository: EmojiRepo
 private const val RECENT_ICON = "🕘"
 
 /**
- * Панель эмодзи вместо клавиатуры: поиск, вкладки категорий и сетка.
- * Вкладки прокручивают сетку к своей категории.
+ * Панель эмодзи вместо клавиатуры (Telegram iOS): поиск сверху, сетка, внизу — ряд категорий.
+ * Значок категории прокручивает сетку к ней. Высоту задаёт вызывающий: панель занимает место клавиатуры.
+ * [onSearchFocusChange] — фокус в поиске: открывается клавиатура, и панель сжимается до строки результатов.
  */
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-fun EmojiPanel(onPick: (String) -> Unit, modifier: Modifier = Modifier, viewModel: EmojiPickerViewModel = hiltViewModel()) {
+fun EmojiPanel(
+    onPick: (String) -> Unit,
+    modifier: Modifier = Modifier,
+    onSearchFocusChange: (Boolean) -> Unit = {},
+    viewModel: EmojiPickerViewModel = hiltViewModel(),
+) {
     val categories by viewModel.categories.collectAsStateWithLifecycle()
     val recent by viewModel.recent.collectAsStateWithLifecycle()
     val query by viewModel.query.collectAsStateWithLifecycle()
@@ -103,8 +113,9 @@ fun EmojiPanel(onPick: (String) -> Unit, modifier: Modifier = Modifier, viewMode
         viewModel.onPicked(emoji)
         onPick(emoji)
     }
+    val colors = ReachTheme.colors
 
-    // Секции сетки: недавние (если есть) и категории; индекс заголовка секции в сетке — для вкладок
+    // Секции сетки: недавние (если есть) и категории; индекс заголовка секции в сетке — для значков категорий
     val sections = remember(categories, recent) {
         buildList {
             if (recent.isNotEmpty()) add(RECENT_ICON to recent)
@@ -120,50 +131,39 @@ fun EmojiPanel(onPick: (String) -> Unit, modifier: Modifier = Modifier, viewMode
         derivedStateOf { headerIndex.indexOfLast { it <= grid.firstVisibleItemIndex }.coerceAtLeast(0) }
     }
 
-    // Ищут — открыта клавиатура: панель сжимается до поиска и строки результатов, иначе вместе
-    // с клавиатурой она выдавила бы ленту и шапку (#212)
-    val height = if (WindowInsets.isImeVisible) SEARCH_HEIGHT else PANEL_HEIGHT
-    Column(modifier.fillMaxWidth().height(height)) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = viewModel::onQueryChange,
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            placeholder = { Text(stringResource(R.string.emoji_search)) },
-            singleLine = true,
+    Column(modifier.fillMaxWidth()) {
+        SearchField(
+            query = query,
+            onQueryChange = viewModel::onQueryChange,
+            modifier = Modifier
+                .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 4.dp)
+                .onFocusChanged { onSearchFocusChange(it.isFocused) },
+            placeholder = stringResource(R.string.emoji_search),
         )
         val found = results
         if (found != null) {
             if (found.isEmpty()) {
                 Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.emoji_nothing_found), color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text(stringResource(R.string.emoji_nothing_found), color = colors.secondaryLabel)
                 }
             } else {
-                LazyVerticalGrid(GridCells.Adaptive(CELL), Modifier.fillMaxSize()) {
+                LazyVerticalGrid(GridCells.Adaptive(CELL), Modifier.fillMaxSize().padding(horizontal = 6.dp)) {
                     items(found) { EmojiCell(it, pick) }
                 }
             }
             return@Column
         }
-        if (sections.isNotEmpty()) {
-            SecondaryScrollableTabRow(selectedTabIndex = selectedTab.coerceIn(0, sections.lastIndex), edgePadding = 0.dp) {
-                sections.forEachIndexed { i, (icon, _) ->
-                    Tab(
-                        selected = i == selectedTab,
-                        onClick = { scope.launch { grid.scrollToItem(headerIndex[i]) } },
-                        text = { Text(icon, fontSize = 20.sp) },
-                    )
-                }
-            }
-        }
-        LazyVerticalGrid(GridCells.Adaptive(CELL), Modifier.fillMaxSize(), state = grid) {
+        LazyVerticalGrid(GridCells.Adaptive(CELL), Modifier.weight(1f).padding(horizontal = 6.dp), state = grid) {
             sections.forEachIndexed { i, (_, emojis) ->
                 item(key = "header-$i", span = { GridItemSpan(maxLineSpan) }) {
-                    if (i == 0 && recent.isNotEmpty()) {
+                    val title = if (i == 0 && recent.isNotEmpty()) stringResource(R.string.emoji_recent) else null
+                    if (title != null) {
                         Text(
-                            stringResource(R.string.emoji_recent),
-                            modifier = Modifier.padding(8.dp),
-                            style = MaterialTheme.typography.labelMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            title.uppercase(AppLocale),
+                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Medium,
+                            color = colors.secondaryLabel,
                         )
                     } else {
                         Box(Modifier.height(4.dp))
@@ -172,19 +172,41 @@ fun EmojiPanel(onPick: (String) -> Unit, modifier: Modifier = Modifier, viewMode
                 items(emojis, key = { "$i-$it" }) { EmojiCell(it, pick) }
             }
         }
+        // Все категории разом, как на iOS: значки делят ширину поровну, прокрутки нет
+        if (sections.isNotEmpty()) {
+            Row(
+                Modifier.fillMaxWidth().height(TAB_ROW).padding(horizontal = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                sections.forEachIndexed { i, (icon, _) ->
+                    val selected = i == selectedTab
+                    Box(
+                        Modifier
+                            .weight(1f)
+                            .aspectRatio(1f, matchHeightConstraintsFirst = true)
+                            .padding(2.dp)
+                            .clip(CircleShape)
+                            .background(if (selected) colors.fill else Color.Transparent)
+                            .clickable { scope.launch { grid.scrollToItem(headerIndex[i]) } },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(icon, fontSize = 18.sp)
+                    }
+                }
+            }
+        }
     }
 }
 
 @Composable
 private fun EmojiCell(emoji: String, onPick: (String) -> Unit) {
     Box(
-        Modifier.aspectRatio(1f).clickable { onPick(emoji) },
+        Modifier.aspectRatio(1f).clip(RoundedCornerShape(8.dp)).clickable { onPick(emoji) },
         contentAlignment = Alignment.Center,
     ) {
-        Text(emoji, fontSize = 26.sp)
+        Text(emoji, fontSize = 28.sp)
     }
 }
 
 private val CELL = 44.dp
-private val PANEL_HEIGHT = 320.dp
-private val SEARCH_HEIGHT = 120.dp
+private val TAB_ROW = 40.dp

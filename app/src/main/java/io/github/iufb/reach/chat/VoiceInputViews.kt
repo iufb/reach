@@ -46,6 +46,8 @@ import androidx.core.content.ContextCompat
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.formatDuration
 import io.github.iufb.reach.media.RecorderState
+import io.github.iufb.reach.ui.components.PillHeight
+import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.delay
 
 /** Запись голосового в поле ввода. */
@@ -86,7 +88,7 @@ internal fun MicButton(voice: VoiceInput) {
     val description = stringResource(if (voice.videoMode) R.string.video_note_record else R.string.voice_record)
     Box(
         modifier = Modifier
-            .size(48.dp)
+            .size(PillHeight)
             .clip(CircleShape)
             .semantics { contentDescription = description }
             .pointerInput(Unit) {
@@ -142,7 +144,8 @@ internal fun MicButton(voice: VoiceInput) {
         Icon(
             painterResource(if (voice.videoMode) R.drawable.ic_videocam else R.drawable.ic_mic),
             contentDescription = null,
-            tint = if (recording) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(24.dp),
+            tint = if (recording) ReachTheme.colors.accent else ReachTheme.colors.label,
         )
     }
 }
@@ -151,7 +154,7 @@ internal fun MicButton(voice: VoiceInput) {
 @Composable
 internal fun RecordingBar(voice: VoiceInput, modifier: Modifier = Modifier) {
     Row(
-        modifier = modifier.height(56.dp),
+        modifier = modifier.height(PillHeight).padding(horizontal = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(8.dp),
     ) {
@@ -166,7 +169,7 @@ internal fun RecordingBar(voice: VoiceInput, modifier: Modifier = Modifier) {
                     Modifier
                         .padding(start = if (state.locked) 0.dp else 12.dp)
                         .size(10.dp)
-                        .background(MaterialTheme.colorScheme.error, CircleShape),
+                        .background(ReachTheme.colors.destructive, CircleShape),
                 )
                 RecordingTimer(state.startedAt)
                 LevelBar(state.level, Modifier.weight(1f))
@@ -178,13 +181,13 @@ internal fun RecordingBar(voice: VoiceInput, modifier: Modifier = Modifier) {
                     Text(
                         stringResource(R.string.voice_slide_to_cancel),
                         style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = ReachTheme.colors.secondaryLabel,
                     )
                     Icon(
                         painterResource(R.drawable.ic_lock),
                         contentDescription = stringResource(R.string.voice_lock),
                         modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        tint = ReachTheme.colors.secondaryLabel,
                     )
                 }
             }
@@ -233,13 +236,13 @@ private fun LevelBar(level: Float, modifier: Modifier) {
         modifier
             .height(4.dp)
             .clip(RoundedCornerShape(2.dp))
-            .background(MaterialTheme.colorScheme.surfaceVariant),
+            .background(ReachTheme.colors.fill),
     ) {
         Box(
             Modifier
                 .fillMaxWidth(level.coerceIn(0.02f, 1f))
                 .height(4.dp)
-                .background(MaterialTheme.colorScheme.error),
+                .background(ReachTheme.colors.destructive),
         )
     }
 }

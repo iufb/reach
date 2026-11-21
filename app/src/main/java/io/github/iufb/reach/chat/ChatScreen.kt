@@ -456,7 +456,8 @@ private fun ChatContent(
                     unblock != null -> Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(8.dp), contentAlignment = Alignment.Center) {
                         PillTextButton(stringResource(R.string.unblock), onClick = unblock)
                     }
-                    composer != null && chat != null -> Composer(composer, senders)
+                    // В режиме выбора поле ввода прячется: внизу действуют над выбранным, а не пишут (#196)
+                    composer != null && chat != null && selectionBar == null -> Composer(composer, senders)
                 }
             }
         }
