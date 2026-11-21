@@ -562,7 +562,7 @@ private fun ChatTopBar(
 }
 
 /** Что можно делать с сообщениями в ленте: меню, ответ, переход к исходному. */
-private class MessageInteractions(
+internal class MessageInteractions(
     /** Открытое сейчас меню. */
     val menu: MessageMenu?,
     val onOpenMenu: (Message) -> Unit,
