@@ -40,6 +40,8 @@ import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
@@ -98,6 +100,9 @@ class VideoNoteCamera(private val context: Context) {
      * в это время кадры почти белые: кружок мигал белым в начале каждого круга и получал белое превью (#214).
      */
     private val exposureReady = MutableStateFlow(false)
+
+    /** В превью уже настоящая картинка: камера открылась и экспозиция сошлась. До этого экран рисует заглушку. */
+    val previewReady: StateFlow<Boolean> = exposureReady.asStateFlow()
 
     @OptIn(ExperimentalCamera2Interop::class)
     private val preview = Preview.Builder().also { builder ->

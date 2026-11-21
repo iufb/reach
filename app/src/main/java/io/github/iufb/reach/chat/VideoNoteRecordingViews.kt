@@ -3,6 +3,12 @@ package io.github.iufb.reach.chat
 import android.os.SystemClock
 import android.util.Log
 import androidx.compose.foundation.Canvas
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import io.github.iufb.reach.ui.theme.ReachTheme
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,7 +18,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
@@ -56,8 +61,32 @@ internal fun VideoNoteCameraOverlay(camera: VideoNoteCamera, modifier: Modifier 
     DisposableEffect(camera) { onDispose { camera.release() } }
     Box(modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.6f)), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            Box(Modifier.size(PREVIEW_SIZE), contentAlignment = Alignment.Center) {
-                AndroidView(factory = { camera.previewView }, modifier = Modifier.fillMaxSize().clip(CircleShape))
+            // Круг вырастает из кнопки записи; пока камера открывается (~0,8 с), вместо чёрного круга — заглушка
+            // со значком камеры, настоящее превью проявляется поверх, когда экспозиция сошлась (#196)
+            val ready by camera.previewReady.collectAsStateWithLifecycle()
+            val grow = remember { Animatable(GROW_FROM) }
+            LaunchedEffect(Unit) { grow.animateTo(1f, tween(GROW_MS)) }
+            val previewAlpha by animateFloatAsState(if (ready) 1f else 0f, tween(FADE_MS), label = "preview")
+            Box(
+                Modifier.size(PREVIEW_SIZE).graphicsLayer {
+                    scaleX = grow.value
+                    scaleY = grow.value
+                    alpha = ((grow.value - GROW_FROM) / (1f - GROW_FROM)).coerceIn(0f, 1f)
+                },
+                contentAlignment = Alignment.Center,
+            ) {
+                Box(Modifier.fillMaxSize().clip(CircleShape).background(ReachTheme.colors.fill), contentAlignment = Alignment.Center) {
+                    Icon(
+                        painterResource(R.drawable.ic_videocam),
+                        contentDescription = null,
+                        modifier = Modifier.size(48.dp),
+                        tint = ReachTheme.colors.secondaryLabel,
+                    )
+                }
+                AndroidView(
+                    factory = { camera.previewView },
+                    modifier = Modifier.fillMaxSize().clip(CircleShape).graphicsLayer { alpha = previewAlpha },
+                )
                 RecordingRing(camera.startedAt)
             }
             IconButton(onClick = camera::flip) {
@@ -78,7 +107,7 @@ private fun RecordingRing(startedAt: Long) {
             delay(RING_TICK_MS)
         }
     }
-    val color = MaterialTheme.colorScheme.error
+    val color = ReachTheme.colors.destructive
     Canvas(Modifier.fillMaxSize()) {
         val stroke = RING_WIDTH.toPx()
         drawArc(
@@ -94,6 +123,9 @@ private fun RecordingRing(startedAt: Long) {
 }
 
 private val PREVIEW_SIZE = 280.dp
+private const val GROW_FROM = 0.6f
+private const val GROW_MS = 220
+private const val FADE_MS = 180
 private val RING_WIDTH = 4.dp
 private const val MAX_DURATION_MS = 60_000L
 private const val RING_TICK_MS = 50L
