@@ -3,12 +3,18 @@ package io.github.iufb.reach.media
 import android.annotation.SuppressLint
 import android.content.Context
 import android.graphics.Bitmap
+import android.hardware.camera2.CameraCaptureSession
+import android.hardware.camera2.CaptureRequest
+import android.hardware.camera2.CaptureResult
+import android.hardware.camera2.TotalCaptureResult
 import android.media.MediaMetadataRetriever
 import android.os.SystemClock
 import android.util.Log
 import android.util.Rational
 import android.view.Surface
 import androidx.annotation.OptIn
+import androidx.camera.camera2.interop.Camera2Interop
+import androidx.camera.camera2.interop.ExperimentalCamera2Interop
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.MirrorMode
 import androidx.camera.core.Preview
@@ -33,8 +39,11 @@ import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.suspendCancellableCoroutine
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import kotlin.coroutines.resume
 import kotlin.coroutines.resumeWithException
 import java.io.File
@@ -84,7 +93,22 @@ class VideoNoteCamera(private val context: Context) {
         scaleType = PreviewView.ScaleType.FILL_CENTER
     }
 
-    private val preview = Preview.Builder().build()
+    /**
+     * Автоэкспозиция сошлась. Сразу после открытия камера полсекунды подбирает экспозицию, и записанные
+     * в это время кадры почти белые: кружок мигал белым в начале каждого круга и получал белое превью (#214).
+     */
+    private val exposureReady = MutableStateFlow(false)
+
+    @OptIn(ExperimentalCamera2Interop::class)
+    private val preview = Preview.Builder().also { builder ->
+        Camera2Interop.Extender(builder).setSessionCaptureCallback(object : CameraCaptureSession.CaptureCallback() {
+            override fun onCaptureCompleted(session: CameraCaptureSession, request: CaptureRequest, result: TotalCaptureResult) {
+                val state = result.get(CaptureResult.CONTROL_AE_STATE)
+                // Камера без автоэкспозиции не сообщает состояние — ждать нечего
+                if (state == null || state in AE_SETTLED) exposureReady.value = true
+            }
+        })
+    }.build()
     private val capture = VideoCapture.Builder(
         Recorder.Builder()
             .setQualitySelector(QualitySelector.from(Quality.SD, FallbackStrategy.higherQualityOrLowerThan(Quality.SD)))
@@ -113,7 +137,11 @@ class VideoNoteCamera(private val context: Context) {
         val cameraProvider = provider ?: awaitCameraProvider().also { provider = it }
         this.owner = owner
         preview.setSurfaceProvider(previewView.surfaceProvider)
+        exposureReady.value = false
         bind(cameraProvider)
+        // Пишем, когда экспозиция сошлась; если камера так и не сообщила — всё равно начинаем
+        withTimeoutOrNull(EXPOSURE_TIMEOUT_MS) { exposureReady.first { it } }
+        // Пока ждали, палец могли отпустить — тогда записывать уже нечего
         if (phase == Phase.Starting && recording == null) beginRecording()
     }
 
@@ -211,6 +239,12 @@ class VideoNoteCamera(private val context: Context) {
         const val DIR = "video_notes"
         const val MAX_DURATION_MS = 60_000L
         const val BIT_RATE = 1_000_000
+        const val EXPOSURE_TIMEOUT_MS = 1_000L
+        val AE_SETTLED = setOf(
+            CaptureResult.CONTROL_AE_STATE_CONVERGED,
+            CaptureResult.CONTROL_AE_STATE_FLASH_REQUIRED,
+            CaptureResult.CONTROL_AE_STATE_LOCKED,
+        )
     }
 }
 
