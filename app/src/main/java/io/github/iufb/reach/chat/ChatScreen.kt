@@ -121,6 +121,8 @@ import io.github.iufb.reach.ui.components.glassSource
 import java.time.LocalDate
 import java.time.ZoneId
 import androidx.compose.material3.LocalContentColor
+import androidx.compose.ui.unit.TextUnit
+import androidx.compose.ui.text.rememberTextMeasurer
 
 @Composable
 fun ChatScreen(
@@ -981,10 +983,29 @@ private fun MessageBubble(
                     )
                 }
                 reply()
-                if (album.size > 1) AlbumContent(album, interactions) else MessageContent(message, interactions)
-                ReactionChips(message.reactions, onClick = reactionClick(message, interactions))
-                Row(
-                    modifier = Modifier
+                val metaColor = when {
+                    bare -> colors.onServiceBubble
+                    outgoing -> colors.bubbleOutgoingMeta
+                    else -> colors.bubbleIncomingMeta
+                }
+                val timeLabel = messageTimeLabel(message)
+                // Время и галочки в строке текста, если там есть место (как в Telegram iOS): в конец текста
+                // встаёт невидимый заполнитель их ширины — не влезает в последнюю строку, переносится на новую
+                val body = message.content
+                val inlineMeta = !bare && album.size <= 1 && body is MessageBody.Text && body.preview == null &&
+                    body.bigEmojiCount() == 0 && message.reactions.isEmpty()
+                if (inlineMeta) {
+                    val metaWidth = metaWidth(timeLabel, withStatus = outgoing)
+                    Box {
+                        MessageContent(message, interactions, trailingSpace = metaWidth)
+                        MessageMeta(timeLabel, message, outgoing, read, metaColor, Modifier.align(Alignment.BottomEnd).offset(y = 3.dp))
+                    }
+                } else {
+                    if (album.size > 1) AlbumContent(album, interactions) else MessageContent(message, interactions)
+                    ReactionChips(message.reactions, onClick = reactionClick(message, interactions))
+                    MessageMeta(
+                        timeLabel, message, outgoing, read, metaColor,
+                        Modifier
                         .align(Alignment.End)
                         .then(
                             if (bare) {
@@ -995,16 +1016,7 @@ private fun MessageBubble(
                                 Modifier
                             },
                         ),
-                    horizontalArrangement = Arrangement.spacedBy(3.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    val meta = when {
-                        bare -> colors.onServiceBubble
-                        outgoing -> colors.bubbleOutgoingMeta
-                        else -> colors.bubbleIncomingMeta
-                    }
-                    Text(messageTimeLabel(message), style = MaterialTheme.typography.labelSmall, color = meta)
-                    if (outgoing) SendingStatus(message.sendingState, read, meta)
+                    )
                 }
             }
             // Эффект своей реакции — поверх пузыря, не меняя его размер
@@ -1072,7 +1084,29 @@ private fun Modifier.messageLongPress(
 private fun reactionClick(message: Message, interactions: MessageInteractions): ((ReactionKey) -> Unit)? =
     if (interactions.selection.isEmpty()) ({ key -> interactions.onReact(message, key) }) else null
 
-/** Отправляется — часы, ошибка — «!», отправлено — галочка. */
+/** Время и статус отправки внутри пузыря. */
+@Composable
+private fun MessageMeta(time: String, message: Message, outgoing: Boolean, read: Boolean, color: Color, modifier: Modifier) {
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(META_GAP), verticalAlignment = Alignment.CenterVertically) {
+        Text(time, style = MaterialTheme.typography.labelSmall, color = color, maxLines = 1)
+        if (outgoing) SendingStatus(message.sendingState, read, color)
+    }
+}
+
+/** Ширина [MessageMeta] с отступом от текста — столько места оставляет заполнитель в конце текста. */
+@Composable
+private fun metaWidth(time: String, withStatus: Boolean): TextUnit {
+    val measurer = rememberTextMeasurer()
+    val style = MaterialTheme.typography.labelSmall
+    val density = LocalDensity.current
+    return remember(time, withStatus, style, density) {
+        val text = with(density) { measurer.measure(time, style).size.width.toDp() }
+        val status = if (withStatus) META_GAP + STATUS_ICON else 0.dp
+        with(density) { (text + status + META_SPACING).toSp() }
+    }
+}
+
+/** Отправляется — часы, ошибка — «!», отправлено — галочка, прочитано — две. */
 @Composable
 private fun SendingStatus(state: SendingState?, read: Boolean, tint: Color) {
     val (icon, description) = when {
@@ -1085,7 +1119,7 @@ private fun SendingStatus(state: SendingState?, read: Boolean, tint: Color) {
         Text("!", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = ReachTheme.colors.destructive)
         return
     }
-    Icon(painterResource(icon), stringResource(description), Modifier.size(15.dp), tint = tint)
+    Icon(painterResource(icon), stringResource(description), Modifier.size(STATUS_ICON), tint = tint)
 }
 
 /** Пост канала: карточка на всю ширину, подпись автора и просмотры внизу. */
@@ -1172,7 +1206,12 @@ private fun CommentsBar(message: Message, senders: Map<Sender, SenderInfo>, onCl
 }
 
 @Composable
-private fun MessageContent(message: Message, interactions: MessageInteractions) {
+private fun MessageContent(
+    message: Message,
+    interactions: MessageInteractions,
+    /** Место под время в конце текста; `null` — время рисуется отдельной строкой. */
+    trailingSpace: TextUnit? = null,
+) {
     when (val body = message.content) {
         is MessageBody.Text -> {
             val bigEmoji = body.bigEmojiCount()
@@ -1185,7 +1224,7 @@ private fun MessageContent(message: Message, interactions: MessageInteractions) 
                     style = MaterialTheme.typography.bodyLarge.copy(fontSize = size, lineHeight = size * 1.3f),
                 )
             } else {
-                RichTextView(body.text)
+                RichTextView(body.text, trailingSpace = trailingSpace)
                 body.preview?.let { LinkPreviewCard(it) }
             }
         }
@@ -1515,6 +1554,10 @@ private const val MAX_PICKED_PHOTOS = 10
 
 /** Отступ над первым сообщением серии; внутри серии — 2 dp. */
 private val SERIES_GAP = 6.dp
+private val META_GAP = 3.dp
+private val STATUS_ICON = 15.dp
+/** Отступ времени от последнего слова текста. */
+private val META_SPACING = 8.dp
 
 @Preview
 @Composable

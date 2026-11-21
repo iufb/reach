@@ -39,6 +39,7 @@ import androidx.compose.ui.text.PlaceholderVerticalAlign
 import io.github.iufb.reach.media.CustomEmojiView
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
+import androidx.compose.ui.unit.TextUnit
 
 /** Текст сообщения с форматированием; ссылки открываются по тапу (LocalUriHandler). */
 @Composable
@@ -46,6 +47,8 @@ internal fun RichTextView(
     text: RichText,
     modifier: Modifier = Modifier,
     style: TextStyle = MaterialTheme.typography.bodyLarge,
+    /** Невидимый заполнитель такой ширины в конце текста — место под время сообщения. */
+    trailingSpace: TextUnit? = null,
 ) {
     val colors = richTextColors()
     val mentions = LocalMentionHandler.current
@@ -53,10 +56,19 @@ internal fun RichTextView(
     var revealed by remember(text) { mutableStateOf(false) }
     val hide = !revealed && text.spans.any { it.kind == SpanKind.Spoiler }
     val spoilers = if (hide) Spoilers.Hidden(onReveal = { revealed = true }) else Spoilers.Plain
-    val annotated = remember(text, colors, mentions, hide) {
-        text.toAnnotatedString(colors, mentions = mentions, spoilers = spoilers, inlineEmoji = true)
+    val annotated = remember(text, colors, mentions, hide, trailingSpace) {
+        val base = text.toAnnotatedString(colors, mentions = mentions, spoilers = spoilers, inlineEmoji = true)
+        if (trailingSpace == null) base else buildAnnotatedString {
+            append(base)
+            appendInlineContent(TRAILING_SPACE_KEY, " ")
+        }
     }
-    val inlineContent = remember(text) { customEmojiContent(text) }
+    val inlineContent = remember(text, trailingSpace) {
+        val emoji = customEmojiContent(text)
+        if (trailingSpace == null) emoji else emoji + (TRAILING_SPACE_KEY to InlineTextContent(
+            Placeholder(trailingSpace, 1.em, PlaceholderVerticalAlign.TextBottom),
+        ) {})
+    }
     val uriHandler = LocalUriHandler.current
     val safeHandler = remember(uriHandler) { SafeUriHandler(uriHandler) }
     var layout by remember { mutableStateOf<TextLayoutResult?>(null) }
@@ -72,6 +84,8 @@ internal fun RichTextView(
 }
 
 /** Вставки для кастомных эмодзи текста: квадрат чуть больше строки, по центру строки. */
+private const val TRAILING_SPACE_KEY = "reach:trailing-space"
+
 private fun customEmojiContent(text: RichText): Map<String, InlineTextContent> =
     text.spans.mapNotNull { (it.kind as? SpanKind.CustomEmoji)?.id }.distinct().associate { id ->
         customEmojiKey(id) to InlineTextContent(
