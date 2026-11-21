@@ -44,11 +44,14 @@ import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -88,6 +91,8 @@ internal class ComposerState(
     val onSend: () -> Unit,
     val onCancelReply: () -> Unit,
     val onCancelEdit: () -> Unit,
+    /** Счётчик просьб поставить курсор в поле и открыть клавиатуру; растёт при «Ответить» и «Изменить». */
+    val focusRequest: Int = 0,
     /** Участники по набранному «@…» (только в группах). */
     val mentionSuggestions: List<MentionCandidate> = emptyList(),
     val onMentionQuery: (String?) -> Unit = {},
@@ -119,6 +124,9 @@ internal class SendMenu(
     val whenOnline: Boolean = false,
 )
 
+/** Сколько последних отданных модели текстов помнит поле, см. [Composer]. */
+private const val MAX_SENT_TEXTS = 64
+
 /** «@запрос» перед курсором: участок от «@» до курсора и сам запрос. */
 private data class MentionToken(val start: Int, val end: Int, val query: String)
 
@@ -138,17 +146,39 @@ private fun mentionToken(field: TextFieldValue): MentionToken? {
 @Composable
 internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
     // Поле держит своё TextFieldValue (выделение, composing-регион клавиатуры), текст сверяется с моделью
+    val keyboard = LocalSoftwareKeyboardController.current
     var field by remember { mutableStateOf(TextFieldValue(state.draft.text, TextRange(state.draft.text.length))) }
+    // Тексты, отданные модели из поля, но ещё не вернувшиеся обратно. Модель отстаёт от поля на кадр-другой:
+    // при быстром вводе в композицию приходит уже устаревший черновик, и перезапись им стёрла бы набранное (#211).
+    // Внешними считаем только тексты, которых поле не отдавало: упоминание, очистка после отправки, правка.
+    val sentTexts = remember { ArrayDeque<String>() }
     LaunchedEffect(state.draft.text) {
-        if (field.text != state.draft.text) field = TextFieldValue(state.draft.text, TextRange(state.draft.text.length))
+        val text = state.draft.text
+        when {
+            text == field.text -> sentTexts.clear()
+            text in sentTexts -> Unit
+            else -> {
+                sentTexts.clear()
+                field = TextFieldValue(text, TextRange(text.length))
+            }
+        }
     }
     var linkFor by remember { mutableStateOf<TextRange?>(null) }
     var emojiOpen by remember { mutableStateOf(false) }
-    val keyboard = LocalSoftwareKeyboardController.current
     val fieldInteraction = remember { MutableInteractionSource() }
     val fieldPressed by fieldInteraction.collectIsPressedAsState()
     // Тап по полю, пока открыта панель, возвращает клавиатуру
     LaunchedEffect(fieldPressed) { if (fieldPressed) emojiOpen = false }
+    // «Ответить» и «Изменить» ставят курсор в поле; восстановленный при открытии чата ответ — нет
+    val focusRequester = remember { FocusRequester() }
+    var seenFocusRequest by remember { mutableIntStateOf(state.focusRequest) }
+    LaunchedEffect(state.focusRequest) {
+        if (state.focusRequest == seenFocusRequest) return@LaunchedEffect
+        seenFocusRequest = state.focusRequest
+        emojiOpen = false
+        // Во время записи голосового поля нет — фокусировать нечего
+        runCatching { focusRequester.requestFocus() }.onSuccess { keyboard?.show() }
+    }
     val token = mentionToken(field)
     val mentionQuery = token?.query
     LaunchedEffect(mentionQuery) { state.onMentionQuery(mentionQuery) }
@@ -199,10 +229,14 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
                         ),
                         value = field,
                         onValueChange = {
+                            if (it.text != field.text) {
+                                sentTexts.addLast(it.text)
+                                if (sentTexts.size > MAX_SENT_TEXTS) sentTexts.removeFirst()
+                                state.onDraftChange(it.text)
+                            }
                             field = it
-                            if (it.text != state.draft.text) state.onDraftChange(it.text)
                         },
-                        modifier = Modifier.weight(1f),
+                        modifier = Modifier.weight(1f).focusRequester(focusRequester),
                         placeholder = { Text(stringResource(R.string.chat_input_placeholder)) },
                         isError = state.error != null,
                         supportingText = state.error?.let { { Text(stringResource(R.string.chat_send_error, it)) } },
