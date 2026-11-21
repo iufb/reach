@@ -132,7 +132,14 @@ fun ReachNavHost(
         }
     }
     CompositionLocalProvider(LocalUriHandler provides uriHandler) {
-        NavHost(navController, startDestination = start) {
+        NavHost(
+            navController,
+            startDestination = start,
+            enterTransition = navEnter,
+            exitTransition = navExit,
+            popEnterTransition = navPopEnter,
+            popExitTransition = navPopExit,
+        ) {
             navigation<AuthGraph>(startDestination = PhoneRoute) {
                 composable<PhoneRoute> {
                     // Тот же номер повторно может дать равное состояние, и StateFlow его не пришлёт —
