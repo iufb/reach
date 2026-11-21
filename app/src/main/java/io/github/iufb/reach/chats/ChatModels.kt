@@ -88,6 +88,8 @@ data class Chat(
     /** Общее разрешение на видеокружки (`ChatPermissions.canSendVideoNotes`). */
     val canSendVideoNotes: Boolean = true,
     val draft: Draft? = null,
+    /** Последнее прочитанное собеседником исходящее: две галочки в списке чатов. */
+    val lastReadOutboxMessageId: Long = 0,
     /** Собеседник личного (и секретного) чата. */
     val userId: Long? = null,
     /** Своя настройка «без звука», секунды; `null` — по умолчанию для типа чата. */
@@ -158,6 +160,7 @@ internal fun TdApi.Chat.toModel() = Chat(
     canSendBasicMessages = permissions.canSendBasicMessages,
     canSendVideoNotes = permissions.canSendVideoNotes,
     draft = draftMessage?.toDraft(),
+    lastReadOutboxMessageId = lastReadOutboxMessageId,
     userId = when (val t = type) {
         is TdApi.ChatTypePrivate -> t.userId
         is TdApi.ChatTypeSecret -> t.userId

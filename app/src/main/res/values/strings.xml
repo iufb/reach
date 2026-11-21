@@ -131,6 +131,9 @@
     <string name="chats_title">Чаты</string>
     <string name="chats_empty">Чатов пока нет</string>
     <string name="chat_deleted_account">Удалённый аккаунт</string>
+    <string name="chats_create">Создать</string>
+    <string name="message_read">Прочитано</string>
+    <string name="message_sent">Отправлено</string>
     <string name="chat_pinned">Закреплён</string>
     <string name="chat_action_pin">Закрепить</string>
     <string name="chat_action_unpin">Открепить</string>

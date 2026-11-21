@@ -1,41 +1,25 @@
 package io.github.iufb.reach.chats
 
+import android.content.res.Configuration
+import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
-import androidx.compose.ui.res.pluralStringResource
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.PrimaryScrollableTabRow
-import androidx.compose.material3.Tab
-import androidx.compose.runtime.key
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.runtime.remember
-import io.github.iufb.reach.chat.Sender
-import io.github.iufb.reach.presence.ActivityKind
-import io.github.iufb.reach.presence.activityText
-import androidx.compose.ui.text.AnnotatedString
-import androidx.compose.ui.text.SpanStyle
-import androidx.compose.ui.text.buildAnnotatedString
-import androidx.compose.ui.text.withStyle
-import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.defaultMinSize
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.ui.unit.Dp
-import io.github.iufb.reach.ui.format.Dates
-import io.github.iufb.reach.ui.theme.reachBarColors
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.asPaddingValues
+import androidx.compose.foundation.layout.defaultMinSize
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -43,34 +27,65 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
-import io.github.iufb.reach.ui.components.Avatar
+import io.github.iufb.reach.chat.Sender
+import io.github.iufb.reach.presence.ActivityKind
+import io.github.iufb.reach.presence.activityText
+import io.github.iufb.reach.ui.components.BackPill
+import io.github.iufb.reach.ui.components.GlassScope
+import io.github.iufb.reach.ui.components.PillGroup
+import io.github.iufb.reach.ui.components.PillGroupIcon
+import io.github.iufb.reach.ui.components.ReachTabBar
+import io.github.iufb.reach.ui.components.ReachTopBar
+import io.github.iufb.reach.ui.components.SearchButton
+import io.github.iufb.reach.ui.components.TabBarHeight
+import io.github.iufb.reach.ui.components.TabItem
+import io.github.iufb.reach.ui.components.glassSource
+import io.github.iufb.reach.ui.format.Dates
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -130,7 +145,6 @@ fun ChatsScreen(
     }
 }
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ChatsContent(
     list: ChatListType,
@@ -154,92 +168,58 @@ private fun ChatsContent(
     tabs: List<FolderTab> = emptyList(),
     onSelectList: (ChatListType) -> Unit = {},
 ) {
+    val colors = ReachTheme.colors
     val isArchive = list == ChatListType.Archive
     var confirmLogOut by rememberSaveable { mutableStateOf(false) }
-    var menuOpen by rememberSaveable { mutableStateOf(false) }
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
-        topBar = {
-            Column {
-                TopAppBar(
-                    colors = reachBarColors(),
-                    navigationIcon = {
-                        if (isArchive) {
-                            IconButton(onClick = onBack) {
-                                Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
-                            }
-                        }
-                    },
-                    title = {
-                        Text(
-                            stringResource(if (isArchive) R.string.archive_title else R.string.chats_title),
-                            fontWeight = FontWeight.Medium,
-                        )
-                    },
-                    actions = {
-                        if (!isArchive) {
-                            IconButton(onClick = onOpenSearch) {
-                                Icon(painterResource(R.drawable.ic_search), stringResource(R.string.search_title))
-                            }
-                        }
-                        if (!isArchive) Box {
-                            IconButton(onClick = { menuOpen = true }, enabled = !loggingOut) {
-                                Icon(painterResource(R.drawable.ic_more), stringResource(R.string.chat_list_menu))
-                            }
-                            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.saved_messages)) },
-                                    leadingIcon = { Icon(painterResource(R.drawable.ic_bookmark), contentDescription = null) },
-                                    onClick = {
-                                        menuOpen = false
-                                        onOpenSaved()
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.new_group)) },
-                                    onClick = {
-                                        menuOpen = false
-                                        onNewChat(false)
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.new_channel)) },
-                                    onClick = {
-                                        menuOpen = false
-                                        onNewChat(true)
-                                    },
-                                )
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.contacts_title)) },
-                                    onClick = {
-                                        menuOpen = false
-                                        onOpenContacts()
-                                    },
-                                )
-                                // Автозагрузка и выход — в настройках
-                                DropdownMenuItem(
-                                    text = { Text(stringResource(R.string.settings_title)) },
-                                    onClick = {
-                                        menuOpen = false
-                                        onOpenSettings()
-                                    },
-                                )
-                            }
-                        }
-                    },
+    // Шапка плавает над списком: её высота (с плеером) — отступ сверху у содержимого
+    val density = LocalDensity.current
+    var headerHeight by remember { mutableStateOf(0.dp) }
+    val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
+    val bottomInset = if (isArchive) navBar else navBar + TabBarHeight + 16.dp
+    GlassScope {
+        Box(Modifier.fillMaxSize().background(colors.background)) {
+            ChatsBody(
+                list, chats, allLoaded, loggingOut, onChatClick, onChatLongClick, onLoadMore,
+                PaddingValues(top = headerHeight, bottom = bottomInset),
+                activities, archive, onOpenArchive,
+                header = {
+                    if (!isArchive) {
+                        SearchButton(onOpenSearch, Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
+                        if (tabs.isNotEmpty()) FolderTabs(tabs, list, onSelectList)
+                    }
+                },
+            )
+            Column(Modifier.fillMaxWidth().onSizeChanged { headerHeight = with(density) { it.height.toDp() } }) {
+                ReachTopBar(
+                    title = stringResource(if (isArchive) R.string.archive_title else R.string.chats_title),
+                    navigation = if (isArchive) ({ BackPill(onBack) }) else null,
+                    actions = { if (!isArchive) ChatsActions(loggingOut, onOpenSaved, onNewChat) },
                 )
                 io.github.iufb.reach.chat.NowPlayingBar()
             }
-        },
-    ) { padding ->
-        val modifier = Modifier.fillMaxSize().padding(padding)
-        if (tabs.isNotEmpty()) {
-            Column(modifier) {
-                FolderTabs(tabs, list, onSelectList)
-                ChatsBody(list, chats, allLoaded, loggingOut, onChatClick, onChatLongClick, onLoadMore, Modifier.weight(1f).fillMaxWidth(), activities, archive, onOpenArchive)
+            if (!isArchive) {
+                // Контакты и настройки пока открываются поверх списка; вкладки-экраны — с их переносом
+                ReachTabBar(
+                    items = listOf(
+                        TabItem(painterResource(R.drawable.ic_tab_contacts), stringResource(R.string.contacts_title)),
+                        TabItem(
+                            painterResource(R.drawable.ic_tab_chats),
+                            stringResource(R.string.chats_title),
+                            badge = chats.orEmpty().count { it.unreadCount > 0 && !it.isMuted },
+                        ),
+                        TabItem(painterResource(R.drawable.ic_tab_settings), stringResource(R.string.settings_title)),
+                    ),
+                    selected = 1,
+                    onSelect = { tab ->
+                        when (tab) {
+                            0 -> onOpenContacts()
+                            2 -> onOpenSettings()
+                        }
+                    },
+                    modifier = Modifier.align(Alignment.BottomCenter),
+                )
             }
-        } else {
-            ChatsBody(list, chats, allLoaded, loggingOut, onChatClick, onChatLongClick, onLoadMore, modifier, activities, archive, onOpenArchive)
+            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = bottomInset))
         }
     }
     if (confirmLogOut) {
@@ -253,29 +233,67 @@ private fun ChatsContent(
     }
 }
 
-/** Вкладки папок; у каждой — число непрочитанных чатов со звуком. */
+/** Справа в шапке: «Избранное» и «создать» (группа или канал). */
+@Composable
+private fun ChatsActions(loggingOut: Boolean, onOpenSaved: () -> Unit, onNewChat: (channel: Boolean) -> Unit) {
+    var menuOpen by rememberSaveable { mutableStateOf(false) }
+    PillGroup {
+        PillGroupIcon(painterResource(R.drawable.ic_bookmark), stringResource(R.string.saved_messages), onOpenSaved)
+        Box {
+            PillGroupIcon(painterResource(R.drawable.ic_edit), stringResource(R.string.chats_create)) {
+                if (!loggingOut) menuOpen = true
+            }
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.new_group)) },
+                    onClick = {
+                        menuOpen = false
+                        onNewChat(false)
+                    },
+                )
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.new_channel)) },
+                    onClick = {
+                        menuOpen = false
+                        onNewChat(true)
+                    },
+                )
+            }
+        }
+    }
+}
+
+/** Папки — капсулы под поиском; у каждой число непрочитанных чатов со звуком. */
 @Composable
 private fun FolderTabs(tabs: List<FolderTab>, selected: ChatListType, onSelect: (ChatListType) -> Unit) {
-    val index = tabs.indexOfFirst { it.list == selected }.coerceAtLeast(0)
-    PrimaryScrollableTabRow(
-        selectedTabIndex = index,
-        edgePadding = 8.dp,
-        containerColor = MaterialTheme.colorScheme.surface,
+    val colors = ReachTheme.colors
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 12.dp, vertical = 4.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
     ) {
-        tabs.forEachIndexed { i, tab ->
-            Tab(
-                selected = i == index,
-                onClick = { onSelect(tab.list) },
-                text = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(tab.title ?: stringResource(R.string.folder_all_chats), maxLines = 1)
-                        if (tab.unread > 0) {
-                            Spacer(Modifier.width(6.dp))
-                            UnreadBadge(tab.unread, muted = i != index)
-                        }
-                    }
-                },
-            )
+        tabs.forEach { tab ->
+            val isSelected = tab.list == selected
+            Row(
+                Modifier
+                    .height(FOLDER_HEIGHT)
+                    .clip(CircleShape)
+                    .background(if (isSelected) colors.fill else Color.Transparent)
+                    .clickable { onSelect(tab.list) }
+                    .padding(horizontal = 14.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Text(
+                    tab.title ?: stringResource(R.string.folder_all_chats),
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Medium,
+                    color = if (isSelected) colors.accent else colors.secondaryLabel,
+                    maxLines = 1,
+                )
+                if (tab.unread > 0) {
+                    Spacer(Modifier.width(6.dp))
+                    UnreadBadge(tab.unread, muted = !isSelected)
+                }
+            }
         }
     }
 }
@@ -289,23 +307,31 @@ private fun ChatsBody(
     onChatClick: (Long) -> Unit,
     onChatLongClick: (Long) -> Unit,
     onLoadMore: () -> Unit,
-    modifier: Modifier,
+    padding: PaddingValues,
     activities: Map<Long, Map<Sender, ActivityKind>>,
     archive: ArchiveSummary?,
     onOpenArchive: () -> Unit,
+    header: @Composable () -> Unit,
 ) {
     val isArchive = list == ChatListType.Archive
+    val placeholder = Modifier.fillMaxSize().padding(padding)
     when {
-        loggingOut || chats == null -> Box(modifier, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        chats.isEmpty() && allLoaded && archive == null -> Box(modifier.padding(24.dp), contentAlignment = Alignment.Center) {
-            Text(
-                stringResource(if (isArchive) R.string.archive_empty else R.string.chats_empty),
-                style = MaterialTheme.typography.bodyLarge,
-                textAlign = TextAlign.Center,
-            )
+        loggingOut || chats == null -> Box(placeholder, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        chats.isEmpty() && allLoaded && archive == null -> Column(placeholder) {
+            header()
+            Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+                Text(
+                    stringResource(if (isArchive) R.string.archive_empty else R.string.chats_empty),
+                    style = MaterialTheme.typography.bodyLarge,
+                    color = ReachTheme.colors.secondaryLabel,
+                    textAlign = TextAlign.Center,
+                )
+            }
         }
         // Своё состояние прокрутки у каждой вкладки
-        else -> key(list) { ChatList(list, chats, allLoaded, onChatClick, onChatLongClick, onLoadMore, modifier, activities, archive, onOpenArchive) }
+        else -> key(list) {
+            ChatList(list, chats, allLoaded, onChatClick, onChatLongClick, onLoadMore, padding, activities, archive, onOpenArchive, header)
+        }
     }
 }
 
@@ -317,19 +343,18 @@ private fun ChatList(
     onChatClick: (Long) -> Unit,
     onChatLongClick: (Long) -> Unit,
     onLoadMore: () -> Unit,
-    modifier: Modifier,
+    padding: PaddingValues,
     activities: Map<Long, Map<Sender, ActivityKind>>,
     archive: ArchiveSummary?,
     onOpenArchive: () -> Unit,
+    header: @Composable () -> Unit,
 ) {
     val listState = rememberLazyListState()
     LoadMoreEffect(listState, enabled = !allLoaded, onLoadMore)
-    LazyColumn(state = listState, modifier = modifier) {
+    LazyColumn(state = listState, modifier = Modifier.fillMaxSize().glassSource(), contentPadding = padding) {
+        item(key = "header") { Column { header() } }
         if (archive != null) {
-            item(key = "archive") {
-                ArchiveRow(archive, onOpenArchive)
-                HorizontalDivider(Modifier.padding(start = 80.dp), thickness = Dp.Hairline, color = MaterialTheme.colorScheme.outlineVariant)
-            }
+            item(key = "archive") { ArchiveRow(archive, onOpenArchive) }
         }
         items(chats, key = { it.id }) { chat ->
             ChatRow(
@@ -339,7 +364,6 @@ private fun ChatList(
                 onClick = { onChatClick(chat.id) },
                 onLongClick = { onChatLongClick(chat.id) },
             )
-            HorizontalDivider(Modifier.padding(start = 80.dp), thickness = Dp.Hairline, color = MaterialTheme.colorScheme.outlineVariant)
         }
         if (!allLoaded) {
             item(key = "loading") {
@@ -368,84 +392,125 @@ private fun LoadMoreEffect(listState: LazyListState, enabled: Boolean, onLoadMor
     }
 }
 
+/**
+ * Строка чата Telegram iOS: аватар, справа две строки — имя с mute и время с галочками,
+ * под ними превью в две строки и счётчик (или значок закрепа). Разделитель — от текста.
+ */
 @Composable
 private fun ChatRow(chat: Chat, isPinned: Boolean, activity: String?, onClick: () -> Unit, onLongClick: () -> Unit) {
+    val colors = ReachTheme.colors
+    ChatRowLayout(
+        avatar = { ChatAvatar(chat, size = AVATAR_SIZE) },
+        onClick = onClick,
+        onLongClick = onLongClick,
+        title = {
+            Text(
+                chatTitle(chat),
+                modifier = Modifier.weight(1f, fill = false),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.label,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+            if (chat.isMuted) {
+                Spacer(Modifier.width(4.dp))
+                Icon(
+                    painterResource(R.drawable.ic_muted),
+                    contentDescription = stringResource(R.string.chat_muted),
+                    modifier = Modifier.size(15.dp),
+                    tint = colors.tertiaryLabel,
+                )
+            }
+        },
+        meta = {
+            ReadMark(chat)
+            // Черновик новее последнего сообщения — показываем его время
+            listOfNotNull(chat.lastMessage?.date, chat.draft?.date).maxOrNull()?.let { date ->
+                Text(Dates.chatListTime(date.toLong()), style = MaterialTheme.typography.bodyMedium, color = colors.secondaryLabel)
+            }
+        },
+        preview = {
+            Text(
+                // «печатает…» важнее черновика и последнего сообщения
+                activity?.let { AnnotatedString(it) }
+                    // Черновик без текста (только ответ, например из другого клиента) не показываем
+                    ?: chat.draft?.takeIf { it.text.text.isNotBlank() }?.let { draftPreview(it) }
+                    ?: AnnotatedString(chat.lastMessage?.let { previewText(it) }.orEmpty()),
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
+                color = if (activity != null) colors.accent else colors.secondaryLabel,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        badge = {
+            // Счётчик важнее значка закрепа: если есть непрочитанные, показываем его
+            when {
+                chat.unreadCount > 0 -> UnreadBadge(chat.unreadCount, muted = chat.isMuted)
+                // Пометка без непрочитанных — пустая точка-счётчик
+                chat.isMarkedAsUnread -> UnreadBadge(0, muted = chat.isMuted)
+                isPinned -> Icon(
+                    painterResource(R.drawable.ic_pin),
+                    contentDescription = stringResource(R.string.chat_pinned),
+                    modifier = Modifier.size(16.dp).rotate(45f),
+                    tint = colors.tertiaryLabel,
+                )
+            }
+        },
+    )
+}
+
+/** Галочки у своего последнего сообщения: одна — отправлено, две — прочитано. В «Избранном» и каналах их нет. */
+@Composable
+private fun ReadMark(chat: Chat) {
+    val last = chat.lastMessage ?: return
+    if (!last.isOutgoing || chat.isSavedMessages || chat.kind == ChatKind.Channel || chat.draft != null) return
+    val read = last.id <= chat.lastReadOutboxMessageId
+    Icon(
+        painterResource(if (read) R.drawable.ic_check_double else R.drawable.ic_check),
+        contentDescription = stringResource(if (read) R.string.message_read else R.string.message_sent),
+        modifier = Modifier.padding(end = 3.dp).size(17.dp),
+        tint = ReachTheme.colors.positive,
+    )
+}
+
+/** Общая раскладка строки списка: у строки архива те же размеры. */
+@Composable
+private fun ChatRowLayout(
+    avatar: @Composable () -> Unit,
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)?,
+    title: @Composable RowScope.() -> Unit,
+    meta: @Composable RowScope.() -> Unit,
+    preview: @Composable RowScope.() -> Unit,
+    badge: @Composable () -> Unit,
+) {
+    val colors = ReachTheme.colors
     Row(
-        modifier = Modifier
+        Modifier
             .fillMaxWidth()
+            .height(ROW_HEIGHT)
             .combinedClickable(onClick = onClick, onLongClick = onLongClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
+            .padding(start = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        ChatAvatar(chat, size = 56.dp)
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                // Иконка «без звука» сразу за названием, а не у края
-                Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        chatTitle(chat),
-                        modifier = Modifier.weight(1f, fill = false),
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (chat.isMuted) {
-                        Spacer(Modifier.width(4.dp))
-                        Icon(
-                            painterResource(R.drawable.ic_muted),
-                            contentDescription = stringResource(R.string.chat_muted),
-                            modifier = Modifier.size(16.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-                // Черновик новее последнего сообщения — показываем его время
-                listOfNotNull(chat.lastMessage?.date, chat.draft?.date).maxOrNull()?.let { date ->
+        avatar()
+        Spacer(Modifier.width(10.dp))
+        Column(Modifier.weight(1f).fillMaxHeight()) {
+            Column(Modifier.weight(1f).padding(top = 8.dp, end = 14.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    // Иконка «без звука» сразу за названием, а не у края
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically, content = title)
                     Spacer(Modifier.width(8.dp))
-                    Text(
-                        Dates.chatListTime(date.toLong()),
-                        style = MaterialTheme.typography.labelMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically, content = meta)
+                }
+                Row(Modifier.padding(top = 2.dp), verticalAlignment = Alignment.Top) {
+                    preview()
+                    Box(Modifier.padding(start = 8.dp, top = 6.dp)) { badge() }
                 }
             }
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    // «печатает…» важнее черновика и последнего сообщения
-                    activity?.let { AnnotatedString(it) }
-                        // Черновик без текста (только ответ, например из другого клиента) не показываем
-                        ?: chat.draft?.takeIf { it.text.text.isNotBlank() }?.let { draftPreview(it) }
-                        ?: AnnotatedString(chat.lastMessage?.let { previewText(it) }.orEmpty()),
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = if (activity != null) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                // Счётчик важнее значка закрепа: если есть непрочитанные, показываем его
-                when {
-                    chat.unreadCount > 0 -> {
-                        Spacer(Modifier.width(8.dp))
-                        UnreadBadge(chat.unreadCount, muted = chat.isMuted)
-                    }
-                    // Пометка без непрочитанных — пустая точка-счётчик
-                    chat.isMarkedAsUnread -> {
-                        Spacer(Modifier.width(8.dp))
-                        UnreadBadge(0, muted = chat.isMuted)
-                    }
-                    isPinned -> {
-                        Spacer(Modifier.width(8.dp))
-                        Icon(
-                            painterResource(R.drawable.ic_pin),
-                            contentDescription = stringResource(R.string.chat_pinned),
-                            modifier = Modifier.size(16.dp).rotate(45f),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                }
-            }
+            HorizontalDivider(thickness = 0.5.dp, color = colors.separator)
         }
     }
 }
@@ -453,51 +518,50 @@ private fun ChatRow(chat: Chat, isPinned: Boolean, activity: String?, onClick: (
 /** Строка «Архив»: сколько чатов и чьи, счётчик непрочитанных — серый, архив без звука. */
 @Composable
 private fun ArchiveRow(archive: ArchiveSummary, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onClick)
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Box(
-            Modifier.size(56.dp).background(MaterialTheme.colorScheme.surfaceVariant, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(R.drawable.ic_archive), contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
-        }
-        Spacer(Modifier.width(12.dp))
-        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    val colors = ReachTheme.colors
+    ChatRowLayout(
+        avatar = {
+            Box(
+                Modifier.size(AVATAR_SIZE).background(colors.secondaryLabel, CircleShape),
+                contentAlignment = Alignment.Center,
+            ) {
+                Icon(painterResource(R.drawable.ic_archive), contentDescription = null, tint = Color.White)
+            }
+        },
+        onClick = onClick,
+        onLongClick = null,
+        title = {
             Text(
                 stringResource(R.string.archive_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.SemiBold,
+                color = colors.label,
             )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    archive.titles.filter { it.isNotBlank() }.joinToString(", ")
-                        .ifEmpty { pluralStringResource(R.plurals.archive_chats, archive.total, archive.total) },
-                    modifier = Modifier.weight(1f),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (archive.unreadChats > 0) {
-                    Spacer(Modifier.width(8.dp))
-                    UnreadBadge(archive.unreadChats, muted = true)
-                }
-            }
-        }
-    }
+        },
+        meta = {},
+        preview = {
+            Text(
+                archive.titles.filter { it.isNotBlank() }.joinToString(", ")
+                    .ifEmpty { pluralStringResource(R.plurals.archive_chats, archive.total, archive.total) },
+                modifier = Modifier.weight(1f),
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.secondaryLabel,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+            )
+        },
+        badge = { if (archive.unreadChats > 0) UnreadBadge(archive.unreadChats, muted = true) },
+    )
 }
 
+/** Счётчик непрочитанного: акцентный, у чатов без звука — серый; `0` — пустая точка. */
 @Composable
 private fun UnreadBadge(count: Int, muted: Boolean = false) {
+    val colors = ReachTheme.colors
     Box(
         modifier = Modifier
-            .defaultMinSize(minWidth = 22.dp, minHeight = 22.dp)
-            .background(if (muted) MaterialTheme.colorScheme.outline else MaterialTheme.colorScheme.primary, CircleShape)
+            .defaultMinSize(minWidth = BADGE_SIZE, minHeight = BADGE_SIZE)
+            .background(if (muted) colors.secondaryLabel.copy(alpha = 0.7f) else colors.accent, CircleShape)
             .padding(horizontal = 6.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -507,19 +571,24 @@ private fun UnreadBadge(count: Int, muted: Boolean = false) {
                 count > MAX_BADGE -> "$MAX_BADGE+"
                 else -> count.toString()
             },
-            style = MaterialTheme.typography.labelSmall,
-            color = if (muted) MaterialTheme.colorScheme.surface else MaterialTheme.colorScheme.onPrimary,
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold,
+            color = colors.onAccent,
         )
     }
 }
 
 private const val MAX_BADGE = 999
+private val ROW_HEIGHT = 78.dp
+private val AVATAR_SIZE = 60.dp
+private val BADGE_SIZE = 20.dp
+private val FOLDER_HEIGHT = 32.dp
 
 /** «Черновик: …» — метка красным, как в официальном клиенте. */
 @Composable
 private fun draftPreview(draft: Draft): AnnotatedString {
     val label = stringResource(R.string.chat_preview_draft)
-    val color = MaterialTheme.colorScheme.error
+    val color = ReachTheme.colors.destructive
     return buildAnnotatedString {
         withStyle(SpanStyle(color = color)) { append(label) }
         append(' ')
@@ -545,7 +614,8 @@ private fun LogOutDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
     )
 }
 
-@Preview
+@Preview(name = "Список — день")
+@Preview(name = "Список — ночь", uiMode = Configuration.UI_MODE_NIGHT_YES)
 @Composable
 private fun ChatsPreview() {
     val now = (System.currentTimeMillis() / 1000).toInt()

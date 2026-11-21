@@ -184,6 +184,7 @@ class ChatsRepository @Inject constructor(
                 )
             }
             is TdApi.UpdateChatReadInbox -> edit(update.chatId) { copy(unreadCount = update.unreadCount, lastReadInboxMessageId = update.lastReadInboxMessageId) }
+            is TdApi.UpdateChatReadOutbox -> edit(update.chatId) { copy(lastReadOutboxMessageId = update.lastReadOutboxMessageId) }
             is TdApi.UpdateChatFolders -> _folders.value = ChatFolders(
                 update.chatFolders.map { ChatFolder(it.id, it.name.text.text) },
                 update.mainChatListPosition,
