@@ -347,6 +347,8 @@
     <string name="attach_access_change">Изменить</string>
     <string name="attach_photo_select">Выбрать фото</string>
     <string name="attach_photos_empty">Фото нет</string>
+    <string name="photo_caption_add">Добавить подпись…</string>
+    <string name="photo_page">%1$d из %2$d</string>
     <string name="emoji_open">Эмодзи</string>
     <string name="emoji_keyboard">Клавиатура</string>
     <string name="emoji_search">Поиск эмодзи</string>
