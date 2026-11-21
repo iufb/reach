@@ -13,8 +13,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -23,7 +21,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalUriHandler
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -100,29 +97,10 @@ private fun PreviewBody(preview: LinkPreview, modifier: Modifier = Modifier) {
 /** Превью ссылки из набранного текста над полем ввода; ✕ — отправить без превью. */
 @Composable
 internal fun ComposerLinkPreview(preview: LinkPreview, onDismiss: () -> Unit) {
-    Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 6.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Icon(painterResource(R.drawable.ic_link), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        Column(Modifier.weight(1f).padding(start = 12.dp)) {
-            Text(
-                preview.siteName.ifBlank { preview.url },
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-            Text(
-                preview.title.ifBlank { preview.description.text },
-                style = MaterialTheme.typography.bodySmall,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-        IconButton(onClick = onDismiss) {
-            Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.link_preview_remove))
-        }
-    }
+    ComposerContextBar(
+        title = preview.siteName.ifBlank { preview.url },
+        text = preview.title.ifBlank { preview.description.text },
+        cancelDescription = stringResource(R.string.link_preview_remove),
+        onCancel = onDismiss,
+    )
 }

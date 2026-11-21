@@ -1,8 +1,13 @@
 package io.github.iufb.reach.chat
 
-import androidx.annotation.DrawableRes
 import androidx.compose.animation.core.Animatable
 import androidx.compose.foundation.background
+import io.github.iufb.reach.ui.theme.ReachTheme
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.Role
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.gestures.Orientation
 import androidx.compose.foundation.gestures.draggable
@@ -19,7 +24,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -73,23 +77,21 @@ internal fun ReplyBlock(
     QuoteStrip(authorName(author, senders), text, Modifier.padding(bottom = 4.dp).clickable(onClick = onClick))
 }
 
-/** Плашка над полем ввода: на что отвечаем, с кнопкой отмены. */
+/** Плашка в поле ввода: на что отвечаем, с кнопкой отмены. */
 @Composable
 internal fun ReplyBar(message: Message, senders: Map<Sender, SenderInfo>, onCancel: () -> Unit) {
     ComposerContextBar(
-        icon = R.drawable.ic_reply,
-        title = authorName(MessageAuthor.Known(message.sender), senders),
+        title = stringResource(R.string.reply_to, authorName(MessageAuthor.Known(message.sender), senders)),
         text = bodySummary(message.content),
         cancelDescription = stringResource(R.string.reply_cancel),
         onCancel = onCancel,
     )
 }
 
-/** Плашка над полем ввода в режиме редактирования. */
+/** Плашка в поле ввода в режиме редактирования. */
 @Composable
 internal fun EditBar(message: Message, onCancel: () -> Unit) {
     ComposerContextBar(
-        icon = R.drawable.ic_edit,
         title = stringResource(R.string.edit_title),
         text = bodySummary(message.content),
         cancelDescription = stringResource(R.string.edit_cancel),
@@ -97,25 +99,36 @@ internal fun EditBar(message: Message, onCancel: () -> Unit) {
     )
 }
 
+/**
+ * Telegram iOS: ответ, правка и превью ссылки — цитатой в верхней части поля ввода,
+ * крестик справа.
+ */
 @Composable
-private fun ComposerContextBar(
-    @DrawableRes icon: Int,
+internal fun ComposerContextBar(
     title: String,
     text: String,
     cancelDescription: String,
     onCancel: () -> Unit,
 ) {
     Row(
-        modifier = Modifier.fillMaxWidth().padding(start = 12.dp, top = 6.dp),
+        modifier = Modifier.fillMaxWidth().padding(start = 8.dp, top = 8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        Icon(painterResource(icon), contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-        QuoteStrip(title, text, Modifier.weight(1f).padding(start = 12.dp))
-        IconButton(onClick = onCancel) {
-            Icon(painterResource(R.drawable.ic_close), contentDescription = cancelDescription)
+        QuoteStrip(title, text, Modifier.weight(1f))
+        Box(
+            Modifier
+                .size(CANCEL_SIZE)
+                .clip(CircleShape)
+                .clickable(role = Role.Button, onClick = onCancel)
+                .semantics { contentDescription = cancelDescription },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(R.drawable.ic_close), contentDescription = null, Modifier.size(18.dp), tint = ReachTheme.colors.secondaryLabel)
         }
     }
 }
+
+private val CANCEL_SIZE = 40.dp
 
 /** Полоска слева, имя автора и строка текста — общий вид цитаты. */
 @Composable

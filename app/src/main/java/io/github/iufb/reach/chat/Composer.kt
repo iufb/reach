@@ -1,6 +1,14 @@
 package io.github.iufb.reach.chat
 
 import androidx.annotation.StringRes
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.size
@@ -9,7 +17,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.semantics.Role
-import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.width
@@ -20,29 +27,23 @@ import io.github.iufb.reach.ui.components.Avatar
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
-import io.github.iufb.reach.emoji.EmojiPanel
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -52,7 +53,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
@@ -136,15 +136,18 @@ internal class SendMenu(
  */
 @Composable
 private fun GlassCircle(content: @Composable () -> Unit) {
-    Box(Modifier.height(FIELD_MIN_HEIGHT), contentAlignment = Alignment.Center) {
-        Box(Modifier.size(PillHeight).glass(CircleShape))
+    Box(Modifier.size(PillHeight), contentAlignment = Alignment.Center) {
+        Box(Modifier.matchParentSize().glass(CircleShape))
         content()
     }
 }
 
-private val FIELD_CORNER = 28.dp
-private val FIELD_MIN_HEIGHT = 56.dp
+/** Поле — пилюля высотой с кнопки; с плашкой ответа или в несколько строк скругление остаётся тем же. */
+private val FIELD_CORNER = PillHeight / 2
 private val EXTRAS_CORNER = 20.dp
+/** Значки внутри поля (колокольчик, эмодзи). */
+private val FIELD_ICON = 36.dp
+private val SEND_ICON = 20.dp
 
 /** Сколько последних отданных модели текстов помнит поле, см. [Composer]. */
 private const val MAX_SENT_TEXTS = 64
@@ -165,8 +168,9 @@ private fun mentionToken(field: TextFieldValue): MentionToken? {
     return MentionToken(at, cursor, query)
 }
 
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
+internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, emoji: EmojiPanelState) {
     // Поле держит своё TextFieldValue (выделение, composing-регион клавиатуры), текст сверяется с моделью
     val keyboard = LocalSoftwareKeyboardController.current
     var field by remember { mutableStateOf(TextFieldValue(state.draft.text, TextRange(state.draft.text.length))) }
@@ -186,26 +190,38 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
         }
     }
     var linkFor by remember { mutableStateOf<TextRange?>(null) }
-    var emojiOpen by remember { mutableStateOf(false) }
+    val imeVisible = WindowInsets.isImeVisible
     val fieldInteraction = remember { MutableInteractionSource() }
     val fieldPressed by fieldInteraction.collectIsPressedAsState()
     // Тап по полю, пока открыта панель, возвращает клавиатуру
-    LaunchedEffect(fieldPressed) { if (fieldPressed) emojiOpen = false }
+    LaunchedEffect(fieldPressed) { if (fieldPressed && emoji.open) emoji.switchToKeyboard() }
+    BackHandler(enabled = emoji.open) { emoji.close() }
+    // Панель живёт внизу экрана (ChatBottomArea), а вставляет — сюда, на место выделения / курсора
+    SideEffect {
+        emoji.onPick = { picked ->
+            val at = field.selection
+            val text = field.text.replaceRange(at.min, at.max, picked)
+            field = TextFieldValue(text, TextRange(at.min + picked.length))
+            sentTexts.addLast(text)
+            if (sentTexts.size > MAX_SENT_TEXTS) sentTexts.removeFirst()
+            state.onDraftChange(text)
+        }
+    }
     // «Ответить» и «Изменить» ставят курсор в поле; восстановленный при открытии чата ответ — нет
     val focusRequester = remember { FocusRequester() }
     var seenFocusRequest by remember { mutableIntStateOf(state.focusRequest) }
     LaunchedEffect(state.focusRequest) {
         if (state.focusRequest == seenFocusRequest) return@LaunchedEffect
         seenFocusRequest = state.focusRequest
-        emojiOpen = false
+        if (emoji.open) emoji.switchToKeyboard()
         // Во время записи голосового поля нет — фокусировать нечего
         runCatching { focusRequester.requestFocus() }.onSuccess { keyboard?.show() }
     }
     val token = mentionToken(field)
     val mentionQuery = token?.query
     LaunchedEffect(mentionQuery) { state.onMentionQuery(mentionQuery) }
-    val colors = richTextColors()
-    val transformation = remember(state.draft, colors) { RichVisualTransformation(state.draft, colors) }
+    val richColors = richTextColors()
+    val transformation = remember(state.draft, richColors) { RichVisualTransformation(state.draft, richColors) }
     val canSend = state.draft.text.isNotBlank()
     val voice = state.voice?.takeIf { state.editing == null }
     val recording = voice != null && voice.state !is RecorderState.Idle
@@ -213,106 +229,110 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
     val showMic = voice != null && !canSend &&
         (voice.state is RecorderState.Idle || (voice.state as? RecorderState.Recording)?.locked == false)
 
-    // Telegram iOS: под полем нет панели — стеклянные кнопки и поле-пилюля плавают над лентой,
-    // плашки ответа, правки, превью и подсказок — стеклянной карточкой над ними
+    // Telegram iOS: под полем нет панели — стеклянные кнопки и поле-пилюля плавают над лентой.
+    // Ответ, правка и превью ссылки — внутри поля, подсказки и оформление — стеклянной карточкой над ним.
     val selection = field.selection
     val showMentions = token != null && state.mentionSuggestions.isNotEmpty()
-    val hasExtras = state.editing != null || state.replyTo != null || state.linkPreview != null || showMentions || !selection.collapsed
-    Column(Modifier.navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp)) {
-        if (hasExtras) {
-            Column(Modifier.fillMaxWidth().padding(bottom = 6.dp).glass(RoundedCornerShape(EXTRAS_CORNER))) {
-                when {
-                    state.editing != null -> EditBar(state.editing, state.onCancelEdit)
-                    state.replyTo != null -> ReplyBar(state.replyTo, senders, state.onCancelReply)
-                }
-                state.linkPreview?.let { ComposerLinkPreview(it, state.onDismissLinkPreview) }
-                if (showMentions && token != null) {
-                    MentionSuggestions(state.mentionSuggestions) { state.onPickMention(it, token.start, token.end) }
-                }
-                if (!selection.collapsed) {
-                    FormatBar(
-                        onFormat = { kind -> state.onFormat(kind, selection.min, selection.max) },
-                        onLink = { linkFor = selection },
-                    )
-                }
-            }
-        }
-        Column {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.Bottom,
-            ) {
-                if (recording) {
-                    RecordingBar(voice!!, Modifier.weight(1f))
-                } else {
-                    if (state.editing == null && (state.onAttachPhoto != null || state.onAttachFile != null)) {
-                        GlassCircle { AttachButton(state.onAttachPhoto, state.onAttachFile, state.onAttachPoll) }
+    val colors = ReachTheme.colors
+    Column(Modifier.fillMaxWidth()) {
+        Column(Modifier.padding(horizontal = 8.dp, vertical = 6.dp)) {
+            if (showMentions || !selection.collapsed) {
+                Column(Modifier.fillMaxWidth().padding(bottom = 6.dp).glass(RoundedCornerShape(EXTRAS_CORNER))) {
+                    if (showMentions && token != null) {
+                        MentionSuggestions(state.mentionSuggestions) { state.onPickMention(it, token.start, token.end) }
                     }
-                    Box(Modifier.weight(1f).padding(horizontal = 6.dp)) {
-                    Box(Modifier.matchParentSize().glass(RoundedCornerShape(FIELD_CORNER)))
-                    TextField(
-                        colors = TextFieldDefaults.colors(
-                            focusedContainerColor = Color.Transparent,
-                            unfocusedContainerColor = Color.Transparent,
-                            errorContainerColor = Color.Transparent,
-                            focusedIndicatorColor = Color.Transparent,
-                            unfocusedIndicatorColor = Color.Transparent,
-                            errorIndicatorColor = Color.Transparent,
-                        ),
-                        value = field,
-                        onValueChange = {
-                            if (it.text != field.text) {
-                                sentTexts.addLast(it.text)
-                                if (sentTexts.size > MAX_SENT_TEXTS) sentTexts.removeFirst()
-                                state.onDraftChange(it.text)
-                            }
-                            field = it
-                        },
-                        modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
-                        placeholder = { Text(stringResource(R.string.chat_input_placeholder)) },
-                        isError = state.error != null,
-                        supportingText = state.error?.let { { Text(stringResource(R.string.chat_send_error, it)) } },
-                        maxLines = 6,
-                        keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                        visualTransformation = transformation,
-                        interactionSource = fieldInteraction,
-                        trailingIcon = {
-                            Row(verticalAlignment = Alignment.CenterVertically) {
-                                state.silent?.let { silent -> SilentToggle(silent, state.onToggleSilent) }
-                                EmojiToggle(emojiOpen) {
-                                    if (emojiOpen) keyboard?.show() else keyboard?.hide()
-                                    emojiOpen = !emojiOpen
-                                }
-                            }
-                        },
-                    )
-                    }
-                }
-                GlassCircle {
-                    if (showMic) {
-                        MicButton(voice!!)
-                    } else {
-                        val sendVoice = recording
-                        SendButton(
-                            enabled = canSend || sendVoice,
-                            onClick = if (sendVoice) voice!!.onSend else state.onSend,
-                            // Меню — только для набранного текста, не для правки и не для голосового
-                            menu = state.sendMenu?.takeIf { !sendVoice && state.editing == null && canSend },
+                    if (!selection.collapsed) {
+                        FormatBar(
+                            onFormat = { kind -> state.onFormat(kind, selection.min, selection.max) },
+                            onLink = { linkFor = selection },
                         )
                     }
                 }
             }
-            if (emojiOpen) {
-                Box(Modifier.padding(top = 6.dp).clip(RoundedCornerShape(EXTRAS_CORNER)).background(ReachTheme.colors.cell)) {
-                EmojiPanel(onPick = { emoji ->
-                    // Вставка на место выделения / курсора
-                    val selection = field.selection
-                    val text = field.text.replaceRange(selection.min, selection.max, emoji)
-                    field = TextFieldValue(text, TextRange(selection.min + emoji.length))
-                    sentTexts.addLast(text)
-                    if (sentTexts.size > MAX_SENT_TEXTS) sentTexts.removeFirst()
-                    state.onDraftChange(text)
-                })
+            Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                if (recording) {
+                    RecordingBar(
+                        voice!!,
+                        Modifier.weight(1f).padding(end = 6.dp).glass(RoundedCornerShape(FIELD_CORNER)),
+                    )
+                } else {
+                    if (state.editing == null && (state.onAttachPhoto != null || state.onAttachFile != null)) {
+                        GlassCircle { AttachButton(state.onAttachPhoto, state.onAttachFile, state.onAttachPoll) }
+                    }
+                    Column(Modifier.weight(1f).padding(horizontal = 6.dp).glass(RoundedCornerShape(FIELD_CORNER))) {
+                        when {
+                            state.editing != null -> EditBar(state.editing, state.onCancelEdit)
+                            state.replyTo != null -> ReplyBar(state.replyTo, senders, state.onCancelReply)
+                        }
+                        state.linkPreview?.let { ComposerLinkPreview(it, state.onDismissLinkPreview) }
+                        Row(Modifier.fillMaxWidth().heightIn(min = PillHeight), verticalAlignment = Alignment.Bottom) {
+                            BasicTextField(
+                                value = field,
+                                onValueChange = {
+                                    if (it.text != field.text) {
+                                        sentTexts.addLast(it.text)
+                                        if (sentTexts.size > MAX_SENT_TEXTS) sentTexts.removeFirst()
+                                        state.onDraftChange(it.text)
+                                    }
+                                    field = it
+                                },
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .focusRequester(focusRequester)
+                                    .padding(start = 16.dp, end = 4.dp, top = FIELD_TEXT_PADDING, bottom = FIELD_TEXT_PADDING),
+                                textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.label),
+                                cursorBrush = SolidColor(colors.accent),
+                                maxLines = 6,
+                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                                visualTransformation = transformation,
+                                interactionSource = fieldInteraction,
+                                decorationBox = { inner ->
+                                    Box {
+                                        if (field.text.isEmpty()) {
+                                            Text(
+                                                stringResource(R.string.chat_input_placeholder),
+                                                style = MaterialTheme.typography.bodyLarge,
+                                                color = colors.tertiaryLabel,
+                                            )
+                                        }
+                                        inner()
+                                    }
+                                },
+                            )
+                            Row(Modifier.padding(end = 4.dp, bottom = (PillHeight - FIELD_ICON) / 2)) {
+                                state.silent?.let { silent -> SilentToggle(silent, state.onToggleSilent) }
+                                EmojiToggle(emoji.open) {
+                                    if (emoji.open) {
+                                        emoji.switchToKeyboard()
+                                        runCatching { focusRequester.requestFocus() }
+                                        keyboard?.show()
+                                    } else {
+                                        emoji.show(keyboardVisible = imeVisible)
+                                        keyboard?.hide()
+                                    }
+                                }
+                            }
+                        }
+                        state.error?.let {
+                            Text(
+                                stringResource(R.string.chat_send_error, it),
+                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = colors.destructive,
+                            )
+                        }
+                    }
+                }
+                if (showMic) {
+                    GlassCircle { MicButton(voice!!) }
+                } else {
+                    val sendVoice = recording
+                    SendButton(
+                        enabled = canSend || sendVoice,
+                        onClick = if (sendVoice) voice!!.onSend else state.onSend,
+                        // Меню — только для набранного текста, не для правки и не для голосового
+                        menu = state.sendMenu?.takeIf { !sendVoice && state.editing == null && canSend },
+                    )
                 }
             }
         }
@@ -328,6 +348,9 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
     }
 }
 
+/** Отступ текста в поле: строка bodyLarge плюс два отступа — ровно [PillHeight]. */
+private val FIELD_TEXT_PADDING = 11.dp
+
 /** «Отправить»: тап — отправка, долгое нажатие — меню вариантов ([SendMenu]). */
 @Composable
 private fun SendButton(enabled: Boolean, onClick: () -> Unit, menu: SendMenu?) {
@@ -336,11 +359,13 @@ private fun SendButton(enabled: Boolean, onClick: () -> Unit, menu: SendMenu?) {
     val haptics = LocalHapticFeedback.current
     val description = stringResource(R.string.chat_send)
     val optionsLabel = stringResource(R.string.send_options)
+    val colors = ReachTheme.colors
     Box {
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(PillHeight)
                 .clip(CircleShape)
+                .background(if (enabled) colors.accent else colors.fill)
                 .combinedClickable(
                     enabled = enabled,
                     role = Role.Button,
@@ -359,7 +384,8 @@ private fun SendButton(enabled: Boolean, onClick: () -> Unit, menu: SendMenu?) {
             Icon(
                 painterResource(R.drawable.ic_send),
                 contentDescription = null,
-                tint = if (enabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(SEND_ICON),
+                tint = if (enabled) colors.onAccent else colors.tertiaryLabel,
             )
         }
         if (menu != null) {
@@ -407,30 +433,39 @@ private fun SendButton(enabled: Boolean, onClick: () -> Unit, menu: SendMenu?) {
     }
 }
 
-/** ☺ открывает панель эмодзи, ⌨ — возвращает клавиатуру. */
+/** Значок внутри поля: эмодзи, клавиатура, колокольчик. */
+@Composable
+private fun FieldIcon(icon: Int, description: String, onClick: () -> Unit) {
+    Box(
+        Modifier
+            .size(FIELD_ICON)
+            .clip(CircleShape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(painterResource(icon), contentDescription = null, Modifier.size(24.dp), tint = ReachTheme.colors.secondaryLabel)
+    }
+}
+
+/** Смайлик открывает панель эмодзи, клавиатура — возвращает её. */
 @Composable
 private fun EmojiToggle(open: Boolean, onClick: () -> Unit) {
-    IconButton(onClick = onClick) {
-        val description = stringResource(if (open) R.string.emoji_keyboard else R.string.emoji_open)
-        Text(
-            if (open) "⌨" else "☺",
-            style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.semantics { contentDescription = description },
-        )
-    }
+    FieldIcon(
+        if (open) R.drawable.ic_keyboard else R.drawable.ic_emoji,
+        stringResource(if (open) R.string.emoji_keyboard else R.string.emoji_open),
+        onClick,
+    )
 }
 
 /** Колокольчик: перечёркнут — сообщения уходят без звука. */
 @Composable
 private fun SilentToggle(silent: Boolean, onToggle: () -> Unit) {
-    IconButton(onClick = onToggle) {
-        Icon(
-            painterResource(if (silent) R.drawable.ic_muted else R.drawable.ic_unmute),
-            contentDescription = stringResource(if (silent) R.string.send_silent_on else R.string.send_silent_off),
-            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-    }
+    FieldIcon(
+        if (silent) R.drawable.ic_muted else R.drawable.ic_unmute,
+        stringResource(if (silent) R.string.send_silent_on else R.string.send_silent_off),
+        onToggle,
+    )
 }
 
 /** Список участников над полем; не выше нескольких строк, дальше прокрутка. */
@@ -456,7 +491,7 @@ private fun MentionSuggestions(candidates: List<MentionCandidate>, onPick: (Ment
                     Text(
                         "@${candidate.username}",
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = ReachTheme.colors.secondaryLabel,
                         maxLines = 1,
                     )
                 }
@@ -470,12 +505,16 @@ private fun MentionSuggestions(candidates: List<MentionCandidate>, onPick: (Ment
 private fun AttachButton(onPhoto: (() -> Unit)?, onFile: (() -> Unit)?, onPoll: (() -> Unit)?) {
     var open by remember { mutableStateOf(false) }
     Box {
-        IconButton(onClick = { open = true }) {
-            Icon(
-                painterResource(R.drawable.ic_attach),
-                contentDescription = stringResource(R.string.attach),
-                tint = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        val description = stringResource(R.string.attach)
+        Box(
+            Modifier
+                .size(PillHeight)
+                .clip(CircleShape)
+                .clickable(role = Role.Button) { open = true }
+                .semantics { contentDescription = description },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(R.drawable.ic_attach), contentDescription = null, Modifier.size(24.dp), tint = ReachTheme.colors.label)
         }
         DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
             onPhoto?.let { pick ->
@@ -494,7 +533,8 @@ private fun AttachButton(onPhoto: (() -> Unit)?, onFile: (() -> Unit)?, onPoll: 
 /** Кнопки оформления над полем, пока в нём выделен текст. */
 @Composable
 private fun FormatBar(onFormat: (SpanKind) -> Unit, onLink: () -> Unit) {
-    Row(Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 8.dp)) {
+    // Семь кнопок делят ширину поровну — ни одна не уходит за край (#196)
+    Row(Modifier.fillMaxWidth().height(PillHeight).padding(horizontal = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         FormatButton("B", R.string.format_bold, fontWeight = FontWeight.Bold) { onFormat(SpanKind.Bold) }
         FormatButton("I", R.string.format_italic, fontStyle = FontStyle.Italic) { onFormat(SpanKind.Italic) }
         FormatButton("U", R.string.format_underline, decoration = TextDecoration.Underline) { onFormat(SpanKind.Underline) }
@@ -503,14 +543,19 @@ private fun FormatBar(onFormat: (SpanKind) -> Unit, onLink: () -> Unit) {
         }
         FormatButton("</>", R.string.format_code, fontFamily = FontFamily.Monospace) { onFormat(SpanKind.Code) }
         FormatButton("▒", R.string.format_spoiler) { onFormat(SpanKind.Spoiler) }
-        IconButton(onClick = onLink) {
-            Icon(painterResource(R.drawable.ic_link), contentDescription = stringResource(R.string.format_link))
+        val linkDescription = stringResource(R.string.format_link)
+        Box(
+            Modifier.weight(1f).fillMaxHeight().clip(CircleShape).clickable(role = Role.Button, onClick = onLink)
+                .semantics { contentDescription = linkDescription },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(R.drawable.ic_link), contentDescription = null, Modifier.size(22.dp), tint = ReachTheme.colors.label)
         }
     }
 }
 
 @Composable
-private fun FormatButton(
+private fun RowScope.FormatButton(
     label: String,
     @StringRes description: Int,
     fontWeight: FontWeight? = null,
@@ -520,15 +565,19 @@ private fun FormatButton(
     onClick: () -> Unit,
 ) {
     val descriptionText = stringResource(description)
-    TextButton(onClick = onClick) {
+    Box(
+        Modifier.weight(1f).fillMaxHeight().clip(CircleShape).clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = descriptionText },
+        contentAlignment = Alignment.Center,
+    ) {
         Text(
             label,
-            modifier = Modifier.semantics { contentDescription = descriptionText },
             fontWeight = fontWeight,
             fontStyle = fontStyle,
             textDecoration = decoration,
             fontFamily = fontFamily,
             style = MaterialTheme.typography.titleMedium,
+            color = ReachTheme.colors.label,
         )
     }
 }

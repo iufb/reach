@@ -416,6 +416,7 @@
         <item quantity="other">Удалить %d сообщения?</item>
     </plurals>
     <string name="reply_cancel">Отменить ответ</string>
+    <string name="reply_to">Ответ %1$s</string>
     <string name="reply_unavailable">Сообщение удалено</string>
     <plurals name="views">
         <item quantity="one">%d просмотр</item>

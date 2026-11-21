@@ -30,8 +30,6 @@ import androidx.compose.foundation.combinedClickable
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.PaddingValues
@@ -422,14 +420,18 @@ private fun ChatContent(
     var topHeight by remember { mutableStateOf(0.dp) }
     var bottomHeight by remember { mutableStateOf(0.dp) }
     // Scaffold больше нет — цвет текста по умолчанию задаём сами (иначе в тёмной теме он серый)
+    val emoji = rememberEmojiPanelState()
+    val composerShown = composer != null && chat != null && selectionBar == null
     GlassScope {
         CompositionLocalProvider(LocalContentColor provides colors.label) {
-        Box(
+        // Лента с шапкой и полем — сверху, под ними клавиатура / панель эмодзи / полоса навигации
+        // одним блоком (ChatBottomArea): при их переключении область ленты не меняет размер
+        Column(
             Modifier
                 .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(colors.wallpaperTop, colors.wallpaperBottom)))
-                .imePadding(),
+                .background(Brush.verticalGradient(listOf(colors.wallpaperTop, colors.wallpaperBottom))),
         ) {
+        Box(Modifier.fillMaxWidth().weight(1f)) {
             val padding = PaddingValues(top = topHeight + 4.dp, bottom = bottomHeight + 4.dp)
             if (!state.opened || chat == null) {
                 Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
@@ -453,12 +455,15 @@ private fun ChatContent(
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { bottomHeight = with(density) { it.height.toDp() } },
             ) {
                 when {
-                    unblock != null -> Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(8.dp), contentAlignment = Alignment.Center) {
+                    unblock != null -> Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) {
                         PillTextButton(stringResource(R.string.unblock), onClick = unblock)
                     }
-                    composer != null && chat != null -> Composer(composer, senders)
+                    // В режиме выбора поле ввода прячется: внизу действуют над выбранным, а не пишут (#196)
+                    composerShown && composer != null -> Composer(composer, senders, emoji)
                 }
             }
+        }
+        ChatBottomArea(emoji, panelAllowed = composerShown)
         }
         }
     }
