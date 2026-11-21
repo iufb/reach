@@ -59,6 +59,8 @@ import io.github.iufb.reach.media.AudioPlayer
 import io.github.iufb.reach.media.AudioState
 import io.github.iufb.reach.media.AudioTrack
 import io.github.iufb.reach.media.rememberAudioPlayer
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.ui.graphics.Color
 
 /** Трек в пузыре: обложка с ▶/⏸, название, исполнитель, прогресс и время. */
 @Composable
@@ -72,13 +74,14 @@ internal fun AudioRow(
 ) {
     val playing = playback?.isPlaying == true
     Row(modifier.padding(vertical = 2.dp).widthIn(max = 280.dp), verticalAlignment = Alignment.CenterVertically) {
-        Box(Modifier.size(48.dp).clip(RoundedCornerShape(8.dp)).clickable(onClick = onToggle), contentAlignment = Alignment.Center) {
+        // Без обложки — круглая кнопка, как в Telegram iOS; с обложкой — скруглённый квадрат
+        Box(Modifier.size(48.dp).clip(if (audio.cover != null) RoundedCornerShape(8.dp) else CircleShape).clickable(onClick = onToggle), contentAlignment = Alignment.Center) {
             Cover(audio.cover, 48.dp)
-            Box(Modifier.fillMaxSize().background(MaterialTheme.colorScheme.primary.copy(alpha = if (audio.cover != null) 0.45f else 1f)))
+            Box(Modifier.fillMaxSize().background(bubbleStyle().accent.copy(alpha = if (audio.cover != null) 0.45f else 1f)))
             Icon(
                 painterResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play),
                 contentDescription = stringResource(if (playing) R.string.video_pause else R.string.video_play),
-                tint = MaterialTheme.colorScheme.onPrimary,
+                tint = bubbleStyle().onAccent,
             )
         }
         // Ширина и высота не зависят от того, играет ли трек: иначе при старте и остановке лента дёргается (#215)
@@ -88,7 +91,7 @@ internal fun AudioRow(
                 Text(
                     audio.performer,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = bubbleStyle().secondary,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
@@ -97,6 +100,7 @@ internal fun AudioRow(
                 value = playback?.progress ?: 0f,
                 onValueChange = onSeek,
                 enabled = playback != null,
+                colors = trackColors(bubbleStyle().accent),
                 modifier = Modifier.height(24.dp).fillMaxWidth(),
             )
             Text(
@@ -106,7 +110,7 @@ internal fun AudioRow(
                     formatDuration(audio.duration.toLong())
                 },
                 style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = bubbleStyle().secondary,
             )
         }
     }
@@ -115,7 +119,7 @@ internal fun AudioRow(
 @Composable
 private fun Cover(cover: PhotoInfo?, size: Dp) {
     if (cover == null) {
-        Box(Modifier.size(size).background(MaterialTheme.colorScheme.primary))
+        Box(Modifier.size(size).background(bubbleStyle().accent))
         return
     }
     AsyncImage(cover.preview ?: cover.minithumbnail, null, Modifier.size(size), contentScale = ContentScale.Crop)
@@ -231,3 +235,14 @@ private fun trackTitle(title: String, isVoice: Boolean): String = when {
 }
 
 private val AUDIO_INFO_WIDTH = 200.dp
+
+/** Полоса трека цветом пузыря; без воспроизведения — бледная, но того же цвета. */
+@Composable
+private fun trackColors(accent: Color) = SliderDefaults.colors(
+    thumbColor = accent,
+    activeTrackColor = accent,
+    inactiveTrackColor = accent.copy(alpha = 0.25f),
+    disabledThumbColor = accent.copy(alpha = 0.5f),
+    disabledActiveTrackColor = accent.copy(alpha = 0.5f),
+    disabledInactiveTrackColor = accent.copy(alpha = 0.2f),
+)

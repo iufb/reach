@@ -943,6 +943,7 @@ private fun MessageBubble(
     val bubbleShape = BubbleShape(outgoing, tail)
     // Эффекты реакций и эмодзи выходят за пузырь — рисуем элемент поверх соседей
     val hasEffect = interactions.reactionEffect?.first == message.id || interactions.emojiEffects.any { it.messageId == message.id }
+    CompositionLocalProvider(LocalBubbleStyle provides colors.bubbleStyle(outgoing)) {
     Row(
         modifier = Modifier
             .zIndex(if (hasEffect) 1f else 0f)
@@ -1031,6 +1032,7 @@ private fun MessageBubble(
                 )
             }
         }
+    }
     }
 }
 
@@ -1130,6 +1132,7 @@ private fun ChannelPost(
     album: List<Message>,
     reply: @Composable () -> Unit,
 ) {
+    CompositionLocalProvider(LocalBubbleStyle provides ReachTheme.colors.bubbleStyle(outgoing = false)) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -1169,6 +1172,7 @@ private fun ChannelPost(
         if (message.hasComments && openComments != null && interactions.selection.isEmpty()) {
             CommentsBar(message, interactions.senders) { openComments(message) }
         }
+    }
     }
 }
 

@@ -36,6 +36,7 @@ import io.github.iufb.reach.media.MediaKind
 import io.github.iufb.reach.media.currentAutoDownloadRules
 import io.github.iufb.reach.media.rememberAutoDownload
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.IconButtonDefaults
 
 /**
  * Голосовое в пузыре: ▶/⏸, waveform (проигранная часть закрашена, тап/перетаскивание — перемотка),
@@ -58,7 +59,15 @@ internal fun VoiceNoteView(
     LaunchedEffect(voice.file, rules) { if (rules.allows(MediaKind.Voice)) autoDownload.preload(voice.file) }
     Column(modifier.padding(vertical = 2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            FilledIconButton(onClick = onToggle, modifier = Modifier.size(44.dp), shape = CircleShape) {
+            FilledIconButton(
+                onClick = onToggle,
+                modifier = Modifier.size(44.dp),
+                shape = CircleShape,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = bubbleStyle().accent,
+                    contentColor = bubbleStyle().onAccent,
+                ),
+            ) {
                 Icon(
                     painterResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play),
                     contentDescription = stringResource(if (playing) R.string.video_pause else R.string.video_play),
@@ -79,10 +88,10 @@ internal fun VoiceNoteView(
                     Text(
                         formatDuration(seconds),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = bubbleStyle().secondary,
                     )
                     if (!isListened) {
-                        Box(Modifier.size(6.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+                        Box(Modifier.size(6.dp).background(bubbleStyle().accent, CircleShape))
                     }
                 }
             }
@@ -101,8 +110,8 @@ internal fun VoiceNoteView(
 /** Столбики 0..31; до [progress] — основным цветом. [onSeek] `null` — не перематывается. */
 @Composable
 internal fun Waveform(levels: List<Int>, progress: Float, onSeek: ((Float) -> Unit)?, modifier: Modifier = Modifier) {
-    val played = MaterialTheme.colorScheme.primary
-    val rest = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+    val played = bubbleStyle().accent
+    val rest = bubbleStyle().secondary.copy(alpha = 0.4f)
     val seekModifier = if (onSeek == null) {
         Modifier
     } else {
