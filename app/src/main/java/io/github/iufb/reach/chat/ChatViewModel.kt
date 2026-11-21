@@ -10,6 +10,7 @@ import io.github.iufb.reach.chats.Chat
 import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.StickerInfo
+import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.files.DocumentDownloads
 import io.github.iufb.reach.media.AudioPlayer
 import io.github.iufb.reach.media.AudioState
@@ -108,6 +109,7 @@ data class SenderInfo(val name: String, val photo: io.github.iufb.reach.files.Td
 
 @HiltViewModel
 class ChatViewModel @Inject constructor(
+    private val userErrors: UserErrors,
     savedStateHandle: SavedStateHandle,
     private val td: TdClient,
     @ApplicationScope private val appScope: CoroutineScope,
@@ -365,7 +367,7 @@ class ChatViewModel @Inject constructor(
                 .onSuccess { _openThread.emit(it.chatId to it.messageThreadId) }
                 .onFailure {
                     Log.w(TAG, "getMessageThread(${message.id}) failed", it)
-                    _sendError.value = it.message
+                    _sendError.value = userErrors.message(it)
                 }
         }
     }
@@ -547,7 +549,7 @@ class ChatViewModel @Inject constructor(
             }.onFailure {
                 Log.e(TAG, "send photos failed", it)
                 _replyTo.value = reply
-                _sendError.value = it.message
+                _sendError.value = userErrors.message(it)
             }
         }
     }
@@ -662,7 +664,7 @@ class ChatViewModel @Inject constructor(
             runCatching { history.sendVideoNote(note, reply?.id, sendOptions()) }.onFailure {
                 Log.e(TAG, "send video note failed", it)
                 _replyTo.value = reply
-                _sendError.value = it.message
+                _sendError.value = userErrors.message(it)
             }
         }
     }
@@ -674,7 +676,7 @@ class ChatViewModel @Inject constructor(
             runCatching { history.sendVoice(recording.path, recording.durationSec, recording.waveform, reply?.id, sendOptions()) }.onFailure {
                 Log.e(TAG, "send voice failed", it)
                 _replyTo.value = reply
-                _sendError.value = it.message
+                _sendError.value = userErrors.message(it)
             }
         }
     }
@@ -692,7 +694,7 @@ class ChatViewModel @Inject constructor(
             runCatching { history.sendPoll(draft, reply?.id, sendOptions()) }.onFailure {
                 Log.e(TAG, "send poll failed", it)
                 _replyTo.value = reply
-                _sendError.value = it.message
+                _sendError.value = userErrors.message(it)
             }
         }
     }
@@ -708,7 +710,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { td.send(TdApi.SetPollAnswer(chatId, message.id, optionIds.toIntArray())) }.onFailure {
                 Log.w(TAG, "setPollAnswer failed", it)
-                _sendError.value = it.message
+                _sendError.value = userErrors.message(it)
             }
         }
     }
@@ -718,7 +720,7 @@ class ChatViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { td.send(TdApi.StopPoll(chatId, message.id, null)) }.onFailure {
                 Log.w(TAG, "stopPoll failed", it)
-                _sendError.value = it.message
+                _sendError.value = userErrors.message(it)
             }
         }
     }
@@ -798,7 +800,7 @@ class ChatViewModel @Inject constructor(
             runCatching { history.sendDocument(importer.importFile(uri), reply?.id, sendOptions()) }.onFailure {
                 Log.e(TAG, "send file failed", it)
                 _replyTo.value = reply
-                _sendError.value = it.message
+                _sendError.value = userErrors.message(it)
             }
         }
     }
@@ -884,7 +886,7 @@ class ChatViewModel @Inject constructor(
                 Log.e(TAG, "sendMessage failed", it)
                 _draft.value = text
                 _replyTo.value = reply
-                _sendError.value = it.message
+                _sendError.value = userErrors.message(it)
             }
         }
     }
@@ -960,7 +962,7 @@ class ChatViewModel @Inject constructor(
                 Log.e(TAG, "edit failed", it)
                 startEdit(message)
                 _draft.value = typed
-                _sendError.value = it.message
+                _sendError.value = userErrors.message(it)
             }
         }
     }
@@ -1012,7 +1014,7 @@ class ChatViewModel @Inject constructor(
                 }
             }.onFailure {
                 Log.w(TAG, "pin failed", it)
-                _sendError.value = it.message
+                _sendError.value = userErrors.message(it)
             }
         }
     }

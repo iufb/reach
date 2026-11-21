@@ -89,14 +89,16 @@ internal fun ChatMenuSheet(chat: Chat, list: ChatListType, actions: ChatMenuActi
                 stringResource(if (chat.hasUnread) R.string.chat_action_mark_read else R.string.chat_action_mark_unread),
                 painterResource(if (chat.hasUnread) R.drawable.ic_mark_read else R.drawable.ic_mark_unread),
             ) { actions.onSetUnread(chat, !chat.hasUnread) }
-            if (chat.isMuted) {
-                ChatMenuItem(stringResource(R.string.chat_action_unmute), painterResource(R.drawable.ic_unmute)) {
+            // У «Избранного» уведомлений нет — TDLib откажет в смене настроек (#216)
+            when {
+                chat.isSavedMessages -> Unit
+                chat.isMuted -> ChatMenuItem(stringResource(R.string.chat_action_unmute), painterResource(R.drawable.ic_unmute)) {
                     actions.onSetMuteFor(chat, 0)
                 }
-            } else if (!muteOptions) {
-                ChatMenuItem(stringResource(R.string.chat_action_mute), painterResource(R.drawable.ic_muted)) { muteOptions = true }
-            } else {
-                MUTE_OPTIONS.forEach { (label, seconds) ->
+                !muteOptions -> ChatMenuItem(stringResource(R.string.chat_action_mute), painterResource(R.drawable.ic_muted)) {
+                    muteOptions = true
+                }
+                else -> MUTE_OPTIONS.forEach { (label, seconds) ->
                     ChatMenuItem(stringResource(label), painterResource(R.drawable.ic_muted)) { actions.onSetMuteFor(chat, seconds) }
                 }
             }

@@ -33,7 +33,6 @@
     <string name="auth_error_code_expired">Срок действия кода истёк, запросите новый</string>
     <string name="auth_error_invalid_password">Неверный пароль</string>
     <string name="auth_error_flood_wait">Слишком много попыток. Повторите через %1$s</string>
-    <string name="auth_error_unknown">Ошибка: %1$s</string>
 
     <plurals name="seconds">
         <item quantity="one">%d секунду</item>
@@ -656,4 +655,29 @@
     <string name="auto_delete_enabled">Автоудаление включено</string>
     <string name="auto_delete_hint">Новые сообщения в этом чате будут удаляться у всех участников через выбранное время.</string>
     <string name="chat_list_menu">Меню чатов</string>
+    <!-- Ошибки TDLib для пользователя (errors/UserErrors.kt, #216) -->
+    <string name="error_generic">Не удалось выполнить действие</string>
+    <string name="error_flood">Слишком много действий подряд. Попробуйте позже</string>
+    <string name="error_flood_wait">Слишком много действий подряд. Повторите через %1$d с</string>
+    <string name="error_unauthorized">Сессия завершена, войдите заново</string>
+    <string name="error_forbidden">Недостаточно прав</string>
+    <string name="error_not_found">Не найдено</string>
+    <string name="error_admin_required">Нужны права администратора</string>
+    <string name="error_privacy_restricted">Пользователь запретил это в настройках конфиденциальности</string>
+    <string name="error_not_mutual_contact">Пользователя можно добавить, только если вы взаимные контакты</string>
+    <string name="error_already_participant">Пользователь уже участник</string>
+    <string name="error_too_many_members">Достигнут лимит участников</string>
+    <string name="error_too_many_channels">Слишком много групп и каналов. Покиньте какие-нибудь и повторите</string>
+    <string name="error_username_occupied">Это имя пользователя уже занято</string>
+    <string name="error_username_invalid">Недопустимое имя пользователя</string>
+    <string name="error_not_modified">Ничего не изменилось</string>
+    <string name="error_message_too_long">Сообщение слишком длинное</string>
+    <string name="error_write_forbidden">Нельзя отправить это в этот чат</string>
+    <string name="error_invite_expired">Ссылка-приглашение недействительна или истекла</string>
+    <string name="error_chat_not_found">Чат не найден</string>
+    <string name="error_message_not_found">Сообщение не найдено</string>
+    <string name="error_user_blocked">Пользователь заблокирован</string>
+    <string name="error_cant_change_notifications">Уведомления этого чата нельзя изменить</string>
+    <string name="error_stats_unavailable">Статистика недоступна</string>
+    <string name="error_network">Нет соединения. Проверьте интернет</string>
 </resources>

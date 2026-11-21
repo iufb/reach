@@ -10,6 +10,7 @@ import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.chats.UsernameStatus
 import io.github.iufb.reach.chats.checkUsername
 import io.github.iufb.reach.core.td.TdClient
+import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.files.MediaImporter
 import io.github.iufb.reach.push.PushRegistrar
 import io.github.iufb.reach.users.User
@@ -39,6 +40,7 @@ data class MyProfile(val user: User, val bio: String, val hasPhoto: Boolean)
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
+    private val userErrors: UserErrors,
     private val td: TdClient,
     users: UsersRepository,
     private val chats: ChatsRepository,
@@ -139,7 +141,7 @@ class SettingsViewModel @Inject constructor(
             }.onFailure {
                 Log.e(TAG, "logOut failed", it)
                 _loggingOut.value = false
-                _errors.emit(it.message.orEmpty())
+                _errors.emit(userErrors.message(it))
             }
         }
     }
@@ -148,7 +150,7 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { block() }.onFailure {
                 Log.w(TAG, "settings action failed", it)
-                _errors.emit(it.message.orEmpty())
+                _errors.emit(userErrors.message(it))
             }
         }
     }

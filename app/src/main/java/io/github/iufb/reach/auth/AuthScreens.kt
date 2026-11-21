@@ -365,7 +365,7 @@ private fun errorText(error: AuthError): String = when (error) {
     AuthError.SignUpForbidden -> stringResource(R.string.auth_error_signup_forbidden)
     AuthError.InvalidName -> stringResource(R.string.auth_error_invalid_name)
     is AuthError.FloodWait -> floodWaitText(error.seconds)
-    is AuthError.Unknown -> stringResource(R.string.auth_error_unknown, error.message)
+    is AuthError.Unknown -> error.error.arg?.let { stringResource(error.error.text, it) } ?: stringResource(error.error.text)
 }
 
 @Composable

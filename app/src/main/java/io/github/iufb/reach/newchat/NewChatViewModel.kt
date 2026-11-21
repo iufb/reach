@@ -11,6 +11,7 @@ import io.github.iufb.reach.chats.UsernameStatus
 import io.github.iufb.reach.chats.checkUsername
 import io.github.iufb.reach.contacts.ContactsRepository
 import io.github.iufb.reach.core.td.TdClient
+import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.files.MediaImporter
 import io.github.iufb.reach.navigation.NewChatRoute
 import io.github.iufb.reach.users.User
@@ -59,6 +60,7 @@ data class NewChatState(
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class NewChatViewModel @Inject constructor(
+    private val userErrors: UserErrors,
     savedStateHandle: SavedStateHandle,
     private val td: TdClient,
     private val contacts: ContactsRepository,
@@ -169,7 +171,7 @@ class NewChatViewModel @Inject constructor(
             .onSuccess { failed ->
                 if (failed.failedToAddMembers.isNotEmpty()) _errors.emit(PRIVACY_MARKER + failed.failedToAddMembers.size)
             }
-            .onFailure { _errors.emit(it.message.orEmpty()) }
+            .onFailure { _errors.emit(userErrors.message(it)) }
     }
 
     private fun work(block: suspend () -> Unit) {
@@ -178,7 +180,7 @@ class NewChatViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { block() }.onFailure {
                 Log.w(TAG, "new chat step failed", it)
-                _errors.emit(it.message.orEmpty())
+                _errors.emit(userErrors.message(it))
             }
             _state.update { it.copy(busy = false) }
         }
