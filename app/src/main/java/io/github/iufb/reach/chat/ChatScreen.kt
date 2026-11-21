@@ -71,6 +71,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.expandVertically
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.fadeIn
@@ -125,6 +127,7 @@ import io.github.iufb.reach.ui.components.PillTextButton
 import io.github.iufb.reach.ui.components.ReachTopBar
 import io.github.iufb.reach.ui.components.TailWidth
 import io.github.iufb.reach.ui.components.glassSource
+import io.github.iufb.reach.ui.components.glass
 import java.time.LocalDate
 import java.time.ZoneId
 import androidx.compose.material3.LocalContentColor
@@ -142,8 +145,17 @@ fun ChatScreen(
     onOpenThread: (chatId: Long, threadId: Long) -> Unit = { _, _ -> },
     /** Поиск по хэштегу из сообщения. */
     onSearch: (query: String) -> Unit = {},
+    /** Только что переслали из этого чата: название получателя для тоста; `null` — тоста нет. */
+    forwardedTo: String? = null,
+    onForwardedShown: () -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
+    LaunchedEffect(forwardedTo) {
+        if (forwardedTo != null) {
+            delay(TOAST_MS)
+            onForwardedShown()
+        }
+    }
     val scopeInfo by viewModel.scopeInfo.collectAsStateWithLifecycle()
     val openThread by rememberUpdatedState(onOpenThread)
     LaunchedEffect(viewModel) { viewModel.openThread.collect { (chatId, threadId) -> openThread(chatId, threadId) } }
@@ -272,6 +284,7 @@ fun ChatScreen(
     CompositionLocalProvider(LocalMentionHandler provides mentionHandler) {
         ChatContent(
             chat, state, senders, onBack,
+            toast = forwardedTo?.let { stringResource(R.string.forward_done, it) },
             header = header,
             onOpenProfile = { chat?.let { onOpenProfile(it.id) } },
             onOpenScheduled = { chat?.let { onOpenScheduled(it.id) } },
@@ -429,6 +442,8 @@ private fun ChatContent(
     interactions: MessageInteractions,
     pinned: PinnedBanner? = null,
     onPinnedClick: () -> Unit = {},
+    /** Короткое уведомление под шапкой («Переслано в …»); `null` — нет. */
+    toast: String? = null,
 ) {
     val colors = ReachTheme.colors
     val density = LocalDensity.current
@@ -474,6 +489,7 @@ private fun ChatContent(
                 }
                 if (pinned != null) PinnedBar(pinned, onPinnedClick)
                 NowPlayingBar()
+                ChatToast(toast)
             }
             Box(
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { bottomHeight = with(density) { it.height.toDp() } },
@@ -495,6 +511,32 @@ private fun ChatContent(
         }
     }
 }
+
+/** Тост Telegram iOS под шапкой: стеклянная пилюля со значком; появляется и уходит плавно. */
+@Composable
+private fun ChatToast(text: String?) {
+    // Последний текст держим, пока тост уезжает
+    var last by remember { mutableStateOf(text) }
+    if (text != null) last = text
+    AnimatedVisibility(
+        visible = text != null,
+        enter = fadeIn() + expandVertically(),
+        exit = fadeOut() + shrinkVertically(),
+    ) {
+        Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
+            Row(
+                Modifier.glass(RoundedCornerShape(percent = 50)).padding(horizontal = 16.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+            ) {
+                Icon(painterResource(R.drawable.ic_forward), contentDescription = null, Modifier.size(20.dp), tint = ReachTheme.colors.accent)
+                Text(last.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = ReachTheme.colors.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            }
+        }
+    }
+}
+
+private const val TOAST_MS = 2_500L
 
 /** Насколько размыт чат под меню сообщения. */
 private val MENU_BLUR = 18.dp
