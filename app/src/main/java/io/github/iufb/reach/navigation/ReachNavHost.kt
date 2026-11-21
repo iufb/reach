@@ -12,6 +12,8 @@ import androidx.navigation.NavDestination.Companion.hasRoute
 import androidx.navigation.NavDestination.Companion.hierarchy
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.navigation.compose.navigation
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.toRoute
@@ -180,8 +182,11 @@ fun ReachNavHost(
                         onOpenProfile = { navController.navigate(ProfileRoute(chatId = it)) },
                     )
                 }
-                composable<ChatRoute> {
+                composable<ChatRoute> { entry ->
+                    val forwardedTo by entry.savedStateHandle.getStateFlow<String?>(FORWARDED_TO_KEY, null).collectAsStateWithLifecycle()
                     ChatScreen(
+                        forwardedTo = forwardedTo,
+                        onForwardedShown = { entry.savedStateHandle[FORWARDED_TO_KEY] = null },
                         onBack = { navController.popBackStack() },
                         onForward = { from, ids -> navController.navigate(ForwardRoute(from, ids)) },
                         onOpenChat = { navController.navigate(ChatRoute(it)) },
@@ -251,11 +256,14 @@ fun ReachNavHost(
                         onShowInChat = { chatId, messageId -> navController.navigate(ChatRoute(chatId, messageId)) },
                     )
                 }
-                composable<ForwardRoute> {
+                // Шторка поверх чата (Telegram iOS): после пересылки остаёмся в чате, он показывает тост
+                dialog<ForwardRoute>(dialogProperties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
                     ForwardScreen(
                         onBack = { navController.popBackStack() },
-                        // После пересылки — в целевой чат; «назад» из него ведёт в список чатов
-                        onForwarded = { navController.navigate(ChatRoute(it)) { popUpTo(ChatsRoute()) } },
+                        onForwarded = { _, title ->
+                            navController.previousBackStackEntry?.savedStateHandle?.set(FORWARDED_TO_KEY, title)
+                            navController.popBackStack()
+                        },
                     )
                 }
             }
@@ -347,3 +355,6 @@ private fun NavController.syncWith(state: AuthState) {
         }
     }
 }
+
+/** Название чата, куда только что переслали: чат-источник показывает тост. */
+private const val FORWARDED_TO_KEY = "forwarded_to"

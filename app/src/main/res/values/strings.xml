@@ -420,6 +420,8 @@
     <string name="forward_search">Поиск</string>
     <string name="forward_empty">Подходящих чатов нет</string>
     <string name="forward_error">Не удалось переслать: %1$s</string>
+    <string name="forward_sheet_title">Переслать</string>
+    <string name="forward_done">Переслано в «%1$s»</string>
     <string name="delete_for_all">Удалить у всех</string>
     <string name="delete_for_me">Удалить у меня</string>
     <string name="delete_confirm">Удалить</string>
