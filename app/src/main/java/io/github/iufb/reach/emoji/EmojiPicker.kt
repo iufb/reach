@@ -6,7 +6,10 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.GridItemSpan
@@ -89,6 +92,7 @@ private const val RECENT_ICON = "🕘"
  * Панель эмодзи вместо клавиатуры: поиск, вкладки категорий и сетка.
  * Вкладки прокручивают сетку к своей категории.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun EmojiPanel(onPick: (String) -> Unit, modifier: Modifier = Modifier, viewModel: EmojiPickerViewModel = hiltViewModel()) {
     val categories by viewModel.categories.collectAsStateWithLifecycle()
@@ -116,7 +120,10 @@ fun EmojiPanel(onPick: (String) -> Unit, modifier: Modifier = Modifier, viewMode
         derivedStateOf { headerIndex.indexOfLast { it <= grid.firstVisibleItemIndex }.coerceAtLeast(0) }
     }
 
-    Column(modifier.fillMaxWidth().height(PANEL_HEIGHT)) {
+    // Ищут — открыта клавиатура: панель сжимается до поиска и строки результатов, иначе вместе
+    // с клавиатурой она выдавила бы ленту и шапку (#212)
+    val height = if (WindowInsets.isImeVisible) SEARCH_HEIGHT else PANEL_HEIGHT
+    Column(modifier.fillMaxWidth().height(height)) {
         OutlinedTextField(
             value = query,
             onValueChange = viewModel::onQueryChange,
@@ -180,3 +187,4 @@ private fun EmojiCell(emoji: String, onPick: (String) -> Unit) {
 
 private val CELL = 44.dp
 private val PANEL_HEIGHT = 320.dp
+private val SEARCH_HEIGHT = 120.dp
