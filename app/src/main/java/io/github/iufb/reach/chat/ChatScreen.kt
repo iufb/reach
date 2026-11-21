@@ -71,6 +71,12 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.shrinkHorizontally
+import androidx.compose.animation.expandHorizontally
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.TileMode
 import androidx.compose.ui.graphics.BlurEffect
@@ -276,17 +282,15 @@ fun ChatScreen(
             },
             threadRoot = scopeInfo?.root.orEmpty(),
             selectionBar = selectionActions?.let { actions ->
-                {
-                    SelectionBar(
-                        actions,
-                        onClose = viewModel::clearSelection,
-                        onForward = { ids ->
-                            viewModel.clearSelection()
-                            chat?.let { onForward(it.id, ids) }
-                        },
-                        onDelete = viewModel::requestDeleteSelected,
-                    )
-                }
+                SelectionControls(
+                    actions,
+                    onClose = viewModel::clearSelection,
+                    onForward = { ids ->
+                        viewModel.clearSelection()
+                        chat?.let { onForward(it.id, ids) }
+                    },
+                    onDelete = viewModel::requestDeleteSelected,
+                )
             },
             onLoadOlder = viewModel::loadOlder,
             onLoadNewer = viewModel::loadNewer,
@@ -416,8 +420,8 @@ private fun ChatContent(
     threadRoot: List<Message> = emptyList(),
     /** Личка с заблокированным: кнопка вместо поля ввода. */
     unblock: (() -> Unit)? = null,
-    /** Шапка режима выбора; `null` — обычная шапка чата. */
-    selectionBar: (@Composable () -> Unit)?,
+    /** Режим выбора: своя шапка и панель действий вместо поля ввода; `null` — обычный чат. */
+    selectionBar: SelectionControls?,
     onLoadOlder: () -> Unit,
     onLoadNewer: () -> Unit,
     onVisibleMessagesChange: (List<Long>) -> Unit,
@@ -464,7 +468,7 @@ private fun ChatContent(
             Column(Modifier.fillMaxWidth().onSizeChanged { topHeight = with(density) { it.height.toDp() } }) {
                 if (selectionBar != null) {
                     // Режим выбора — своя шапка поверх ленты
-                    Box(Modifier.statusBarsPadding()) { selectionBar() }
+                    SelectionTopBar(selectionBar)
                 } else {
                     ChatTopBar(chat, header, senders, scopeTitle, onBack, onOpenProfile, onOpenScheduled)
                 }
@@ -480,6 +484,7 @@ private fun ChatContent(
                     }
                     // В режиме выбора поле ввода прячется: внизу действуют над выбранным, а не пишут (#196)
                     composerShown && composer != null -> Composer(composer, senders, emoji)
+                    selectionBar != null -> SelectionBottomBar(selectionBar)
                 }
             }
         }
@@ -978,11 +983,24 @@ private fun MessageBubble(
         modifier = Modifier
             .zIndex(if (hasEffect) 1f else 0f)
             .fillMaxWidth()
-            .selectionHighlight(message, interactions)
+            .selectionHighlight(message, interactions, highlight = false)
             .swipeToReply(interactions.replyAction(message))
             .padding(start = 6.dp, end = 6.dp, top = if (groupStart) SERIES_GAP else 0.dp),
-        horizontalArrangement = if (outgoing) Arrangement.End else Arrangement.Start,
+        // В режиме выбора кружок слева, а исходящие остаются у правого края
+        horizontalArrangement = when {
+            interactions.selection.isNotEmpty() && outgoing -> Arrangement.SpaceBetween
+            outgoing -> Arrangement.End
+            else -> Arrangement.Start
+        },
     ) {
+        AnimatedVisibility(
+            visible = interactions.selection.isNotEmpty(),
+            modifier = Modifier.align(Alignment.CenterVertically),
+            enter = expandHorizontally() + fadeIn(),
+            exit = shrinkHorizontally() + fadeOut(),
+        ) {
+            SelectionCheck(message.id in interactions.selection)
+        }
         Box(contentAlignment = Alignment.Center) {
             Column(
                 modifier = Modifier
@@ -1066,15 +1084,20 @@ private fun MessageBubble(
     }
 }
 
-/** Выбранное сообщение подсвечивается на всю ширину; в режиме выбора тап по строке отмечает его. */
+/**
+ * В режиме выбора тап по строке отмечает сообщение. Пузыри отмечаются кружком слева ([SelectionCheck]);
+ * [highlight] — подсветка на всю ширину для постов канала, у которых кружку нет места.
+ */
 @Composable
-private fun Modifier.selectionHighlight(message: Message, interactions: MessageInteractions): Modifier {
+private fun Modifier.selectionHighlight(message: Message, interactions: MessageInteractions, highlight: Boolean): Modifier {
     if (interactions.selection.isEmpty()) return this
     val selected = message.id in interactions.selection
     return this
-        .background(if (selected) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.Transparent)
-        .clickable { interactions.onToggleSelect(message) }
+        .then(if (highlight && selected) Modifier.background(ReachTheme.colors.accent.copy(alpha = SELECTED_ALPHA)) else Modifier)
+        .clickable(remember { MutableInteractionSource() }, indication = null) { interactions.onToggleSelect(message) }
 }
+
+private const val SELECTED_ALPHA = 0.18f
 
 /** Долгое нажатие на сообщение открывает меню действий. */
 @Composable
@@ -1149,7 +1172,7 @@ private fun ChannelPost(
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .selectionHighlight(message, interactions)
+            .selectionHighlight(message, interactions, highlight = true)
             .swipeToReply(interactions.replyAction(message))
             .padding(start = 6.dp, end = 6.dp, top = SERIES_GAP)
             .menuAnchor(message)
