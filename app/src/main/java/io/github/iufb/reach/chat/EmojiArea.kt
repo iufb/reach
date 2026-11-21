@@ -26,6 +26,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.layout
+import androidx.compose.ui.unit.Density
+import android.util.Log
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import io.github.iufb.reach.emoji.EmojiPanel
@@ -98,23 +101,14 @@ internal fun rememberEmojiPanelState(): EmojiPanelState {
 /** Место под полем ввода: панель эмодзи или отступ навигационной полосы. */
 @Composable
 internal fun EmojiArea(state: EmojiPanelState, onPick: (String) -> Unit) {
-    val density = LocalDensity.current
     val ime = WindowInsets.ime
-    val imePx = ime.getBottom(density)
-    val navPx = WindowInsets.navigationBars.getBottom(density)
+    val nav = WindowInsets.navigationBars
+    val density = LocalDensity.current
     LaunchedEffect(state) {
         snapshotFlow { ime.getBottom(density) }.collect { if (it > state.keyboardPx) state.keyboardPx = it }
     }
-    // Нижний край поля ввода над экраном: max(ime, nav) — его даёт родитель (imePadding) и отступ ниже.
-    // Панель добирает до высоты клавиатуры, сколько та ещё не заняла.
-    val targetPx = state.keyboardPx.takeIf { it > 0 } ?: (with(density) { DEFAULT_HEIGHT.roundToPx() } + navPx)
-    val freePx = (targetPx - maxOf(imePx, navPx)).coerceAtLeast(0)
-    val heightPx = when {
-        state.open && state.searching -> with(density) { SEARCH_HEIGHT.roundToPx() }
-        state.yieldingToKeyboard -> freePx
-        else -> (freePx * state.reveal.value).toInt()
-    }
-    if (heightPx <= 0 && !state.open) {
+    val visible = state.open || state.yieldingToKeyboard || state.reveal.value > 0f
+    if (!visible) {
         Spacer(Modifier.navigationBarsPadding())
         return
     }
@@ -125,7 +119,15 @@ internal fun EmojiArea(state: EmojiPanelState, onPick: (String) -> Unit) {
             .clip(RoundedCornerShape(topStart = CORNER, topEnd = CORNER))
             .background(colors.cell),
     ) {
-        Box(Modifier.fillMaxWidth().height(with(density) { heightPx.toDp() })) {
+        // Высота считается при раскладке, в том же кадре, что и сдвиг от клавиатуры (imePadding родителя),
+        // иначе панель отстаёт от клавиатуры на кадр-другой и поле ввода подпрыгивает
+        Box(
+            Modifier.fillMaxWidth().layout { measurable, constraints ->
+                val heightPx = panelHeightPx(state, ime.getBottom(this), nav.getBottom(this))
+                val placeable = measurable.measure(constraints.copy(minHeight = heightPx, maxHeight = heightPx))
+                layout(placeable.width, heightPx) { placeable.place(0, 0) }
+            },
+        ) {
             EmojiPanel(
                 onPick = onPick,
                 modifier = Modifier.fillMaxSize(),
@@ -134,6 +136,22 @@ internal fun EmojiArea(state: EmojiPanelState, onPick: (String) -> Unit) {
         }
         Spacer(Modifier.navigationBarsPadding())
     }
+}
+
+/**
+ * Нижний край поля ввода над экраном — max(ime, nav): его дают родитель (imePadding) и отступ под панелью.
+ * Панель добирает до высоты клавиатуры, сколько та ещё не заняла.
+ */
+private fun Density.panelHeightPx(state: EmojiPanelState, imePx: Int, navPx: Int): Int {
+    val targetPx = state.keyboardPx.takeIf { it > 0 } ?: (DEFAULT_HEIGHT.roundToPx() + navPx)
+    val freePx = (targetPx - maxOf(imePx, navPx)).coerceAtLeast(0)
+    val heightPx = when {
+        state.open && state.searching -> SEARCH_HEIGHT.roundToPx()
+        state.yieldingToKeyboard -> freePx
+        else -> (freePx * state.reveal.value).toInt()
+    }
+    Log.d("EmojiArea", "ime=$imePx nav=$navPx kb=${state.keyboardPx} open=${state.open} yield=${state.yieldingToKeyboard} reveal=${state.reveal.value} h=$heightPx")
+    return heightPx
 }
 
 private val DEFAULT_HEIGHT = 300.dp
