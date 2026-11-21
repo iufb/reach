@@ -240,9 +240,11 @@ private fun ChatsActions(loggingOut: Boolean, onOpenSaved: () -> Unit, onNewChat
     PillGroup {
         PillGroupIcon(painterResource(R.drawable.ic_bookmark), stringResource(R.string.saved_messages), onOpenSaved)
         Box {
-            PillGroupIcon(painterResource(R.drawable.ic_edit), stringResource(R.string.chats_create)) {
-                if (!loggingOut) menuOpen = true
-            }
+            PillGroupIcon(
+                painterResource(R.drawable.ic_edit),
+                stringResource(R.string.chats_create),
+                onClick = { if (!loggingOut) menuOpen = true },
+            )
             DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
                 DropdownMenuItem(
                     text = { Text(stringResource(R.string.new_group)) },
