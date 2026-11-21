@@ -120,7 +120,7 @@ private fun ComposerContextBar(
 /** Полоска слева, имя автора и строка текста — общий вид цитаты. */
 @Composable
 private fun QuoteStrip(name: String, text: String, modifier: Modifier = Modifier) {
-    val accent = MaterialTheme.colorScheme.primary
+    val accent = bubbleStyle().accent
     Row(
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))

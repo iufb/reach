@@ -36,7 +36,7 @@ import io.github.iufb.reach.chats.LinkPreview
 @Composable
 internal fun LinkPreviewCard(preview: LinkPreview, modifier: Modifier = Modifier) {
     val uriHandler = LocalUriHandler.current
-    val accent = MaterialTheme.colorScheme.primary
+    val accent = bubbleStyle().accent
     Row(
         modifier = modifier
             .padding(top = 6.dp)
@@ -60,7 +60,7 @@ private fun PreviewBody(preview: LinkPreview, modifier: Modifier = Modifier) {
                 preview.siteName,
                 style = MaterialTheme.typography.labelLarge,
                 fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary,
+                color = bubbleStyle().accent,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
             )

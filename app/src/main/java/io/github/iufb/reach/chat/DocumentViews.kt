@@ -45,7 +45,7 @@ internal fun DocumentRow(document: DocumentInfo, state: FileState?, modifier: Mo
     val downloading = state != null && !state.isDownloaded
     Row(modifier.padding(vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
         Box(
-            Modifier.size(44.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
+            Modifier.size(44.dp).background(bubbleStyle().accent, CircleShape),
             contentAlignment = Alignment.Center,
         ) {
             val (icon, description) = when {
@@ -58,11 +58,11 @@ internal fun DocumentRow(document: DocumentInfo, state: FileState?, modifier: Mo
                 CircularProgressIndicator(
                     progress = { progress },
                     modifier = Modifier.size(40.dp),
-                    color = MaterialTheme.colorScheme.onPrimary,
+                    color = bubbleStyle().onAccent,
                     strokeWidth = 2.dp,
                 )
             }
-            Icon(painterResource(icon), stringResource(description), tint = MaterialTheme.colorScheme.onPrimary)
+            Icon(painterResource(icon), stringResource(description), tint = bubbleStyle().onAccent)
         }
         Spacer(Modifier.width(10.dp))
         Column {
@@ -81,7 +81,7 @@ internal fun DocumentRow(document: DocumentInfo, state: FileState?, modifier: Mo
                     fileSize(context, total)
                 },
                 style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = bubbleStyle().secondary,
             )
         }
     }

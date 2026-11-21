@@ -79,10 +79,10 @@ internal fun VoiceNoteView(
                     Text(
                         formatDuration(seconds),
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = bubbleStyle().secondary,
                     )
                     if (!isListened) {
-                        Box(Modifier.size(6.dp).background(MaterialTheme.colorScheme.primary, CircleShape))
+                        Box(Modifier.size(6.dp).background(bubbleStyle().accent, CircleShape))
                     }
                 }
             }
@@ -101,8 +101,8 @@ internal fun VoiceNoteView(
 /** Столбики 0..31; до [progress] — основным цветом. [onSeek] `null` — не перематывается. */
 @Composable
 internal fun Waveform(levels: List<Int>, progress: Float, onSeek: ((Float) -> Unit)?, modifier: Modifier = Modifier) {
-    val played = MaterialTheme.colorScheme.primary
-    val rest = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+    val played = bubbleStyle().accent
+    val rest = bubbleStyle().secondary.copy(alpha = 0.4f)
     val seekModifier = if (onSeek == null) {
         Modifier
     } else {

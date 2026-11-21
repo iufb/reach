@@ -59,7 +59,7 @@ internal fun PollView(
     val voting = poll.isVoting && poll.options.none { it.isBeingChosen }
     Column(modifier.widthIn(min = 240.dp).padding(vertical = 2.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
         RichTextView(poll.question, style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.SemiBold))
-        Text(pollTypeLabel(poll), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Text(pollTypeLabel(poll), style = MaterialTheme.typography.labelSmall, color = bubbleStyle().secondary)
         poll.options.forEach { option ->
             if (voting) {
                 VoteRow(
@@ -112,7 +112,7 @@ internal fun PollView(
             },
             modifier = Modifier.fillMaxWidth(),
             style = MaterialTheme.typography.labelSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            color = bubbleStyle().secondary,
             textAlign = TextAlign.Center,
         )
     }
@@ -151,8 +151,8 @@ private fun ResultRow(option: PollOptionInfo, poll: PollInfo, onClick: (() -> Un
     val barColor = when {
         correct == true -> CORRECT
         correct == false && option.isChosen -> MaterialTheme.colorScheme.error
-        option.isChosen -> MaterialTheme.colorScheme.primary
-        else -> MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+        option.isChosen -> bubbleStyle().accent
+        else -> bubbleStyle().secondary.copy(alpha = 0.4f)
     }
     Column(
         Modifier
