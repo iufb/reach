@@ -24,11 +24,16 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.layout.IntrinsicSize
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.bodySummary
+import androidx.compose.foundation.layout.Box
+import androidx.compose.ui.graphics.RectangleShape
+import io.github.iufb.reach.ui.components.glass
+import io.github.iufb.reach.ui.theme.ReachTheme
 
 /** Плашка под шапкой чата: закреплённое сообщение; тап — перейти к нему и показать следующее. */
 @Composable
 internal fun PinnedBar(banner: PinnedBanner, onClick: () -> Unit) {
-    Surface(color = MaterialTheme.colorScheme.surface) {
+    // Плашка под шапкой — стеклянная, как шапка; лента просвечивает
+    Box(Modifier.fillMaxWidth().glass(RectangleShape, elevated = false)) {
         Column {
             Row(
                 Modifier
@@ -41,7 +46,7 @@ internal fun PinnedBar(banner: PinnedBanner, onClick: () -> Unit) {
                     Modifier
                         .width(2.dp)
                         .fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(1.dp)),
+                        .background(ReachTheme.colors.accent, RoundedCornerShape(1.dp)),
                 )
                 Spacer(Modifier.width(8.dp))
                 Column(Modifier.weight(1f)) {
@@ -54,7 +59,7 @@ internal fun PinnedBar(banner: PinnedBanner, onClick: () -> Unit) {
                         },
                         style = MaterialTheme.typography.labelLarge,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = ReachTheme.colors.accent,
                     )
                     Text(
                         bodySummary(banner.message.content).replace('\n', ' '),
@@ -64,7 +69,7 @@ internal fun PinnedBar(banner: PinnedBanner, onClick: () -> Unit) {
                     )
                 }
             }
-            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(thickness = 0.5.dp, color = ReachTheme.colors.separator)
         }
     }
 }

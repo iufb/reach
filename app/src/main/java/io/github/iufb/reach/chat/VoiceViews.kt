@@ -36,6 +36,7 @@ import io.github.iufb.reach.media.MediaKind
 import io.github.iufb.reach.media.currentAutoDownloadRules
 import io.github.iufb.reach.media.rememberAutoDownload
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.material3.IconButtonDefaults
 
 /**
  * Голосовое в пузыре: ▶/⏸, waveform (проигранная часть закрашена, тап/перетаскивание — перемотка),
@@ -58,7 +59,15 @@ internal fun VoiceNoteView(
     LaunchedEffect(voice.file, rules) { if (rules.allows(MediaKind.Voice)) autoDownload.preload(voice.file) }
     Column(modifier.padding(vertical = 2.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically) {
-            FilledIconButton(onClick = onToggle, modifier = Modifier.size(44.dp), shape = CircleShape) {
+            FilledIconButton(
+                onClick = onToggle,
+                modifier = Modifier.size(44.dp),
+                shape = CircleShape,
+                colors = IconButtonDefaults.filledIconButtonColors(
+                    containerColor = bubbleStyle().accent,
+                    contentColor = bubbleStyle().onAccent,
+                ),
+            ) {
                 Icon(
                     painterResource(if (playing) R.drawable.ic_pause else R.drawable.ic_play),
                     contentDescription = stringResource(if (playing) R.string.video_pause else R.string.video_play),
