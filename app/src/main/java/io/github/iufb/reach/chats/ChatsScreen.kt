@@ -410,7 +410,6 @@ private fun ChatRow(chat: Chat, isPinned: Boolean, activity: String?, onClick: (
                 chatTitle(chat),
                 modifier = Modifier.weight(1f, fill = false),
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
                 color = colors.label,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
@@ -536,7 +535,6 @@ private fun ArchiveRow(archive: ArchiveSummary, onClick: () -> Unit) {
             Text(
                 stringResource(R.string.archive_title),
                 style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.SemiBold,
                 color = colors.label,
             )
         },
