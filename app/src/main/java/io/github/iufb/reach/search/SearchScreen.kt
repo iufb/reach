@@ -43,7 +43,6 @@ import io.github.iufb.reach.chats.Chat
 import io.github.iufb.reach.chats.ChatAvatar
 import io.github.iufb.reach.chats.chatTitle
 import io.github.iufb.reach.chats.bodySummary
-import io.github.iufb.reach.chats.formatChatTime
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.runtime.rememberUpdatedState
@@ -54,6 +53,7 @@ import androidx.compose.ui.text.buildAnnotatedString
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import io.github.iufb.reach.ui.components.Avatar
+import io.github.iufb.reach.ui.format.Dates
 import io.github.iufb.reach.ui.theme.reachBarColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -182,7 +182,7 @@ private fun MessageRow(message: FoundMessage, query: String, onClick: () -> Unit
                 )
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    formatChatTime(message.date),
+                    Dates.chatListTime(message.date.toLong()),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )

@@ -5,11 +5,11 @@ import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chat.Sender
+import io.github.iufb.reach.ui.format.Dates
 import io.github.iufb.reach.users.UserStatus
 import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 /** «в сети», «был(а) в 14:05», «был(а) недавно»…; `null` — статус неизвестен. */
 @Composable
@@ -29,11 +29,11 @@ private fun lastSeenText(wasOnline: Long, now: Long): String {
     val zone = ZoneId.systemDefault()
     val moment = Instant.ofEpochSecond(wasOnline).atZone(zone)
     val today = LocalDate.now(zone)
-    val time = moment.format(TIME)
+    val time = Dates.time(moment)
     return when (moment.toLocalDate()) {
         today -> stringResource(R.string.status_today, time)
         today.minusDays(1) -> stringResource(R.string.status_yesterday, time)
-        else -> stringResource(R.string.status_date, moment.format(DATE))
+        else -> stringResource(R.string.status_date, Dates.numericDate(moment))
     }
 }
 
@@ -67,5 +67,4 @@ fun activityText(activities: Map<Sender, ActivityKind>, withNames: Boolean, name
 }
 
 private const val JUST_NOW_SECONDS = 60
-private val TIME = DateTimeFormatter.ofPattern("HH:mm")
-private val DATE = DateTimeFormatter.ofPattern("dd.MM.yy")
+

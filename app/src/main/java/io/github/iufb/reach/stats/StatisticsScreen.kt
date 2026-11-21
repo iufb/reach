@@ -40,12 +40,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.bodySummary
+import io.github.iufb.reach.ui.format.AppLocale
+import io.github.iufb.reach.ui.format.Dates
 import io.github.iufb.reach.ui.theme.reachBarColors
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
-import java.util.Locale
 import kotlin.math.abs
 import kotlin.math.roundToLong
 
@@ -176,7 +173,6 @@ private fun PostRow(post: PostStats, onClick: () -> Unit) {
 }
 
 private fun formatNumber(value: Double): String =
-    if (value == value.roundToLong().toDouble()) "%,d".format(Locale.getDefault(), value.roundToLong()) else "%.1f".format(Locale.getDefault(), value)
+    if (value == value.roundToLong().toDouble()) "%,d".format(AppLocale, value.roundToLong()) else "%.1f".format(AppLocale, value)
 
-private fun formatDate(unix: Int): String =
-    Instant.ofEpochSecond(unix.toLong()).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM))
+private fun formatDate(unix: Int): String = Dates.date(unix.toLong())

@@ -34,6 +34,7 @@ import androidx.compose.material3.LocalContentColor
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.PaddingValues
+import io.github.iufb.reach.ui.format.Dates
 import io.github.iufb.reach.ui.theme.reachBarColors
 import androidx.compose.material3.Surface
 import androidx.compose.ui.semantics.contentDescription
@@ -113,9 +114,6 @@ import io.github.iufb.reach.ui.components.Avatar
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
 
 @Composable
 fun ChatScreen(
@@ -1416,16 +1414,11 @@ private fun UnreadDivider() {
 /** «изменено 14:05» у отредактированных, иначе просто время. */
 @Composable
 private fun messageTimeLabel(message: Message): String {
-    val time = formatMessageTime(message.date)
+    val time = Dates.time(message.date.toLong())
     return if (message.editDate > 0) "${stringResource(R.string.message_edited)} $time" else time
 }
 
 private const val MAX_PICKED_PHOTOS = 10
-
-private val TIME_FORMAT = DateTimeFormatter.ofPattern("HH:mm")
-
-private fun formatMessageTime(unixSeconds: Int): String =
-    Instant.ofEpochSecond(unixSeconds.toLong()).atZone(ZoneId.systemDefault()).format(TIME_FORMAT)
 
 @Preview
 @Composable

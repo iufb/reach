@@ -25,10 +25,7 @@ import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.unit.dp
 import org.json.JSONObject
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
+import io.github.iufb.reach.ui.format.Dates
 
 /** Серия графика: тип отрисовки, подпись, цвет и значения по [Chart.x]. */
 data class Series(val kind: Kind, val name: String, val color: Color, val values: List<Double>) {
@@ -133,8 +130,7 @@ fun ChartView(chart: Chart, modifier: Modifier = Modifier) {
     }
 }
 
-private fun formatDate(millis: Long): String =
-    Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofLocalizedDate(FormatStyle.SHORT))
+private fun formatDate(millis: Long): String = Dates.chartDay(millis)
 
 private const val GRID_LINES = 4
 private const val BAR_FILL = 0.8f

@@ -25,6 +25,7 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.ui.unit.Dp
+import io.github.iufb.reach.ui.format.Dates
 import io.github.iufb.reach.ui.theme.reachBarColors
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.res.painterResource
@@ -404,7 +405,7 @@ private fun ChatRow(chat: Chat, isPinned: Boolean, activity: String?, onClick: (
                 listOfNotNull(chat.lastMessage?.date, chat.draft?.date).maxOrNull()?.let { date ->
                     Spacer(Modifier.width(8.dp))
                     Text(
-                        formatChatTime(date),
+                        Dates.chatListTime(date.toLong()),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
