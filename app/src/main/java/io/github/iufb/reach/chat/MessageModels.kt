@@ -2,6 +2,7 @@ package io.github.iufb.reach.chat
 
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.RichText
+import io.github.iufb.reach.chats.body
 import io.github.iufb.reach.chats.toRichText
 import io.github.iufb.reach.chats.toBody
 import org.drinkless.tdlib.TdApi
@@ -110,7 +111,7 @@ internal fun TdApi.Message.toModel() = Message(
     },
     date = date,
     isOutgoing = isOutgoing,
-    content = content.toBody(),
+    content = body(),
     authorSignature = authorSignature,
     viewCount = interactionInfo?.viewCount ?: 0,
     sendingState = when (sendingState) {

@@ -4,7 +4,10 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.animation.animateColorAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.key
 import io.github.iufb.reach.media.RecorderState
@@ -124,6 +127,8 @@ fun ChatScreen(
     onOpenUserProfile: (userId: Long) -> Unit,
     onOpenScheduled: (chatId: Long) -> Unit,
     onOpenThread: (chatId: Long, threadId: Long) -> Unit = { _, _ -> },
+    /** Поиск по хэштегу из сообщения. */
+    onSearch: (query: String) -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     val scopeInfo by viewModel.scopeInfo.collectAsStateWithLifecycle()
@@ -151,11 +156,13 @@ fun ChatScreen(
     val openChat by rememberUpdatedState(onOpenChat)
     LaunchedEffect(viewModel) { viewModel.openChat.collect { openChat(it) } }
     val openUserProfile by rememberUpdatedState(onOpenUserProfile)
+    val search by rememberUpdatedState(onSearch)
     val mentionHandler = remember(viewModel) {
         object : MentionHandler {
             override fun openUsername(username: String) = viewModel.openUsername(username)
             // Упоминание по имени — в профиль пользователя, оттуда можно написать
             override fun openUser(userId: Long) = openUserProfile(userId)
+            override fun openHashtag(tag: String) = search(tag)
         }
     }
     BackHandler(enabled = selection.isNotEmpty(), onBack = viewModel::clearSelection)
@@ -650,7 +657,14 @@ private fun MessageList(
     val byId = remember(state.messages) { state.messages.associateBy { it.id } }
     ScrollToUnreadOnce(listState, items)
     FollowNewMessages(listState, state)
-    ScrollToTarget(listState, items, interactions.scrollTarget, interactions.onScrolledToTarget)
+    // Сообщение, к которому перешли: кратко подсвечивается (#220)
+    var flashId by remember { mutableStateOf<Long?>(null) }
+    ScrollToTarget(listState, items, interactions.scrollTarget, interactions.onScrolledToTarget) { flashId = it }
+    LaunchedEffect(flashId) {
+        if (flashId == null) return@LaunchedEffect
+        delay(FLASH_MS)
+        flashId = null
+    }
     val visibleChanged by rememberUpdatedState(onVisibleMessagesChange)
     // Ключ альбома — id одного сообщения, а видны все его сообщения
     val albumIds by rememberUpdatedState(
@@ -673,9 +687,17 @@ private fun MessageList(
         modifier = modifier,
         reverseLayout = true,
         contentPadding = PaddingValues(vertical = 8.dp),
-        verticalArrangement = Arrangement.spacedBy(4.dp),
+        // Bottom: при малом числе сообщений они у поля ввода, а не под шапкой (#213)
+        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.Bottom),
     ) {
         items(items, key = { it.key }) { item ->
+            val flashing = flashId != null && item is Item.Msg && item.album.any { it.id == flashId }
+            val flash by animateColorAsState(
+                if (flashing) ReachTheme.colors.accent.copy(alpha = FLASH_ALPHA) else Color.Transparent,
+                animationSpec = tween(FLASH_FADE_MS),
+                label = "flash",
+            )
+            Box(Modifier.fillMaxWidth().background(flash)) {
             when (item) {
                 is Item.Msg -> when {
                     item.message.content is MessageBody.Service -> ServiceMessage(item.message.content)
@@ -694,6 +716,7 @@ private fun MessageList(
                     }
                 }
                 Item.UnreadDivider -> UnreadDivider()
+            }
             }
         }
         // Пост, который комментируют, — над всеми комментариями
@@ -754,18 +777,39 @@ private fun ReplyHeader(
     }
 }
 
-/** Переход к сообщению (тап по ответу): прокручиваем к нему, когда оно появилось в ленте. */
+/**
+ * Переход к сообщению (тап по ответу, результат поиска): когда оно появилось в ленте, ставим его
+ * по центру экрана и отдаём в [onArrived] — там его подсвечивают (#220).
+ */
 @Composable
-private fun ScrollToTarget(listState: LazyListState, items: List<Item>, target: Long?, onDone: () -> Unit) {
+private fun ScrollToTarget(
+    listState: LazyListState,
+    items: List<Item>,
+    target: Long?,
+    onDone: () -> Unit,
+    onArrived: (Long) -> Unit,
+) {
     val done by rememberUpdatedState(onDone)
+    val arrived by rememberUpdatedState(onArrived)
     LaunchedEffect(target, items) {
         if (target == null) return@LaunchedEffect
         val index = items.indexOfFirst { it is Item.Msg && it.album.any { m -> m.id == target } }
         if (index < 0) return@LaunchedEffect
         listState.animateScrollToItem(index)
+        // Смещения считаются от начала ленты (у reverseLayout — снизу); сдвигаем центр элемента в центр экрана
+        val info = listState.layoutInfo
+        info.visibleItemsInfo.firstOrNull { it.index == index }?.let { item ->
+            val viewportCenter = (info.viewportStartOffset + info.viewportEndOffset) / 2
+            listState.animateScrollBy((item.offset + item.size / 2 - viewportCenter).toFloat())
+        }
+        arrived(target)
         done()
     }
 }
+
+private const val FLASH_MS = 1200L
+private const val FLASH_FADE_MS = 400
+private const val FLASH_ALPHA = 0.22f
 
 /** Открыли с непрочитанного — прокручиваем так, чтобы разделитель оказался у верхнего края. */
 @Composable

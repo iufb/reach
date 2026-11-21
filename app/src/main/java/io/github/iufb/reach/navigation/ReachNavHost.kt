@@ -67,7 +67,8 @@ import kotlinx.serialization.Serializable
 @Serializable data object MainGraph
 /** Список чатов: основной или архив. */
 @Serializable data class ChatsRoute(val archive: Boolean = false)
-@Serializable data object SearchRoute
+/** [query] — сразу искать это (тап по хэштегу, #221). */
+@Serializable data class SearchRoute(val query: String = "")
 /** Чат; [messageId] не 0 — открыть на этом сообщении (например, из поиска). */
 /** [threadId] — комментарии к посту (в группе обсуждения), [topicId] — топик форума; 0 — весь чат. */
 @Serializable data class ChatRoute(val chatId: Long, val messageId: Long = 0, val threadId: Long = 0, val topicId: Int = 0)
@@ -150,7 +151,7 @@ fun ReachNavHost(
                     ChatsScreen(
                         onChatClick = { navController.navigate(ChatRoute(it)) },
                         onOpenArchive = { navController.navigate(ChatsRoute(archive = true)) },
-                        onOpenSearch = { navController.navigate(SearchRoute) },
+                        onOpenSearch = { navController.navigate(SearchRoute()) },
                         onBack = { navController.popBackStack() },
                         onOpenSettings = { navController.navigate(SettingsRoute) },
                         onOpenTopics = { navController.navigate(TopicsRoute(it)) },
@@ -188,6 +189,7 @@ fun ReachNavHost(
                         onOpenUserProfile = { navController.navigate(ProfileRoute(userId = it)) },
                         onOpenScheduled = { navController.navigate(ScheduledRoute(it)) },
                         onOpenThread = { chatId, threadId -> navController.navigate(ChatRoute(chatId, threadId = threadId)) },
+                        onSearch = { navController.navigate(SearchRoute(it)) },
                     )
                 }
                 composable<ScheduledRoute> { ScheduledScreen(onBack = { navController.popBackStack() }) }

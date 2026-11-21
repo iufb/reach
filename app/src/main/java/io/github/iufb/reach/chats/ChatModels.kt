@@ -191,7 +191,7 @@ private fun TdApi.ChatType.toKind(): ChatKind = when (this) {
     else -> ChatKind.Group
 }
 
-internal fun TdApi.Message.toLastMessage() = LastMessage(id, date, isOutgoing, content.toBody())
+internal fun TdApi.Message.toLastMessage() = LastMessage(id, date, isOutgoing, body())
 
 internal fun Array<TdApi.ChatPosition>.toPositionMap(): Map<ChatListType, ChatPosition> =
     mapNotNull { p -> p.list.toModel()?.takeIf { p.order != 0L }?.let { it to ChatPosition(p.order, p.isPinned) } }.toMap()

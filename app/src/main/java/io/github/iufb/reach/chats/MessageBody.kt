@@ -59,9 +59,18 @@ enum class ContentKind {
 }
 
 enum class ServiceKind {
-    ChatCreated, MembersAdded, MemberJoined, MemberLeft, TitleChanged, PhotoChanged, PhotoDeleted,
+    ChatCreated, ChannelCreated, MembersAdded, MemberJoined, MemberLeft, TitleChanged, PhotoChanged, PhotoDeleted,
     MessagePinned, ScreenshotTaken, ContactRegistered, VideoChat, Payment, AutoDeleteSet,
     TopicCreated, TopicRenamed, TopicClosed, TopicReopened, Other,
+}
+
+/**
+ * Содержимое с учётом самого сообщения: создание канала TDLib присылает тем же
+ * `MessageSupergroupChatCreate`, что и у супергруппы, отличает только `isChannelPost` (#221).
+ */
+internal fun TdApi.Message.body(): MessageBody {
+    val body = content.toBody()
+    return if (isChannelPost && body is MessageBody.Service && body.kind == ServiceKind.ChatCreated) body.copy(kind = ServiceKind.ChannelCreated) else body
 }
 
 internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {

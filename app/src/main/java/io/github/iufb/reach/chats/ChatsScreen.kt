@@ -437,7 +437,7 @@ private fun ChatRow(chat: Chat, isPinned: Boolean, activity: String?, onClick: (
                 activity?.let { AnnotatedString(it) }
                     // Черновик без текста (только ответ, например из другого клиента) не показываем
                     ?: chat.draft?.takeIf { it.text.text.isNotBlank() }?.let { draftPreview(it) }
-                    ?: AnnotatedString(chat.lastMessage?.let { previewText(it) }.orEmpty()),
+                    ?: AnnotatedString(chat.lastMessage?.let { previewText(it, chat) }.orEmpty()),
                 modifier = Modifier.weight(1f),
                 style = MaterialTheme.typography.bodyMedium,
                 color = if (activity != null) colors.accent else colors.secondaryLabel,
@@ -597,10 +597,12 @@ private fun draftPreview(draft: Draft): AnnotatedString {
 }
 
 @Composable
-private fun previewText(message: LastMessage): String {
+private fun previewText(message: LastMessage, chat: Chat): String {
     // Переносы строк в превью не нужны
     val text = bodySummary(message.content).replace('\n', ' ')
-    return if (message.isOutgoing) stringResource(R.string.chat_preview_you, text) else text
+    // В канале пишет сам канал — «Вы:» не нужно (#221)
+    val own = message.isOutgoing && chat.kind != ChatKind.Channel
+    return if (own) stringResource(R.string.chat_preview_you, text) else text
 }
 
 @Composable

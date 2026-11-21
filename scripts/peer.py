@@ -195,7 +195,7 @@ async def dispatch(client: TelegramClient, a) -> None:
     elif c == "send":
         m = await client.send_message(await peer(client, a.peer), a.text, reply_to=a.reply_to)
         print(f"id={m.id}")
-    elif c in ("photo", "video", "file", "voice", "round"):
+    elif c in ("photo", "video", "file", "audio", "voice", "round"):
         m = await client.send_file(
             await peer(client, a.peer), a.path, caption=a.caption or "",
             force_document=c == "file", voice_note=c == "voice", video_note=c == "round",
@@ -287,6 +287,7 @@ def main() -> None:
     s = sub.add_parser("send", help="текст")
     s.add_argument("peer"); s.add_argument("text"); s.add_argument("--reply-to", type=int)
     for kind, helptext in [("photo", "фото"), ("video", "видео"), ("file", "файл документом"),
+                           ("audio", "музыкальный трек (mp3: плеер, а не документ)"),
                            ("voice", "голосовое (ogg/opus)"), ("round", "видеокружок (квадратное mp4)")]:
         s = sub.add_parser(kind, help=helptext)
         s.add_argument("peer"); s.add_argument("path")
