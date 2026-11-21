@@ -136,7 +136,7 @@ def describe(m) -> str:
     kind = type(m.media).__name__.removeprefix("MessageMedia") if m.media else ""
     text = (m.message or "").replace("\n", " ")[:60]
     who = getattr(m.sender, "first_name", None) or getattr(m.sender, "title", "") if m.sender else ""
-    return f"{m.id:>6}  {m.date:%H:%M:%S}  {who:<12} {('[' + kind + '] ') if kind else ''}{text}"
+    return f"{m.id:>6}  {m.date:%Y-%m-%d %H:%M:%S}  {who:<12} {('[' + kind + '] ') if kind else ''}{text}"
 
 
 async def run(args) -> None:
@@ -228,6 +228,10 @@ async def dispatch(client: TelegramClient, a) -> None:
     elif c == "typing":
         async with client.action(await peer(client, a.peer), a.action):
             await asyncio.sleep(a.seconds)
+    elif c == "config":
+        from telethon.tl.functions.help import GetConfigRequest
+        cfg = await client(GetConfigRequest())
+        print(f"edit_time_limit={cfg.edit_time_limit}s revoke_pm_time_limit={cfg.revoke_pm_time_limit}s")
     elif c == "history":
         async for m in client.iter_messages(await peer(client, a.peer), limit=a.n):
             print(describe(m))
@@ -306,6 +310,7 @@ def main() -> None:
     s = sub.add_parser("typing", help="статус «печатает» на N секунд")
     s.add_argument("peer"); s.add_argument("--action", default="typing"); s.add_argument("--seconds", type=float, default=5)
     s = sub.add_parser("history"); s.add_argument("peer"); s.add_argument("-n", type=int, default=10)
+    sub.add_parser("config", help="лимиты сервера: время на правку и удаление")
     s = sub.add_parser("chats"); s.add_argument("-n", type=int, default=20)
 
     s = sub.add_parser("group", help="обычная группа"); s.add_argument("title"); s.add_argument("users", nargs="+")

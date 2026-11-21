@@ -59,6 +59,7 @@ import kotlinx.coroutines.FlowPreview
 import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import io.github.iufb.reach.notifications.VisibleChats
 import org.drinkless.tdlib.TdApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -123,6 +124,7 @@ class ChatViewModel @Inject constructor(
     private val audioPlayer: AudioPlayer,
     private val recorder: VoiceRecorder,
     private val photoEditor: PhotoEditRenderer,
+    private val visibleChats: VisibleChats,
 ) : ViewModel() {
 
     private val route = savedStateHandle.toRoute<ChatRoute>()
@@ -302,7 +304,9 @@ class ChatViewModel @Inject constructor(
      * Запросы идут в scope приложения: `closeChat` должен уйти, даже когда ViewModel уже уничтожается.
      */
     fun onResume() {
+        if (resumed.value) return
         resumed.value = true
+        visibleChats.shown(chatId)
         appScope.launch { runCatching { td.send(TdApi.OpenChat(chatId)) }.onFailure { Log.e(TAG, "openChat failed", it) } }
         // Открыли чат — ручная пометка «непрочитанный» больше не нужна
         if (chatsRepository.chats.value[chatId]?.isMarkedAsUnread == true) {
@@ -313,6 +317,7 @@ class ChatViewModel @Inject constructor(
     fun onPause() {
         if (!resumed.value) return
         resumed.value = false
+        visibleChats.hidden(chatId)
         saveDraft()
         appScope.launch { runCatching { td.send(TdApi.CloseChat(chatId)) }.onFailure { Log.e(TAG, "closeChat failed", it) } }
     }
