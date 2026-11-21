@@ -72,7 +72,7 @@ private fun NavBackStackEntry.isTab(): Boolean = when {
 
 /** Насколько сдвигается нижний экран: треть ширины, как в UINavigationController. */
 private const val PARALLAX = 0.3f
-private const val SLIDE_MS = 350
+private const val SLIDE_MS = 380
 private const val FADE_MS = 220
-/** Кривая перехода UIKit: быстрый старт, долгое мягкое торможение. */
-private val IOS_EASING = CubicBezierEasing(0.2f, 0.9f, 0.3f, 1f)
+/** Плавное торможение, близкое к переходу UINavigationController: экран заметно едет, а не прыгает. */
+private val IOS_EASING = CubicBezierEasing(0.25f, 0.46f, 0.45f, 0.94f)
