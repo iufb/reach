@@ -64,6 +64,8 @@ fun SettingsScreen(
     onOpenAutoDownload: () -> Unit,
     onOpenBlocked: (() -> Unit)? = null,
     onOpenContactSync: (() -> Unit)? = null,
+    /** Каталог компонентов дизайна; только в debug-сборках. */
+    onOpenComponents: (() -> Unit)? = null,
     viewModel: SettingsViewModel = hiltViewModel(),
 ) {
     val profile by viewModel.profile.collectAsStateWithLifecycle()
@@ -151,6 +153,7 @@ fun SettingsScreen(
             ActionRow(R.string.autodownload_title, onClick = onOpenAutoDownload)
             onOpenBlocked?.let { ActionRow(R.string.blocked_title, onClick = it) }
             onOpenContactSync?.let { ActionRow(R.string.contact_sync_title, onClick = it) }
+            onOpenComponents?.let { ActionRow(R.string.components_catalog, onClick = it) }
             HorizontalDivider(Modifier.padding(vertical = 8.dp))
             Text(
                 stringResource(R.string.logout),

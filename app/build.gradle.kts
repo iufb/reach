@@ -95,6 +95,8 @@ dependencies {
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
     implementation(libs.lottie.compose)
+    implementation(libs.haze)
+    implementation(libs.haze.blur)
     implementation(libs.camera.camera2)
     implementation(libs.camera.lifecycle)
     implementation(libs.camera.video)
