@@ -218,6 +218,20 @@ fun ChatScreen(
     }
     stickerSetTitle?.let { StickerSetDialog(it, viewModel::dismissStickerSet) }
     var creatingPoll by remember { mutableStateOf(false) }
+    var attaching by remember { mutableStateOf(false) }
+    if (attaching) {
+        AttachSheet(
+            AttachActions(
+                onSendPhotos = viewModel::onPhotosPicked,
+                onSystemPicker = { photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)) },
+                onFile = { filePicker.launch(arrayOf("*/*")) },
+                // В личных чатах опросов нет
+                onPoll = if (chat?.kind == ChatKind.Group || chat?.kind == ChatKind.Channel) ({ creatingPoll = true }) else null,
+                maxPhotos = MAX_PICKED_PHOTOS,
+            ),
+            onDismiss = { attaching = false },
+        )
+    }
     val pollMaxOptions by viewModel.pollMaxOptions.collectAsStateWithLifecycle()
     if (creatingPoll) {
         CreatePollDialog(
@@ -283,12 +297,7 @@ fun ChatScreen(
                     viewModel::onDraftChange, viewModel::onFormat, viewModel::send, viewModel::cancelReply, viewModel::cancelEdit,
                     focusRequest, mentionSuggestions, viewModel::onMentionQuery, viewModel::pickMention,
                     linkPreview, viewModel::dismissLinkPreview,
-                    onAttachPhoto = {
-                        photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                    },
-                    onAttachFile = { filePicker.launch(arrayOf("*/*")) },
-                    // В личных чатах опросов нет
-                    onAttachPoll = if (chat?.kind == ChatKind.Group || chat?.kind == ChatKind.Channel) ({ creatingPoll = true }) else null,
+                    onAttach = { attaching = true },
                     voice = if (videoMode && canSendVideoNotes) {
                         // Кружок: та же кнопка и полоска записи, без предпрослушивания — «стоп» отправляет
                         VoiceInput(

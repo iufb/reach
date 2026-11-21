@@ -336,6 +336,17 @@
     <string name="attach">Прикрепить</string>
     <string name="attach_photo">Фото</string>
     <string name="attach_file">Файл</string>
+    <string name="attach_recents">Недавние</string>
+    <string name="attach_gallery">Галерея</string>
+    <string name="attach_send_count">Отправить %1$d</string>
+    <string name="attach_access_title">Нет доступа к фото</string>
+    <string name="attach_access_text">Разрешите доступ ко всем фото или только к выбранным — они появятся здесь</string>
+    <string name="attach_access_allow">Разрешить доступ</string>
+    <string name="attach_access_system">Выбрать в системной галерее</string>
+    <string name="attach_access_partial">Доступ только к выбранным фото</string>
+    <string name="attach_access_change">Изменить</string>
+    <string name="attach_photo_select">Выбрать фото</string>
+    <string name="attach_photos_empty">Фото нет</string>
     <string name="emoji_open">Эмодзи</string>
     <string name="emoji_keyboard">Клавиатура</string>
     <string name="emoji_search">Поиск эмодзи</string>
