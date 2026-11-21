@@ -113,6 +113,7 @@ fun ComponentCatalogScreen(onBack: () -> Unit) {
                 title = "Компоненты",
                 subtitle = "каталог #197",
                 navigation = { BackPill(onBack) },
+                background = colors.groupedBackground,
                 actions = {
                     PillGroup {
                         PillGroupIcon(painterResource(R.drawable.ic_search), null, {})

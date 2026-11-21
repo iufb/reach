@@ -18,6 +18,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.iufb.reach.ui.theme.ReachTheme
@@ -31,6 +32,7 @@ val TopBarHeight = 56.dp
  *
  * [titlePill] — заголовок в стеклянной пилюле (экран чата: имя и статус); иначе просто текст по центру.
  * [onTitleClick] — тап по заголовку (профиль собеседника).
+ * [background] — цвет экрана под шапкой, в него затухает градиент (у сгруппированных — `groupedBackground`).
  */
 @Composable
 fun ReachTopBar(
@@ -41,6 +43,7 @@ fun ReachTopBar(
     onTitleClick: (() -> Unit)? = null,
     navigation: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
+    background: Color = ReachTheme.colors.background,
 ) {
     val colors = ReachTheme.colors
     Box(
@@ -49,9 +52,9 @@ fun ReachTopBar(
             // Под статус-баром почти непрозрачно, к низу шапки — затухает: содержимое уходит под неё мягко
             .background(
                 Brush.verticalGradient(
-                    0f to colors.background,
-                    0.45f to colors.background.copy(alpha = 0.88f),
-                    1f to colors.background.copy(alpha = 0f),
+                    0f to background,
+                    0.45f to background.copy(alpha = 0.88f),
+                    1f to background.copy(alpha = 0f),
                 ),
             )
             .statusBarsPadding()
