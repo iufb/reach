@@ -164,9 +164,8 @@ internal fun MessageMenuOverlay(state: MessageMenuOverlayState, menu: MessageMen
                         .drawBehind { state.layer?.let { drawLayer(it) } }
                         .clickable(remember { MutableInteractionSource() }, indication = null) {},
                 )
-                if (!expanded) {
-                    Box(Modifier.layoutId(ID_MENU)) { ActionCard(current, interactions) }
-                }
+                // Раскрытые реакции закрывают меню, но его высота остаётся в расчёте — пузырь не прыгает
+                Box(Modifier.layoutId(ID_MENU)) { if (!expanded) ActionCard(current, interactions) else ActionCardSpace(current) }
             },
             modifier = Modifier.fillMaxSize(),
         ) { measurables, constraints ->
@@ -279,8 +278,20 @@ private fun ReactionButton(key: ReactionKey, chosen: Boolean, onPick: (ReactionK
         contentAlignment = Alignment.Center,
     ) {
         PickerIcon(key)
+        PrefetchReactionAnimations(key)
     }
 }
+
+/** Пустое место размером с карточку действий (пока раскрыты реакции). */
+@Composable
+private fun ActionCardSpace(menu: MessageMenu) {
+    Box(Modifier.width(MENU_WIDTH).height(ROW_HEIGHT * menuRowCount(menu.actions)))
+}
+
+private fun menuRowCount(actions: MessageActions): Int = listOf(
+    actions.canReply, actions.canEdit, actions.copyText != null, actions.canPin, actions.canForward,
+    actions.canRetractVote, actions.canStopPoll, true, actions.canDelete,
+).count { it }
 
 /** Карточка действий: строки «название — значок справа», разделители, «Удалить» красным последним. */
 @Composable

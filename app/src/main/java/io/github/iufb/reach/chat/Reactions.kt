@@ -162,6 +162,17 @@ internal fun PickerIcon(key: ReactionKey) {
     LottieAnimation(composition, progress = { animatable.progress }, modifier = Modifier.size(32.dp))
 }
 
+/**
+ * Заранее загружает анимации эффекта и чипа реакции, пока она видна в меню: иначе после выбора
+ * эффект ждал загрузки файла и стартовал с задержкой ~1 с (#196). Композиции кешируются по файлу.
+ */
+@Composable
+internal fun PrefetchReactionAnimations(key: ReactionKey) {
+    val animations = rememberReactionAnimations(key)
+    rememberTgsComposition(animations?.effect)
+    rememberTgsComposition(animations?.center)
+}
+
 /** Эффект своей реакции поверх сообщения; по окончании — [onDone]. Без анимации — сразу [onDone]. */
 @Composable
 internal fun ReactionEffect(key: ReactionKey, onDone: () -> Unit, modifier: Modifier = Modifier) {
