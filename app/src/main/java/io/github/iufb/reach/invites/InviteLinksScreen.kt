@@ -57,12 +57,9 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.contacts.UserRow
+import io.github.iufb.reach.ui.format.Dates
 import io.github.iufb.reach.ui.theme.reachBarColors
 import kotlinx.coroutines.launch
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 /** Ссылки-приглашения: основная, дополнительные, отозванные и заявки на вступление. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -220,7 +217,7 @@ private fun linkDetails(link: InviteLink): String {
             link.expirationDate != 0 -> add(
                 stringResource(
                     R.string.invite_expires,
-                    Instant.ofEpochSecond(link.expirationDate.toLong()).atZone(ZoneId.systemDefault()).format(DATE_FORMAT),
+                    Dates.dateTime(link.expirationDate.toLong()),
                 ),
             )
         }
@@ -292,4 +289,3 @@ private val EXPIRY_OPTIONS = listOf(
 
 private const val NAME_MAX = 32
 private const val MAX_LIMIT = 99_999
-private val DATE_FORMAT = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.SHORT)

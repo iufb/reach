@@ -42,11 +42,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.bodySummary
+import io.github.iufb.reach.ui.format.Dates
 import io.github.iufb.reach.ui.theme.reachBarColors
-import java.time.Instant
-import java.time.ZoneId
-import java.time.format.DateTimeFormatter
-import java.time.format.FormatStyle
 
 /** Отложенные сообщения чата: отправить сейчас, перенести, изменить, удалить. */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -177,7 +174,7 @@ private fun scheduleLabel(schedule: Schedule): String = when (schedule) {
     Schedule.WhenOnline -> stringResource(R.string.send_when_online)
     is Schedule.At -> stringResource(
         R.string.scheduled_at,
-        Instant.ofEpochSecond(schedule.date.toLong()).atZone(ZoneId.systemDefault()).format(DATE_TIME_FORMAT),
+        Dates.dateTime(schedule.date.toLong()),
     )
 }
 
@@ -193,4 +190,3 @@ private fun EditTextDialog(initial: String, onSave: (String) -> Unit, onDismiss:
     )
 }
 
-private val DATE_TIME_FORMAT = DateTimeFormatter.ofLocalizedDateTime(FormatStyle.MEDIUM, FormatStyle.SHORT)

@@ -52,7 +52,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.bodySummary
-import io.github.iufb.reach.chats.formatChatTime
+import io.github.iufb.reach.ui.format.Dates
 import io.github.iufb.reach.ui.theme.reachBarColors
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -212,7 +212,7 @@ private fun TopicRow(topic: Topic, canManage: Boolean, onClick: () -> Unit, onRe
                     }
                     Spacer(Modifier.weight(1f))
                     Text(
-                        formatChatTime(topic.lastMessageDate),
+                        Dates.chatListTime(topic.lastMessageDate.toLong()),
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
