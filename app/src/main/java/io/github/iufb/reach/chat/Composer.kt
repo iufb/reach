@@ -43,6 +43,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -169,7 +170,7 @@ private fun mentionToken(field: TextFieldValue): MentionToken? {
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
+internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, emoji: EmojiPanelState) {
     // Поле держит своё TextFieldValue (выделение, composing-регион клавиатуры), текст сверяется с моделью
     val keyboard = LocalSoftwareKeyboardController.current
     var field by remember { mutableStateOf(TextFieldValue(state.draft.text, TextRange(state.draft.text.length))) }
@@ -189,13 +190,23 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
         }
     }
     var linkFor by remember { mutableStateOf<TextRange?>(null) }
-    val emoji = rememberEmojiPanelState()
     val imeVisible = WindowInsets.isImeVisible
     val fieldInteraction = remember { MutableInteractionSource() }
     val fieldPressed by fieldInteraction.collectIsPressedAsState()
     // Тап по полю, пока открыта панель, возвращает клавиатуру
     LaunchedEffect(fieldPressed) { if (fieldPressed && emoji.open) emoji.switchToKeyboard() }
     BackHandler(enabled = emoji.open) { emoji.close() }
+    // Панель живёт внизу экрана (ChatBottomArea), а вставляет — сюда, на место выделения / курсора
+    SideEffect {
+        emoji.onPick = { picked ->
+            val at = field.selection
+            val text = field.text.replaceRange(at.min, at.max, picked)
+            field = TextFieldValue(text, TextRange(at.min + picked.length))
+            sentTexts.addLast(text)
+            if (sentTexts.size > MAX_SENT_TEXTS) sentTexts.removeFirst()
+            state.onDraftChange(text)
+        }
+    }
     // «Ответить» и «Изменить» ставят курсор в поле; восстановленный при открытии чата ответ — нет
     val focusRequester = remember { FocusRequester() }
     var seenFocusRequest by remember { mutableIntStateOf(state.focusRequest) }
@@ -324,15 +335,6 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
                     )
                 }
             }
-        }
-        EmojiArea(emoji) { picked ->
-            // Вставка на место выделения / курсора
-            val at = field.selection
-            val text = field.text.replaceRange(at.min, at.max, picked)
-            field = TextFieldValue(text, TextRange(at.min + picked.length))
-            sentTexts.addLast(text)
-            if (sentTexts.size > MAX_SENT_TEXTS) sentTexts.removeFirst()
-            state.onDraftChange(text)
         }
     }
     linkFor?.let { range ->

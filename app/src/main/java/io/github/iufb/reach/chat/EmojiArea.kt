@@ -4,15 +4,11 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -28,7 +24,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.unit.Density
-import android.util.Log
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import io.github.iufb.reach.emoji.EmojiPanel
@@ -61,6 +56,9 @@ internal class EmojiPanelState(private val scope: CoroutineScope) {
 
     /** Высота клавиатуры в пикселях, как её видели в последний раз; 0 — ещё не открывалась. */
     var keyboardPx by mutableIntStateOf(0)
+
+    /** Куда вставлять выбранный эмодзи; задаёт поле ввода, пока оно на экране. */
+    var onPick: (String) -> Unit = {}
 
     private var yieldJob: Job? = null
 
@@ -98,63 +96,72 @@ internal fun rememberEmojiPanelState(): EmojiPanelState {
     return remember { EmojiPanelState(scope) }
 }
 
-/** Место под полем ввода: панель эмодзи или отступ навигационной полосы. */
+/**
+ * Низ экрана чата под полем ввода: клавиатура, панель эмодзи или навигационная полоса — одним блоком.
+ * Его высота — max(ime, nav) плюс панель, и при переключении клавиатура ↔ панель сумма постоянна:
+ * область ленты и поле над ней не меняют размер ни на кадр. Считается при раскладке, в том же кадре,
+ * что и сдвиг клавиатуры. [panelAllowed] `false` — поля ввода нет, панель не нужна.
+ */
 @Composable
-internal fun EmojiArea(state: EmojiPanelState, onPick: (String) -> Unit) {
+internal fun ChatBottomArea(state: EmojiPanelState, panelAllowed: Boolean) {
     val ime = WindowInsets.ime
     val nav = WindowInsets.navigationBars
     val density = LocalDensity.current
     LaunchedEffect(state) {
         snapshotFlow { ime.getBottom(density) }.collect { if (it > state.keyboardPx) state.keyboardPx = it }
     }
-    val visible = state.open || state.yieldingToKeyboard || state.reveal.value > 0f
-    if (!visible) {
-        Spacer(Modifier.navigationBarsPadding())
-        return
-    }
-    val colors = ReachTheme.colors
-    Column(
+    LaunchedEffect(panelAllowed) { if (!panelAllowed && state.open) state.close() }
+    val showPanel = panelAllowed && (state.open || state.yieldingToKeyboard || state.reveal.value > 0f)
+    Box(
         Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(topStart = CORNER, topEnd = CORNER))
-            .background(colors.cell),
-    ) {
-        // Высота считается при раскладке, в том же кадре, что и сдвиг от клавиатуры (imePadding родителя),
-        // иначе панель отстаёт от клавиатуры на кадр-другой и поле ввода подпрыгивает
-        Box(
-            Modifier.fillMaxWidth().layout { measurable, constraints ->
-                val heightPx = panelHeightPx(state, ime.getBottom(this), nav.getBottom(this))
+            .layout { measurable, constraints ->
+                val insetPx = maxOf(ime.getBottom(this), nav.getBottom(this))
+                val panelPx = if (showPanel) panelHeightPx(state, insetPx) else 0
+                val heightPx = insetPx + panelPx
                 val placeable = measurable.measure(constraints.copy(minHeight = heightPx, maxHeight = heightPx))
                 layout(placeable.width, heightPx) { placeable.place(0, 0) }
             },
-        ) {
-            EmojiPanel(
-                onPick = onPick,
-                modifier = Modifier.fillMaxSize(),
-                onSearchFocusChange = { state.searching = it && state.open },
-            )
+    ) {
+        if (showPanel) {
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .clip(RoundedCornerShape(topStart = CORNER, topEnd = CORNER))
+                    .background(ReachTheme.colors.cell),
+            ) {
+                // Панель — верхняя часть блока; нижнюю (под клавиатурой или полосой) панель не занимает
+                Box(
+                    Modifier.fillMaxWidth().layout { measurable, constraints ->
+                        val insetPx = maxOf(ime.getBottom(this), nav.getBottom(this))
+                        val panelPx = (constraints.maxHeight - insetPx).coerceAtLeast(0)
+                        val placeable = measurable.measure(constraints.copy(minHeight = panelPx, maxHeight = panelPx))
+                        layout(placeable.width, panelPx) { placeable.place(0, 0) }
+                    },
+                ) {
+                    EmojiPanel(
+                        onPick = { state.onPick(it) },
+                        modifier = Modifier.fillMaxSize(),
+                        onSearchFocusChange = { state.searching = it && state.open },
+                    )
+                }
+            }
         }
-        Spacer(Modifier.navigationBarsPadding())
     }
 }
 
-/**
- * Нижний край поля ввода над экраном — max(ime, nav): его дают родитель (imePadding) и отступ под панелью.
- * Панель добирает до высоты клавиатуры, сколько та ещё не заняла.
- */
-private fun Density.panelHeightPx(state: EmojiPanelState, imePx: Int, navPx: Int): Int {
-    val targetPx = state.keyboardPx.takeIf { it > 0 } ?: (DEFAULT_HEIGHT.roundToPx() + navPx)
-    val freePx = (targetPx - maxOf(imePx, navPx)).coerceAtLeast(0)
-    val heightPx = when {
+/** Сколько панели видно: добирает до высоты клавиатуры, сколько та ещё не заняла. */
+private fun Density.panelHeightPx(state: EmojiPanelState, insetPx: Int): Int {
+    val targetPx = state.keyboardPx.takeIf { it > 0 } ?: DEFAULT_HEIGHT.roundToPx()
+    val freePx = (targetPx - insetPx).coerceAtLeast(0)
+    return when {
         state.open && state.searching -> SEARCH_HEIGHT.roundToPx()
         state.yieldingToKeyboard -> freePx
         else -> (freePx * state.reveal.value).toInt()
     }
-    Log.d("EmojiArea", "ime=$imePx nav=$navPx kb=${state.keyboardPx} open=${state.open} yield=${state.yieldingToKeyboard} reveal=${state.reveal.value} h=$heightPx")
-    return heightPx
 }
 
-private val DEFAULT_HEIGHT = 300.dp
+private val DEFAULT_HEIGHT = 340.dp
 private val SEARCH_HEIGHT = 112.dp
 private val CORNER = 20.dp
 private const val REVEAL_MS = 250
