@@ -120,6 +120,7 @@ import io.github.iufb.reach.ui.components.TailWidth
 import io.github.iufb.reach.ui.components.glassSource
 import java.time.LocalDate
 import java.time.ZoneId
+import androidx.compose.material3.LocalContentColor
 
 @Composable
 fun ChatScreen(
@@ -418,7 +419,9 @@ private fun ChatContent(
     // Шапка и поле ввода плавают над лентой; их высоты — отступы ленты сверху и снизу
     var topHeight by remember { mutableStateOf(0.dp) }
     var bottomHeight by remember { mutableStateOf(0.dp) }
+    // Scaffold больше нет — цвет текста по умолчанию задаём сами (иначе в тёмной теме он серый)
     GlassScope {
+        CompositionLocalProvider(LocalContentColor provides colors.label) {
         Box(
             Modifier
                 .fillMaxSize()
@@ -455,6 +458,7 @@ private fun ChatContent(
                 }
             }
         }
+        }
     }
 }
 
@@ -490,7 +494,7 @@ private fun ChatTopBar(
         subtitle = subtitle,
         titlePill = true,
         onTitleClick = if (scopeTitle == null) onOpenProfile else null,
-        background = Color.Transparent,
+        background = ReachTheme.colors.wallpaperTop,
         navigation = { BackPill(onBack) },
         actions = {
             if (chat?.hasScheduledMessages == true) {

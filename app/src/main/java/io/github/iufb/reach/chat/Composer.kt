@@ -75,6 +75,12 @@ import io.github.iufb.reach.chats.LinkPreview
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
 import io.github.iufb.reach.media.RecorderState
+import androidx.compose.foundation.background
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.layout.height
+import io.github.iufb.reach.ui.components.PillHeight
+import io.github.iufb.reach.ui.components.glass
+import io.github.iufb.reach.ui.theme.ReachTheme
 
 /** Поле ввода; `null` в [ChatContent] — писать нельзя, поле скрыто. */
 internal class ComposerState(
@@ -123,6 +129,22 @@ internal class SendMenu(
     /** Показывать «Когда будет в сети». */
     val whenOnline: Boolean = false,
 )
+
+/**
+ * Стеклянный круг под кнопкой поля ввода. Стекло — подложкой позади, а не обрезкой:
+ * кнопка записи рисует за своими границами (свайпы, индикатор).
+ */
+@Composable
+private fun GlassCircle(content: @Composable () -> Unit) {
+    Box(Modifier.height(FIELD_MIN_HEIGHT), contentAlignment = Alignment.Center) {
+        Box(Modifier.size(PillHeight).glass(CircleShape))
+        content()
+    }
+}
+
+private val FIELD_CORNER = 28.dp
+private val FIELD_MIN_HEIGHT = 56.dp
+private val EXTRAS_CORNER = 20.dp
 
 /** Сколько последних отданных модели текстов помнит поле, см. [Composer]. */
 private const val MAX_SENT_TEXTS = 64
@@ -191,33 +213,43 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
     val showMic = voice != null && !canSend &&
         (voice.state is RecorderState.Idle || (voice.state as? RecorderState.Recording)?.locked == false)
 
-    Surface(color = MaterialTheme.colorScheme.surface) {
-        Column(Modifier.navigationBarsPadding()) {
-            when {
-                state.editing != null -> EditBar(state.editing, state.onCancelEdit)
-                state.replyTo != null -> ReplyBar(state.replyTo, senders, state.onCancelReply)
+    // Telegram iOS: под полем нет панели — стеклянные кнопки и поле-пилюля плавают над лентой,
+    // плашки ответа, правки, превью и подсказок — стеклянной карточкой над ними
+    val selection = field.selection
+    val showMentions = token != null && state.mentionSuggestions.isNotEmpty()
+    val hasExtras = state.editing != null || state.replyTo != null || state.linkPreview != null || showMentions || !selection.collapsed
+    Column(Modifier.navigationBarsPadding().padding(horizontal = 8.dp, vertical = 6.dp)) {
+        if (hasExtras) {
+            Column(Modifier.fillMaxWidth().padding(bottom = 6.dp).glass(RoundedCornerShape(EXTRAS_CORNER))) {
+                when {
+                    state.editing != null -> EditBar(state.editing, state.onCancelEdit)
+                    state.replyTo != null -> ReplyBar(state.replyTo, senders, state.onCancelReply)
+                }
+                state.linkPreview?.let { ComposerLinkPreview(it, state.onDismissLinkPreview) }
+                if (showMentions && token != null) {
+                    MentionSuggestions(state.mentionSuggestions) { state.onPickMention(it, token.start, token.end) }
+                }
+                if (!selection.collapsed) {
+                    FormatBar(
+                        onFormat = { kind -> state.onFormat(kind, selection.min, selection.max) },
+                        onLink = { linkFor = selection },
+                    )
+                }
             }
-            state.linkPreview?.let { ComposerLinkPreview(it, state.onDismissLinkPreview) }
-            if (token != null && state.mentionSuggestions.isNotEmpty()) {
-                MentionSuggestions(state.mentionSuggestions) { state.onPickMention(it, token.start, token.end) }
-            }
-            val selection = field.selection
-            if (!selection.collapsed) {
-                FormatBar(
-                    onFormat = { kind -> state.onFormat(kind, selection.min, selection.max) },
-                    onLink = { linkFor = selection },
-                )
-            }
+        }
+        Column {
             Row(
-                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
-                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier.fillMaxWidth(),
+                verticalAlignment = Alignment.Bottom,
             ) {
                 if (recording) {
                     RecordingBar(voice!!, Modifier.weight(1f))
                 } else {
                     if (state.editing == null && (state.onAttachPhoto != null || state.onAttachFile != null)) {
-                        AttachButton(state.onAttachPhoto, state.onAttachFile, state.onAttachPoll)
+                        GlassCircle { AttachButton(state.onAttachPhoto, state.onAttachFile, state.onAttachPoll) }
                     }
+                    Box(Modifier.weight(1f).padding(horizontal = 6.dp)) {
+                    Box(Modifier.matchParentSize().glass(RoundedCornerShape(FIELD_CORNER)))
                     TextField(
                         colors = TextFieldDefaults.colors(
                             focusedContainerColor = Color.Transparent,
@@ -236,7 +268,7 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
                             }
                             field = it
                         },
-                        modifier = Modifier.weight(1f).focusRequester(focusRequester),
+                        modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                         placeholder = { Text(stringResource(R.string.chat_input_placeholder)) },
                         isError = state.error != null,
                         supportingText = state.error?.let { { Text(stringResource(R.string.chat_send_error, it)) } },
@@ -254,20 +286,24 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
                             }
                         },
                     )
+                    }
                 }
-                if (showMic) {
-                    MicButton(voice!!)
-                } else {
-                    val sendVoice = recording
-                    SendButton(
-                        enabled = canSend || sendVoice,
-                        onClick = if (sendVoice) voice!!.onSend else state.onSend,
-                        // Меню — только для набранного текста, не для правки и не для голосового
-                        menu = state.sendMenu?.takeIf { !sendVoice && state.editing == null && canSend },
-                    )
+                GlassCircle {
+                    if (showMic) {
+                        MicButton(voice!!)
+                    } else {
+                        val sendVoice = recording
+                        SendButton(
+                            enabled = canSend || sendVoice,
+                            onClick = if (sendVoice) voice!!.onSend else state.onSend,
+                            // Меню — только для набранного текста, не для правки и не для голосового
+                            menu = state.sendMenu?.takeIf { !sendVoice && state.editing == null && canSend },
+                        )
+                    }
                 }
             }
             if (emojiOpen) {
+                Box(Modifier.padding(top = 6.dp).clip(RoundedCornerShape(EXTRAS_CORNER)).background(ReachTheme.colors.cell)) {
                 EmojiPanel(onPick = { emoji ->
                     // Вставка на место выделения / курсора
                     val selection = field.selection
@@ -277,6 +313,7 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>) {
                     if (sentTexts.size > MAX_SENT_TEXTS) sentTexts.removeFirst()
                     state.onDraftChange(text)
                 })
+                }
             }
         }
     }
