@@ -46,7 +46,9 @@ import io.github.iufb.reach.invites.InviteLinksScreen
 import io.github.iufb.reach.stats.StatisticsScreen
 import io.github.iufb.reach.blocked.BlockedScreen
 import io.github.iufb.reach.contacts.ContactSyncScreen
+import io.github.iufb.reach.BuildConfig
 import io.github.iufb.reach.settings.SettingsScreen
+import io.github.iufb.reach.ui.components.ComponentCatalogScreen
 import io.github.iufb.reach.chats.ChatsScreen
 import io.github.iufb.reach.forward.ForwardScreen
 import io.github.iufb.reach.gallery.GalleryScreen
@@ -80,6 +82,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object SettingsRoute
 @Serializable data object ContactSyncRoute
 @Serializable data object BlockedRoute
+@Serializable data object ComponentsRoute
 @Serializable data class NewChatRoute(val channel: Boolean)
 @Serializable data class MembersRoute(val chatId: Long)
 @Serializable data class AdminRightsRoute(val chatId: Long, val userId: Long)
@@ -232,8 +235,11 @@ fun ReachNavHost(
                         onOpenAutoDownload = { navController.navigate(AutoDownloadRoute) },
                         onOpenContactSync = { navController.navigate(ContactSyncRoute) },
                         onOpenBlocked = { navController.navigate(BlockedRoute) },
+                        // Каталог компонентов — только для проверки дизайна в debug-сборках
+                        onOpenComponents = if (BuildConfig.DEBUG) ({ navController.navigate(ComponentsRoute) }) else null,
                     )
                 }
+                composable<ComponentsRoute> { ComponentCatalogScreen(onBack = { navController.popBackStack() }) }
                 composable<BlockedRoute> { BlockedScreen(onBack = { navController.popBackStack() }) }
                 composable<ContactSyncRoute> { ContactSyncScreen(onBack = { navController.popBackStack() }) }
                 composable<AutoDownloadRoute> { AutoDownloadScreen(onBack = { navController.popBackStack() }) }

@@ -182,6 +182,7 @@
 
     <!-- Экран чата -->
     <string name="back">Назад</string>
+    <string name="components_catalog">Компоненты (debug)</string>
     <string name="chat_kind_private">личный чат</string>
     <string name="chat_kind_group">группа</string>
     <string name="chat_kind_channel">канал</string>
