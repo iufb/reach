@@ -71,6 +71,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.graphics.TileMode
+import androidx.compose.ui.graphics.BlurEffect
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
@@ -431,14 +434,22 @@ private fun ChatContent(
     // Scaffold больше нет — цвет текста по умолчанию задаём сами (иначе в тёмной теме он серый)
     val emoji = rememberEmojiPanelState()
     val composerShown = composer != null && chat != null && selectionBar == null
+    val menuOverlay = remember { MessageMenuOverlayState() }
+    val blurPx = with(density) { MENU_BLUR.toPx() }
     GlassScope {
-        CompositionLocalProvider(LocalContentColor provides colors.label) {
+        CompositionLocalProvider(LocalContentColor provides colors.label, LocalMessageMenuOverlay provides menuOverlay) {
+        Box(Modifier.fillMaxSize()) {
         // Лента с шапкой и полем — сверху, под ними клавиатура / панель эмодзи / полоса навигации
         // одним блоком (ChatBottomArea): при их переключении область ленты не меняет размер
         Column(
             Modifier
                 .fillMaxSize()
-                .background(Brush.verticalGradient(listOf(colors.wallpaperTop, colors.wallpaperBottom))),
+                .background(Brush.verticalGradient(listOf(colors.wallpaperTop, colors.wallpaperBottom)))
+                // Меню сообщения: весь чат под ним размыт, как в iOS; размытие — по ходу анимации меню
+                .graphicsLayer {
+                    val radius = blurPx * menuOverlay.progress.value
+                    renderEffect = if (radius > 0.5f) BlurEffect(radius, radius, TileMode.Clamp) else null
+                },
         ) {
         Box(Modifier.fillMaxWidth().weight(1f)) {
             val padding = PaddingValues(top = topHeight + 4.dp, bottom = bottomHeight + 4.dp)
@@ -474,9 +485,14 @@ private fun ChatContent(
         }
         ChatBottomArea(emoji, panelAllowed = composerShown)
         }
+        MessageMenuOverlay(menuOverlay, interactions.menu, interactions)
+        }
         }
     }
 }
+
+/** Насколько размыт чат под меню сообщения. */
+private val MENU_BLUR = 18.dp
 
 /**
  * Шапка чата Telegram iOS: «назад» слева, по центру пилюля с названием и статусом («печатает…»),
@@ -971,6 +987,7 @@ private fun MessageBubble(
             Column(
                 modifier = Modifier
                     .widthIn(max = 320.dp)
+                    .menuAnchor(message)
                     .then(if (bare) Modifier else Modifier.clip(bubbleShape))
                     .background(
                         when {
@@ -988,7 +1005,6 @@ private fun MessageBubble(
                         bottom = if (bare) 2.dp else 5.dp,
                     ),
             ) {
-                MessagePopup(message, interactions)
                 if (sender != null) {
                     Text(
                         sender.name.ifBlank { stringResource(R.string.chat_deleted_account) },
@@ -1048,23 +1064,6 @@ private fun MessageBubble(
         }
     }
     }
-}
-
-@Composable
-private fun MessagePopup(message: Message, interactions: MessageInteractions) {
-    MessageMenuPopup(
-        interactions.menuFor(message),
-        interactions.onDismissMenu,
-        onReply = { interactions.onReply?.invoke(it) },
-        onEdit = interactions.onEdit,
-        onDelete = interactions.onDelete,
-        onForward = interactions.onForward,
-        onSelect = interactions.onStartSelection,
-        onReact = interactions.onReact,
-        onPin = interactions.onPin,
-        onRetractVote = interactions.onRetractVote,
-        onStopPoll = interactions.onStopPoll,
-    )
 }
 
 /** Выбранное сообщение подсвечивается на всю ширину; в режиме выбора тап по строке отмечает его. */
@@ -1153,12 +1152,12 @@ private fun ChannelPost(
             .selectionHighlight(message, interactions)
             .swipeToReply(interactions.replyAction(message))
             .padding(start = 6.dp, end = 6.dp, top = SERIES_GAP)
+            .menuAnchor(message)
             .clip(BubbleShape(outgoing = false, tail = true))
             .background(ReachTheme.colors.bubbleIncoming)
             .messageLongPress(message, interactions)
             .padding(start = 10.dp + TailWidth, end = 10.dp, top = 8.dp, bottom = 6.dp),
     ) {
-        MessagePopup(message, interactions)
         reply()
         if (album.size > 1) AlbumContent(album, interactions) else MessageContent(message, interactions)
         ReactionChips(message.reactions, onClick = reactionClick(message, interactions))
