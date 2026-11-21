@@ -81,43 +81,6 @@ private fun ReactionChip(reaction: Reaction, onClick: ((ReactionKey) -> Unit)?) 
     }
 }
 
-/**
- * Ряд реакций в меню сообщения; «▾» раскрывает все доступные. Поставленные отмечены фоном,
- * повторный выбор снимает реакцию.
- */
-@Composable
-internal fun ReactionPicker(available: AvailableReactions, current: List<Reaction>, onPick: (ReactionKey) -> Unit) {
-    var expanded by remember { mutableStateOf(false) }
-    val chosen = current.filter { it.isChosen }.mapTo(HashSet()) { it.key }
-    val shown = if (expanded) available.all else available.top
-    FlowRow(
-        modifier = Modifier.widthIn(max = 280.dp).padding(horizontal = 8.dp, vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
-        verticalArrangement = Arrangement.spacedBy(2.dp),
-    ) {
-        shown.forEach { key ->
-            Box(
-                Modifier
-                    .size(40.dp)
-                    .clip(CircleShape)
-                    .background(if (key in chosen) MaterialTheme.colorScheme.primary.copy(alpha = 0.18f) else Color.Transparent)
-                    .clickable { onPick(key) },
-                contentAlignment = Alignment.Center,
-            ) {
-                PickerIcon(key)
-            }
-        }
-        if (!expanded && available.all.size > available.top.size) {
-            Box(
-                Modifier.size(40.dp).clip(CircleShape).clickable { expanded = true },
-                contentAlignment = Alignment.Center,
-            ) {
-                Text("▾", style = MaterialTheme.typography.titleMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
-            }
-        }
-    }
-}
-
 /** Эмодзи реакции; кастомные эмодзи и звёзды пока заглушкой (PRODUCT.md §4.5, v0.6). */
 internal fun reactionSymbol(key: ReactionKey): String = when (key) {
     is ReactionKey.Emoji -> key.emoji
@@ -188,7 +151,7 @@ private fun ChipIcon(reaction: Reaction) {
 
 /** Значок в меню: анимация появления один раз, дальше — её последний кадр; без анимации — эмодзи. */
 @Composable
-private fun PickerIcon(key: ReactionKey) {
+internal fun PickerIcon(key: ReactionKey) {
     val composition = rememberTgsComposition(rememberReactionAnimations(key)?.appear)
     if (composition == null) {
         Text(reactionSymbol(key), fontSize = 22.sp)
@@ -197,6 +160,17 @@ private fun PickerIcon(key: ReactionKey) {
     val animatable = rememberLottieAnimatable()
     LaunchedEffect(composition) { animatable.animate(composition, iterations = 1) }
     LottieAnimation(composition, progress = { animatable.progress }, modifier = Modifier.size(32.dp))
+}
+
+/**
+ * Заранее загружает анимации эффекта и чипа реакции, пока она видна в меню: иначе после выбора
+ * эффект ждал загрузки файла и стартовал с задержкой ~1 с (#196). Композиции кешируются по файлу.
+ */
+@Composable
+internal fun PrefetchReactionAnimations(key: ReactionKey) {
+    val animations = rememberReactionAnimations(key)
+    rememberTgsComposition(animations?.effect)
+    rememberTgsComposition(animations?.center)
 }
 
 /** Эффект своей реакции поверх сообщения; по окончании — [onDone]. Без анимации — сразу [onDone]. */

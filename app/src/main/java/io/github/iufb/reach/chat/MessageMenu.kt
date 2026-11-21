@@ -1,23 +1,8 @@
 package io.github.iufb.reach.chat
 
-import android.content.ClipData
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.rememberCoroutineScope
-import androidx.compose.ui.platform.ClipEntry
-import androidx.compose.ui.platform.LocalClipboard
-import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.res.stringResource
-import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.ContentKind
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.RichText
-import kotlinx.coroutines.launch
 import org.drinkless.tdlib.TdApi
 
 /**
@@ -110,100 +95,3 @@ private val CAPTIONED = setOf(
     ContentKind.Photo, ContentKind.Video, ContentKind.Document, ContentKind.Audio,
     ContentKind.VoiceNote, ContentKind.Animation,
 )
-
-/**
- * Меню у пузыря. Ставится внутрь пузыря: `DropdownMenu` привязывается к родителю.
- * [menu] не `null` — меню открыто для этого сообщения.
- */
-@Composable
-internal fun MessageMenuPopup(
-    menu: MessageMenu?,
-    onDismiss: () -> Unit,
-    onReply: (Message) -> Unit,
-    onEdit: (Message) -> Unit,
-    onDelete: (MessageMenu) -> Unit,
-    onForward: (Message) -> Unit,
-    onSelect: (MessageMenu) -> Unit,
-    onReact: (Message, ReactionKey) -> Unit,
-    onPin: (Message, Boolean) -> Unit,
-    onRetractVote: (Message) -> Unit = {},
-    onStopPoll: (Message) -> Unit = {},
-) {
-    val clipboard = LocalClipboard.current
-    val scope = rememberCoroutineScope()
-    DropdownMenu(expanded = menu != null, onDismissRequest = onDismiss) {
-        val current = menu ?: return@DropdownMenu
-        val actions = current.actions
-        if (!current.reactions.isEmpty) {
-            ReactionPicker(current.reactions, current.message.reactions) { onReact(current.message, it) }
-            HorizontalDivider()
-        }
-        if (actions.canReply) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.message_action_reply)) },
-                leadingIcon = { Icon(painterResource(R.drawable.ic_reply), contentDescription = null) },
-                onClick = { onReply(current.message) },
-            )
-        }
-        if (actions.canEdit) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.message_action_edit)) },
-                leadingIcon = { Icon(painterResource(R.drawable.ic_edit), contentDescription = null) },
-                onClick = { onEdit(current.message) },
-            )
-        }
-        if (actions.canForward) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.message_action_forward)) },
-                leadingIcon = { Icon(painterResource(R.drawable.ic_forward), contentDescription = null) },
-                onClick = { onForward(current.message) },
-            )
-        }
-        if (actions.canPin) {
-            val pinned = current.message.isPinned
-            DropdownMenuItem(
-                text = { Text(stringResource(if (pinned) R.string.message_action_unpin else R.string.message_action_pin)) },
-                leadingIcon = { Icon(painterResource(R.drawable.ic_pin), contentDescription = null) },
-                onClick = { onPin(current.message, !pinned) },
-            )
-        }
-        if (actions.canRetractVote) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.poll_retract)) },
-                onClick = { onRetractVote(current.message) },
-            )
-        }
-        if (actions.canStopPoll) {
-            DropdownMenuItem(
-                text = { Text(stringResource(if ((current.message.content as? MessageBody.Poll)?.poll?.quiz != null) R.string.quiz_stop else R.string.poll_stop)) },
-                onClick = { onStopPoll(current.message) },
-            )
-        }
-        // Выбрать можно любое сообщение, у которого открылось меню
-        DropdownMenuItem(
-            text = { Text(stringResource(R.string.message_action_select)) },
-            leadingIcon = { Icon(painterResource(R.drawable.ic_select), contentDescription = null) },
-            onClick = { onSelect(current) },
-        )
-        if (actions.canDelete) {
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.message_action_delete), color = MaterialTheme.colorScheme.error) },
-                leadingIcon = {
-                    Icon(painterResource(R.drawable.ic_delete), contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                },
-                onClick = { onDelete(current) },
-            )
-        }
-        actions.copyText?.let { text ->
-            DropdownMenuItem(
-                text = { Text(stringResource(R.string.message_action_copy)) },
-                leadingIcon = { Icon(painterResource(R.drawable.ic_copy), contentDescription = null) },
-                onClick = {
-                    // Android 13+ сам показывает подтверждение копирования
-                    scope.launch { clipboard.setClipEntry(ClipEntry(ClipData.newPlainText(null, text))) }
-                    onDismiss()
-                },
-            )
-        }
-    }
-}
