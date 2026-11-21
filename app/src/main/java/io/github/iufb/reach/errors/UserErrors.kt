@@ -81,6 +81,8 @@ private val KNOWN: Map<String, Int> = linkedMapOf(
     "USER_BLOCKED" to R.string.error_user_blocked,
     "YOU_BLOCKED_USER" to R.string.error_user_blocked,
     "Notification settings" to R.string.error_cant_change_notifications,
+    "maximum number of pinned" to R.string.error_pinned_limit,
+    "PINNED_DIALOGS_TOO_MUCH" to R.string.error_pinned_limit,
     "STATS_" to R.string.error_stats_unavailable,
     "Network" to R.string.error_network,
     "Request aborted" to R.string.error_network,

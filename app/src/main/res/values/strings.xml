@@ -678,6 +678,7 @@
     <string name="error_message_not_found">Сообщение не найдено</string>
     <string name="error_user_blocked">Пользователь заблокирован</string>
     <string name="error_cant_change_notifications">Уведомления этого чата нельзя изменить</string>
+    <string name="error_pinned_limit">Больше закрепить нельзя: достигнут лимит закреплённых чатов</string>
     <string name="error_stats_unavailable">Статистика недоступна</string>
     <string name="error_network">Нет соединения. Проверьте интернет</string>
 </resources>
