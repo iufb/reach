@@ -1,5 +1,7 @@
 package io.github.iufb.reach.chat
 
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.setValue
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -30,19 +32,11 @@ import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.TextField
-import androidx.compose.material3.TextFieldDefaults
-import androidx.compose.material3.LocalContentColor
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.PaddingValues
 import io.github.iufb.reach.ui.format.Dates
-import io.github.iufb.reach.ui.theme.reachBarColors
-import androidx.compose.material3.Surface
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
-import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
@@ -68,18 +62,14 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
-import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -110,13 +100,27 @@ import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
 import io.github.iufb.reach.chats.customEmojiOnlyCount
 import io.github.iufb.reach.chats.TextSpan
-import io.github.iufb.reach.chats.ServiceKind
 import io.github.iufb.reach.chats.contentKindText
 import io.github.iufb.reach.chats.serviceText
 import io.github.iufb.reach.ui.components.Avatar
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.foundation.layout.statusBarsPadding
+import io.github.iufb.reach.ui.components.BackPill
+import io.github.iufb.reach.ui.components.BubbleShape
+import io.github.iufb.reach.ui.components.GlassScope
+import io.github.iufb.reach.ui.components.PillHeight
+import io.github.iufb.reach.ui.components.PillIconButton
+import io.github.iufb.reach.ui.components.PillTextButton
+import io.github.iufb.reach.ui.components.ReachTopBar
+import io.github.iufb.reach.ui.components.TailWidth
+import io.github.iufb.reach.ui.components.glassSource
+import java.time.LocalDate
+import java.time.ZoneId
+import androidx.compose.material3.LocalContentColor
 
 @Composable
 fun ChatScreen(
@@ -410,62 +414,119 @@ private fun ChatContent(
     pinned: PinnedBanner? = null,
     onPinnedClick: () -> Unit = {},
 ) {
-    Scaffold(
-        modifier = Modifier.imePadding(),
-        bottomBar = {
-            when {
-                unblock != null -> Surface(color = MaterialTheme.colorScheme.surface) {
-                    androidx.compose.material3.TextButton(
-                        onClick = unblock,
-                        modifier = Modifier.fillMaxWidth().navigationBarsPadding().padding(8.dp),
-                    ) { Text(stringResource(R.string.unblock)) }
-                }
-                composer != null && chat != null -> Composer(composer, senders)
+    val colors = ReachTheme.colors
+    val density = LocalDensity.current
+    // Шапка и поле ввода плавают над лентой; их высоты — отступы ленты сверху и снизу
+    var topHeight by remember { mutableStateOf(0.dp) }
+    var bottomHeight by remember { mutableStateOf(0.dp) }
+    // Scaffold больше нет — цвет текста по умолчанию задаём сами (иначе в тёмной теме он серый)
+    GlassScope {
+        CompositionLocalProvider(LocalContentColor provides colors.label) {
+        Box(
+            Modifier
+                .fillMaxSize()
+                .background(Brush.verticalGradient(listOf(colors.wallpaperTop, colors.wallpaperBottom)))
+                .imePadding(),
+        ) {
+            val padding = PaddingValues(top = topHeight + 4.dp, bottom = bottomHeight + 4.dp)
+            if (!state.opened || chat == null) {
+                Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+            } else {
+                MessageList(
+                    chat, state, senders, interactions, onLoadOlder, onLoadNewer, onVisibleMessagesChange,
+                    Modifier.fillMaxSize().glassSource(), padding, threadRoot,
+                )
             }
-        },
-        topBar = {
-            Column {
+            Column(Modifier.fillMaxWidth().onSizeChanged { topHeight = with(density) { it.height.toDp() } }) {
                 if (selectionBar != null) {
-                    selectionBar()
+                    // Режим выбора — своя шапка поверх ленты
+                    Box(Modifier.statusBarsPadding()) { selectionBar() }
                 } else {
-                    TopAppBar(
-                        colors = reachBarColors(),
-                        navigationIcon = {
-                            IconButton(onClick = onBack) {
-                                Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
-                            }
-                        },
-                        title = {
-                            if (chat != null && scopeTitle != null) {
-                                ScopeHeader(scopeTitle, chatTitle(chat))
-                            } else if (chat != null) {
-                                ChatHeader(chat, header, senders, onOpenProfile)
-                            }
-                        },
-                        actions = {
-                            if (chat?.hasScheduledMessages == true) {
-                                IconButton(onClick = onOpenScheduled) {
-                                    Icon(painterResource(R.drawable.ic_schedule), contentDescription = stringResource(R.string.scheduled_title))
-                                }
-                            }
-                        },
-                    )
+                    ChatTopBar(chat, header, senders, scopeTitle, onBack, onOpenProfile, onOpenScheduled)
                 }
                 if (pinned != null) PinnedBar(pinned, onPinnedClick)
                 NowPlayingBar()
             }
-        },
-    ) { padding ->
-        val scheme = MaterialTheme.colorScheme
-        val modifier = Modifier.fillMaxSize().padding(padding).background(
-            Brush.linearGradient(listOf(scheme.secondaryContainer, scheme.tertiaryContainer)),
-        )
-        if (!state.opened || chat == null) {
-            Box(modifier, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        } else {
-            MessageList(chat, state, senders, interactions, onLoadOlder, onLoadNewer, onVisibleMessagesChange, modifier, threadRoot)
+            Box(
+                Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { bottomHeight = with(density) { it.height.toDp() } },
+            ) {
+                when {
+                    unblock != null -> Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(8.dp), contentAlignment = Alignment.Center) {
+                        PillTextButton(stringResource(R.string.unblock), onClick = unblock)
+                    }
+                    composer != null && chat != null -> Composer(composer, senders)
+                }
+            }
+        }
         }
     }
+}
+
+/**
+ * Шапка чата Telegram iOS: «назад» слева, по центру пилюля с названием и статусом («печатает…»),
+ * справа аватар — тап по нему или по пилюле открывает профиль. В треде и топике — их название.
+ */
+@Composable
+private fun ChatTopBar(
+    chat: Chat?,
+    header: HeaderInfo,
+    senders: Map<Sender, SenderInfo>,
+    scopeTitle: String?,
+    onBack: () -> Unit,
+    onOpenProfile: () -> Unit,
+    onOpenScheduled: () -> Unit,
+) {
+    val title = when {
+        chat == null -> null
+        scopeTitle != null -> scopeTitle
+        else -> chatTitle(chat)
+    }
+    val subtitle = when {
+        chat == null -> null
+        scopeTitle != null -> chatTitle(chat)
+        chat.isSavedMessages -> null
+        else -> activityText(header.activities, withNames = chat.kind == ChatKind.Group) { sender ->
+            senders[sender]?.name?.substringBefore(' ').orEmpty()
+        } ?: headerSubtitle(chat, header)
+    }
+    ReachTopBar(
+        title = title,
+        subtitle = subtitle,
+        titlePill = true,
+        onTitleClick = if (scopeTitle == null) onOpenProfile else null,
+        background = ReachTheme.colors.wallpaperTop,
+        navigation = { BackPill(onBack) },
+        actions = {
+            if (chat?.hasScheduledMessages == true) {
+                PillIconButton(
+                    painterResource(R.drawable.ic_schedule),
+                    stringResource(R.string.scheduled_title),
+                    onOpenScheduled,
+                    tint = ReachTheme.colors.accent,
+                )
+                Spacer(Modifier.width(8.dp))
+            }
+            if (chat != null && scopeTitle == null) {
+                Box(
+                    Modifier
+                        .size(PillHeight)
+                        .clip(CircleShape)
+                        .clickable(onClickLabel = stringResource(R.string.open_profile), onClick = onOpenProfile),
+                ) {
+                    ChatAvatar(chat, size = PillHeight)
+                    if (chat.autoDeleteTime > 0) {
+                        Icon(
+                            painterResource(R.drawable.ic_timer),
+                            contentDescription = stringResource(R.string.auto_delete_enabled),
+                            modifier = Modifier.align(Alignment.BottomEnd).size(16.dp)
+                                .background(ReachTheme.colors.cell, CircleShape).padding(2.dp),
+                            tint = ReachTheme.colors.accent,
+                        )
+                    }
+                }
+            }
+        },
+    )
 }
 
 /** Что можно делать с сообщениями в ленте: меню, ответ, переход к исходному. */
@@ -541,49 +602,6 @@ private class MessageInteractions(
     }
 }
 
-@Composable
-private fun ChatHeader(chat: Chat, header: HeaderInfo, senders: Map<Sender, SenderInfo>, onClick: () -> Unit) {
-    Row(
-        modifier = Modifier.clickable(onClickLabel = stringResource(R.string.open_profile), onClick = onClick),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        ChatAvatar(chat, size = 40.dp)
-        Spacer(Modifier.width(12.dp))
-        Column {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    chatTitle(chat),
-                    modifier = Modifier.weight(1f, fill = false),
-                    style = MaterialTheme.typography.titleMedium,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (chat.autoDeleteTime > 0) {
-                    Spacer(Modifier.width(4.dp))
-                    Icon(
-                        painterResource(R.drawable.ic_timer),
-                        contentDescription = stringResource(R.string.auto_delete_enabled),
-                        modifier = Modifier.size(16.dp),
-                    )
-                }
-            }
-            // У Избранного нет статуса и «печатает»
-            if (chat.isSavedMessages) return@Column
-            val activity = activityText(header.activities, withNames = chat.kind == ChatKind.Group) { sender ->
-                senders[sender]?.name?.substringBefore(' ').orEmpty()
-            }
-            Text(
-                activity ?: headerSubtitle(chat, header),
-                style = MaterialTheme.typography.bodySmall,
-                color = LocalContentColor.current.copy(alpha = 0.88f),
-                fontWeight = if (activity != null) FontWeight.SemiBold else null,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis,
-            )
-        }
-    }
-}
-
 /** Когда никто ничего не делает: статус собеседника, участники группы, подписчики канала. */
 @Composable
 private fun headerSubtitle(chat: Chat, header: HeaderInfo): String = when (chat.kind) {
@@ -610,8 +628,23 @@ private sealed interface Item {
      * Сообщение или альбом. У альбома [message] — самое старое из загруженных (к нему подпись и ответ),
      * [album] — все его сообщения от старых к новым; у обычного сообщения — только оно само.
      */
-    data class Msg(val message: Message, val showSender: Boolean, val album: List<Message> = listOf(message)) : Item {
+    /**
+     * [tail] — последнее (нижнее) в серии от одного отправителя: у пузыря хвостик.
+     * [groupStart] — первое (верхнее) в серии: над ним отступ побольше.
+     */
+    data class Msg(
+        val message: Message,
+        val showSender: Boolean,
+        val album: List<Message> = listOf(message),
+        val tail: Boolean = true,
+        val groupStart: Boolean = true,
+    ) : Item {
         override val key: Any get() = message.id
+    }
+
+    /** Плашка дня над сообщениями этого дня. */
+    data class Day(val day: LocalDate) : Item {
+        override val key: Any get() = "day-${day.toEpochDay()}"
     }
 
     data object UnreadDivider : Item {
@@ -619,8 +652,12 @@ private sealed interface Item {
     }
 }
 
-private fun buildItems(state: ChatHistory.State, isGroup: Boolean): List<Item> = buildList {
+private fun buildItems(state: ChatHistory.State, isGroup: Boolean, zone: ZoneId = ZoneId.systemDefault()): List<Item> = buildList {
     val messages = state.messages
+    fun day(m: Message) = Dates.at(m.date.toLong(), zone).toLocalDate()
+    // Одна серия: тот же отправитель и направление, тот же день, не служебное
+    fun sameSeries(a: Message?, b: Message) = a != null && a.sender == b.sender && a.isOutgoing == b.isOutgoing &&
+        a.content !is MessageBody.Service && b.content !is MessageBody.Service && day(a) == day(b)
     var i = 0
     while (i < messages.size) {
         // Сообщения альбома идут подряд; лента — от новых к старым
@@ -630,11 +667,13 @@ private fun buildItems(state: ChatHistory.State, isGroup: Boolean): List<Item> =
         val group = messages.subList(i, end)
         val message = group.last()
         val older = messages.getOrNull(end)
+        val newer = messages.getOrNull(i - 1)
         // В группе имя автора — над первым сообщением серии
-        val showSender = isGroup && !message.isOutgoing &&
-            (older?.sender != message.sender || older.content is MessageBody.Service)
-        add(Item.Msg(message, showSender, group.reversed()))
+        val showSender = isGroup && !message.isOutgoing && !sameSeries(older, message)
+        add(Item.Msg(message, showSender, group.reversed(), tail = !sameSeries(newer, group.first()), groupStart = !sameSeries(older, message)))
         if (group.any { it.id == state.firstUnreadId }) add(Item.UnreadDivider)
+        // Плашка дня — над первым сообщением дня; у самого старого — только когда история загружена до начала
+        if (older?.let { day(it) != day(message) } ?: state.reachedOldest) add(Item.Day(day(message)))
         i = end
     }
 }
@@ -649,6 +688,7 @@ private fun MessageList(
     onLoadNewer: () -> Unit,
     onVisibleMessagesChange: (List<Long>) -> Unit,
     modifier: Modifier,
+    contentPadding: PaddingValues,
     threadRoot: List<Message> = emptyList(),
 ) {
     val isChannel = chat.kind == ChatKind.Channel
@@ -686,9 +726,9 @@ private fun MessageList(
         state = listState,
         modifier = modifier,
         reverseLayout = true,
-        contentPadding = PaddingValues(vertical = 8.dp),
+        contentPadding = contentPadding,
         // Bottom: при малом числе сообщений они у поля ввода, а не под шапкой (#213)
-        verticalArrangement = Arrangement.spacedBy(4.dp, Alignment.Bottom),
+        verticalArrangement = Arrangement.spacedBy(2.dp, Alignment.Bottom),
     ) {
         items(items, key = { it.key }) { item ->
             val flashing = flashId != null && item is Item.Msg && item.album.any { it.id == flashId }
@@ -710,12 +750,16 @@ private fun MessageList(
                         sender = if (item.showSender) senders[item.message.sender] else null,
                         interactions = interactions,
                         album = item.album,
+                        tail = item.tail,
+                        groupStart = item.groupStart,
+                        read = item.message.id <= chat.lastReadOutboxMessageId,
                     ) {
                         ForwardHeader(item.message, senders, interactions)
                         ReplyHeader(item.message, byId, senders, interactions)
                     }
                 }
                 Item.UnreadDivider -> UnreadDivider()
+                is Item.Day -> DayChip(item.day)
             }
             }
         }
@@ -884,16 +928,17 @@ private fun MessageBubble(
     sender: SenderInfo?,
     interactions: MessageInteractions,
     album: List<Message>,
+    tail: Boolean = true,
+    groupStart: Boolean = true,
+    /** Исходящее прочитано собеседником: две галочки. */
+    read: Boolean = false,
     reply: @Composable () -> Unit,
 ) {
+    val colors = ReachTheme.colors
     val outgoing = message.isOutgoing
     // Стикер рисуется без пузыря: прозрачный фон, время — на плашке
     val bare = album.size <= 1 && message.content.isBare()
-    val bubbleShape = RoundedCornerShape(
-        topStart = 16.dp, topEnd = 16.dp,
-        bottomStart = if (outgoing) 16.dp else 4.dp,
-        bottomEnd = if (outgoing) 4.dp else 16.dp,
-    )
+    val bubbleShape = BubbleShape(outgoing, tail)
     // Эффекты реакций и эмодзи выходят за пузырь — рисуем элемент поверх соседей
     val hasEffect = interactions.reactionEffect?.first == message.id || interactions.emojiEffects.any { it.messageId == message.id }
     Row(
@@ -902,31 +947,37 @@ private fun MessageBubble(
             .fillMaxWidth()
             .selectionHighlight(message, interactions)
             .swipeToReply(interactions.replyAction(message))
-            .padding(horizontal = 8.dp, vertical = 1.dp),
+            .padding(start = 6.dp, end = 6.dp, top = if (groupStart) SERIES_GAP else 0.dp),
         horizontalArrangement = if (outgoing) Arrangement.End else Arrangement.Start,
     ) {
         Box(contentAlignment = Alignment.Center) {
             Column(
                 modifier = Modifier
                     .widthIn(max = 320.dp)
-                    .clip(bubbleShape)
+                    .then(if (bare) Modifier else Modifier.clip(bubbleShape))
                     .background(
                         when {
                             bare -> Color.Transparent
-                            outgoing -> MaterialTheme.colorScheme.primaryContainer
-                            else -> MaterialTheme.colorScheme.surface
+                            outgoing -> colors.bubbleOutgoing
+                            else -> colors.bubbleIncoming
                         },
                     )
                     .messageLongPress(message, interactions)
-                    .padding(horizontal = if (bare) 0.dp else 12.dp, vertical = if (bare) 2.dp else 8.dp),
+                    // Со стороны хвостика тело пузыря отступает на TailWidth — там место под него
+                    .padding(
+                        start = if (bare) 0.dp else if (outgoing) 10.dp else 10.dp + TailWidth,
+                        end = if (bare) 0.dp else if (outgoing) 10.dp + TailWidth else 10.dp,
+                        top = if (bare) 2.dp else 6.dp,
+                        bottom = if (bare) 2.dp else 5.dp,
+                    ),
             ) {
                 MessagePopup(message, interactions)
                 if (sender != null) {
                     Text(
                         sender.name.ifBlank { stringResource(R.string.chat_deleted_account) },
-                        style = MaterialTheme.typography.labelLarge,
+                        style = MaterialTheme.typography.bodyMedium,
                         fontWeight = FontWeight.SemiBold,
-                        color = MaterialTheme.colorScheme.primary,
+                        color = colors.accent,
                     )
                 }
                 reply()
@@ -938,21 +989,22 @@ private fun MessageBubble(
                         .then(
                             if (bare) {
                                 Modifier
-                                    .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.8f), RoundedCornerShape(8.dp))
-                                    .padding(horizontal = 6.dp, vertical = 1.dp)
+                                    .background(colors.serviceBubble, CircleShape)
+                                    .padding(horizontal = 7.dp, vertical = 2.dp)
                             } else {
                                 Modifier
                             },
                         ),
-                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(3.dp),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    Text(
-                        messageTimeLabel(message),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                    if (outgoing) SendingStatus(message.sendingState)
+                    val meta = when {
+                        bare -> colors.onServiceBubble
+                        outgoing -> colors.bubbleOutgoingMeta
+                        else -> colors.bubbleIncomingMeta
+                    }
+                    Text(messageTimeLabel(message), style = MaterialTheme.typography.labelSmall, color = meta)
+                    if (outgoing) SendingStatus(message.sendingState, read, meta)
                 }
             }
             // Эффект своей реакции — поверх пузыря, не меняя его размер
@@ -1022,20 +1074,18 @@ private fun reactionClick(message: Message, interactions: MessageInteractions): 
 
 /** Отправляется — часы, ошибка — «!», отправлено — галочка. */
 @Composable
-private fun SendingStatus(state: SendingState?) {
-    val (symbol, description, color) = when (state) {
-        SendingState.Pending -> Triple("◷", R.string.chat_status_sending, MaterialTheme.colorScheme.onSurfaceVariant)
-        SendingState.Failed -> Triple("!", R.string.chat_status_failed, MaterialTheme.colorScheme.error)
-        null -> Triple("✓", R.string.chat_status_sent, MaterialTheme.colorScheme.primary)
+private fun SendingStatus(state: SendingState?, read: Boolean, tint: Color) {
+    val (icon, description) = when {
+        state == SendingState.Pending -> R.drawable.ic_schedule to R.string.chat_status_sending
+        state == SendingState.Failed -> null to R.string.chat_status_failed
+        read -> R.drawable.ic_check_double to R.string.message_read
+        else -> R.drawable.ic_check to R.string.chat_status_sent
     }
-    val label = stringResource(description)
-    Text(
-        symbol,
-        modifier = Modifier.semantics { contentDescription = label },
-        style = MaterialTheme.typography.labelSmall,
-        fontWeight = FontWeight.Bold,
-        color = color,
-    )
+    if (icon == null) {
+        Text("!", style = MaterialTheme.typography.labelSmall, fontWeight = FontWeight.Bold, color = ReachTheme.colors.destructive)
+        return
+    }
+    Icon(painterResource(icon), stringResource(description), Modifier.size(15.dp), tint = tint)
 }
 
 /** Пост канала: карточка на всю ширину, подпись автора и просмотры внизу. */
@@ -1051,11 +1101,11 @@ private fun ChannelPost(
             .fillMaxWidth()
             .selectionHighlight(message, interactions)
             .swipeToReply(interactions.replyAction(message))
-            .padding(horizontal = 8.dp, vertical = 1.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(MaterialTheme.colorScheme.surface)
+            .padding(start = 6.dp, end = 6.dp, top = SERIES_GAP)
+            .clip(BubbleShape(outgoing = false, tail = true))
+            .background(ReachTheme.colors.bubbleIncoming)
             .messageLongPress(message, interactions)
-            .padding(12.dp),
+            .padding(start = 10.dp + TailWidth, end = 10.dp, top = 8.dp, bottom = 6.dp),
     ) {
         MessagePopup(message, interactions)
         reply()
@@ -1400,57 +1450,56 @@ private fun UnsupportedStub(kind: ContentKind) {
     }
 }
 
+/** Служебная капсула на обоях: служебные сообщения, плашки дней, начало обсуждения. */
 @Composable
-private fun ServiceMessage(body: MessageBody.Service) {
-    Box(Modifier.fillMaxWidth().padding(vertical = 4.dp), contentAlignment = Alignment.Center) {
+private fun ServiceChip(text: String) {
+    val colors = ReachTheme.colors
+    Box(Modifier.fillMaxWidth().padding(vertical = 4.dp, horizontal = 24.dp), contentAlignment = Alignment.Center) {
         Text(
-            serviceText(body),
+            text,
             modifier = Modifier
-                .background(MaterialTheme.colorScheme.surfaceContainerHighest, RoundedCornerShape(12.dp))
-                .padding(horizontal = 10.dp, vertical = 4.dp),
+                .background(colors.serviceBubble, RoundedCornerShape(percent = 50))
+                .padding(horizontal = 10.dp, vertical = 3.dp),
             style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            fontWeight = FontWeight.Medium,
+            color = colors.onServiceBubble,
+            textAlign = androidx.compose.ui.text.style.TextAlign.Center,
         )
     }
 }
 
 @Composable
-private fun ThreadStartDivider() {
-    Text(
-        stringResource(R.string.comments_start),
-        modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
-        style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSurfaceVariant,
-        textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+private fun ServiceMessage(body: MessageBody.Service) = ServiceChip(serviceText(body))
+
+@Composable
+private fun ThreadStartDivider() = ServiceChip(stringResource(R.string.comments_start))
+
+/** «Сегодня», «Вчера», «21 ноября», в прошлые годы — с годом. */
+@Composable
+private fun DayChip(day: LocalDate) {
+    val today = LocalDate.now()
+    ServiceChip(
+        when (day) {
+            today -> stringResource(R.string.date_today)
+            today.minusDays(1) -> stringResource(R.string.date_yesterday)
+            else -> Dates.day(day, withYear = day.year != today.year)
+        },
     )
 }
 
-/** Шапка треда / топика: название и чат, к которому он относится. */
-@Composable
-private fun ScopeHeader(title: String, chatTitle: String) {
-    Column {
-        Text(title, style = MaterialTheme.typography.titleMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
-        Text(
-            chatTitle,
-            style = MaterialTheme.typography.bodySmall,
-            color = LocalContentColor.current.copy(alpha = 0.88f),
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-        )
-    }
-}
-
+/** «Непрочитанные сообщения» — полоса на всю ширину, как в Telegram iOS. */
 @Composable
 private fun UnreadDivider() {
+    val colors = ReachTheme.colors
     Text(
         stringResource(R.string.chat_unread_divider),
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 8.dp)
-            .background(MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.6f))
+            .padding(vertical = 6.dp)
+            .background(colors.bar)
             .padding(vertical = 4.dp),
         style = MaterialTheme.typography.labelMedium,
-        color = MaterialTheme.colorScheme.onSecondaryContainer,
+        color = colors.secondaryLabel,
         textAlign = androidx.compose.ui.text.style.TextAlign.Center,
     )
 }
@@ -1463,6 +1512,9 @@ private fun messageTimeLabel(message: Message): String {
 }
 
 private const val MAX_PICKED_PHOTOS = 10
+
+/** Отступ над первым сообщением серии; внутри серии — 2 dp. */
+private val SERIES_GAP = 6.dp
 
 @Preview
 @Composable
