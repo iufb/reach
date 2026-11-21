@@ -421,6 +421,7 @@
     <string name="forward_empty">Подходящих чатов нет</string>
     <string name="forward_error">Не удалось переслать: %1$s</string>
     <string name="delete_for_all">Удалить у всех</string>
+    <string name="delete_for_me">Удалить у меня</string>
     <string name="delete_confirm">Удалить</string>
     <plurals name="delete_title">
         <item quantity="one">Удалить %d сообщение?</item>
@@ -431,6 +432,8 @@
     <string name="reply_cancel">Отменить ответ</string>
     <string name="reply_to">Ответ %1$s</string>
     <string name="reactions_more">Все реакции</string>
+    <string name="selection_count">Выбрано: %1$d</string>
+    <string name="message_selected">Выбрано</string>
     <string name="reply_unavailable">Сообщение удалено</string>
     <plurals name="views">
         <item quantity="one">%d просмотр</item>
