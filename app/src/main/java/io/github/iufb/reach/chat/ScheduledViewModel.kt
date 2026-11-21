@@ -13,6 +13,7 @@ import io.github.iufb.reach.chats.toBody
 import io.github.iufb.reach.chats.trimmed
 import io.github.iufb.reach.chats.withEditedText
 import io.github.iufb.reach.core.td.TdClient
+import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.navigation.ScheduledRoute
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -32,6 +33,7 @@ data class ScheduledMessage(val message: Message, val schedule: Schedule)
 /** Экран отложенных сообщений чата (PRODUCT.md §4.3). */
 @HiltViewModel
 class ScheduledViewModel @Inject constructor(
+    private val userErrors: UserErrors,
     savedStateHandle: SavedStateHandle,
     private val td: TdClient,
     chatsRepository: ChatsRepository,
@@ -109,7 +111,7 @@ class ScheduledViewModel @Inject constructor(
                 .onSuccess { load() }
                 .onFailure {
                     Log.w(TAG, "editMessageSchedulingState failed", it)
-                    _error.value = it.message
+                    _error.value = userErrors.message(it)
                 }
         }
     }
@@ -120,7 +122,7 @@ class ScheduledViewModel @Inject constructor(
             runCatching { td.send(TdApi.DeleteMessages(chatId, longArrayOf(item.message.id), true)) }
                 .onFailure {
                     Log.w(TAG, "delete scheduled failed", it)
-                    _error.value = it.message
+                    _error.value = userErrors.message(it)
                     load()
                 }
         }
@@ -134,7 +136,7 @@ class ScheduledViewModel @Inject constructor(
             runCatching { td.editMessageText(chatId, item.message, edited) }
                 .onFailure {
                     Log.w(TAG, "edit scheduled failed", it)
-                    _error.value = it.message
+                    _error.value = userErrors.message(it)
                 }
         }
     }

@@ -4,6 +4,7 @@ import android.util.Log
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.navigation.toRoute
+import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.navigation.ChatsRoute
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -38,6 +39,7 @@ data class ArchiveSummary(val total: Int, val unreadChats: Int, val titles: List
 @OptIn(ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ChatsViewModel @Inject constructor(
+    private val userErrors: UserErrors,
     private val auth: AuthRepository,
     private val pushRegistrar: PushRegistrar,
     private val chatsRepository: ChatsRepository,
@@ -105,7 +107,7 @@ class ChatsViewModel @Inject constructor(
                 _openChat.send(chatsRepository.savedMessagesChatId())
             } catch (e: TdException) {
                 Log.e(TAG, "open saved messages failed", e)
-                _errors.send(e.message)
+                _errors.send(userErrors.message(e))
             }
         }
     }
@@ -171,7 +173,7 @@ class ChatsViewModel @Inject constructor(
                 action()
             } catch (e: TdException) {
                 Log.e(TAG, "chat action failed", e)
-                _errors.send(e.message)
+                _errors.send(userErrors.message(e))
             }
         }
     }

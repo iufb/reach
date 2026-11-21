@@ -12,6 +12,7 @@ import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.chats.GroupsRepository
 import io.github.iufb.reach.chats.canWrite
 import io.github.iufb.reach.core.td.TdClient
+import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.navigation.ForwardRoute
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +30,7 @@ import javax.inject.Inject
 /** Выбор чата для пересылки: чаты основного списка, куда можно писать, с поиском по названию. */
 @HiltViewModel
 class ForwardViewModel @Inject constructor(
+    private val userErrors: UserErrors,
     savedStateHandle: SavedStateHandle,
     private val td: TdClient,
     chats: ChatsRepository,
@@ -76,7 +78,7 @@ class ForwardViewModel @Inject constructor(
                 _forwarded.emit(chatId)
             }.onFailure {
                 Log.e(TAG, "forwardMessages failed", it)
-                _error.value = it.message
+                _error.value = userErrors.message(it)
                 sending = false
             }
         }

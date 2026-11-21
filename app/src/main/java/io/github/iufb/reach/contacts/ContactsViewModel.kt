@@ -5,6 +5,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.iufb.reach.core.td.TdClient
+import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.users.User
 import io.github.iufb.reach.users.UsersRepository
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -28,6 +29,7 @@ import javax.inject.Inject
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class ContactsViewModel @Inject constructor(
+    private val userErrors: UserErrors,
     private val td: TdClient,
     private val contacts: ContactsRepository,
     private val users: UsersRepository,
@@ -69,7 +71,7 @@ class ContactsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { contacts.load() }.onFailure {
                 Log.w(TAG, "getContacts failed", it)
-                _errors.emit(it.message.orEmpty())
+                _errors.emit(userErrors.message(it))
             }
         }
     }
@@ -78,7 +80,7 @@ class ContactsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { td.send(TdApi.CreatePrivateChat(user.id, false)) }
                 .onSuccess { _openChat.emit(it.id) }
-                .onFailure { _errors.emit(it.message.orEmpty()) }
+                .onFailure { _errors.emit(userErrors.message(it)) }
         }
     }
 
@@ -92,7 +94,7 @@ class ContactsViewModel @Inject constructor(
                         ImportResult.NotFound -> _notFound.emit(Unit)
                     }
                 }
-                .onFailure { _errors.emit(it.message.orEmpty()) }
+                .onFailure { _errors.emit(userErrors.message(it)) }
         }
     }
 

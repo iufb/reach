@@ -11,6 +11,7 @@ import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.toBody
 import io.github.iufb.reach.core.td.TdClient
+import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.navigation.StatisticsRoute
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
@@ -47,6 +48,7 @@ sealed interface StatsState {
 /** Статистика канала (PRODUCT.md §4.6): обзор, графики, последние посты. */
 @HiltViewModel
 class StatisticsViewModel @Inject constructor(
+    private val userErrors: UserErrors,
     savedStateHandle: SavedStateHandle,
     private val td: TdClient,
 ) : ViewModel() {
@@ -65,7 +67,7 @@ class StatisticsViewModel @Inject constructor(
             val stats = runCatching { td.send(TdApi.GetChatStatistics(chatId, isDark)) }
                 .onFailure { Log.w(TAG, "getChatStatistics failed", it) }
                 .getOrElse {
-                    _state.value = StatsState.Unavailable(it.message.orEmpty())
+                    _state.value = StatsState.Unavailable(userErrors.message(it))
                     return@launch
                 }
             val channel = stats as? TdApi.ChatStatisticsChannel ?: run {
@@ -101,7 +103,7 @@ class StatisticsViewModel @Inject constructor(
                 async {
                     if (graph is TdApi.StatisticalGraphAsync) {
                         val loaded = runCatching { td.send(TdApi.GetStatisticalGraph(chatId, graph.token, 0)) }
-                            .getOrElse { TdApi.StatisticalGraphError(it.message.orEmpty()) }
+                            .getOrElse { TdApi.StatisticalGraphError(userErrors.message(it)) }
                         updateGraph(index, loaded.immediate())
                     }
                 }

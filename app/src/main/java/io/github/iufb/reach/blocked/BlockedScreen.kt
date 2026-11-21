@@ -41,6 +41,7 @@ import io.github.iufb.reach.R
 import io.github.iufb.reach.contacts.ContactsRepository
 import io.github.iufb.reach.contacts.UserRow
 import io.github.iufb.reach.core.td.TdClient
+import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.ui.theme.reachBarColors
 import io.github.iufb.reach.users.User
 import io.github.iufb.reach.users.UsersRepository
@@ -59,6 +60,7 @@ import javax.inject.Inject
 /** Заблокированные пользователи (PRODUCT.md §4.7). */
 @HiltViewModel
 class BlockedViewModel @Inject constructor(
+    private val userErrors: UserErrors,
     private val td: TdClient,
     users: UsersRepository,
     contacts: ContactsRepository,
@@ -121,7 +123,7 @@ class BlockedViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 td.send(TdApi.SetMessageSenderBlockList(TdApi.MessageSenderUser(userId), if (blocked) TdApi.BlockListMain() else null))
-            }.onSuccess { reload() }.onFailure { _errors.emit(it.message.orEmpty()) }
+            }.onSuccess { reload() }.onFailure { _errors.emit(userErrors.message(it)) }
         }
     }
 

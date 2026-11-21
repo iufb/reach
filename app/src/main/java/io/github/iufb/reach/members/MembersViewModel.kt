@@ -14,6 +14,7 @@ import io.github.iufb.reach.chats.GroupsRepository
 import io.github.iufb.reach.chats.MemberStatus
 import io.github.iufb.reach.contacts.ContactsRepository
 import io.github.iufb.reach.core.td.TdClient
+import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.navigation.MembersRoute
 import io.github.iufb.reach.users.User
 import io.github.iufb.reach.users.UsersRepository
@@ -62,6 +63,7 @@ data class MemberRights(
 @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
 @HiltViewModel
 class MembersViewModel @Inject constructor(
+    private val userErrors: UserErrors,
     savedStateHandle: SavedStateHandle,
     private val td: TdClient,
     chats: ChatsRepository,
@@ -203,7 +205,7 @@ class MembersViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { block() }.onFailure {
                 Log.w(TAG, "member action failed", it)
-                _errors.emit(it.message.orEmpty())
+                _errors.emit(userErrors.message(it))
             }
             reload()
         }

@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.iufb.reach.core.td.TdClient
+import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.navigation.AdminRightsRoute
 import io.github.iufb.reach.navigation.PermissionsRoute
 import io.github.iufb.reach.users.User
@@ -49,6 +50,7 @@ private suspend fun TdClient.myId(): Long =
 /** Права админа одного участника (`setChatMemberStatus(Administrator)`, титул — `setChatMemberTag`). */
 @HiltViewModel
 class AdminRightsViewModel @Inject constructor(
+    private val userErrors: UserErrors,
     savedStateHandle: SavedStateHandle,
     private val td: TdClient,
     users: UsersRepository,
@@ -95,7 +97,7 @@ class AdminRightsViewModel @Inject constructor(
                 )
             }.onFailure {
                 Log.w(TAG, "load admin rights failed", it)
-                _events.emit(it.message.orEmpty())
+                _events.emit(userErrors.message(it))
             }
         }
     }
@@ -123,7 +125,7 @@ class AdminRightsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { block() }
                 .onSuccess { _events.emit(null) }
-                .onFailure { _events.emit(it.message.orEmpty()) }
+                .onFailure { _events.emit(userErrors.message(it)) }
             _state.update { it.copy(busy = false) }
         }
     }
@@ -140,6 +142,7 @@ class AdminRightsViewModel @Inject constructor(
  */
 @HiltViewModel
 class PermissionsViewModel @Inject constructor(
+    private val userErrors: UserErrors,
     savedStateHandle: SavedStateHandle,
     private val td: TdClient,
     users: UsersRepository,
@@ -178,7 +181,7 @@ class PermissionsViewModel @Inject constructor(
                 )
             }.onFailure {
                 Log.w(TAG, "load permissions failed", it)
-                _events.emit(it.message.orEmpty())
+                _events.emit(userErrors.message(it))
             }
         }
     }
@@ -212,7 +215,7 @@ class PermissionsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { block() }
                 .onSuccess { _events.emit(null) }
-                .onFailure { _events.emit(it.message.orEmpty()) }
+                .onFailure { _events.emit(userErrors.message(it)) }
             _state.update { it.copy(busy = false) }
         }
     }

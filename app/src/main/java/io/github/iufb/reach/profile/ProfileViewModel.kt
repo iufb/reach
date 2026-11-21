@@ -18,6 +18,7 @@ import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.toInfo
 import io.github.iufb.reach.chats.toRichText
 import io.github.iufb.reach.core.td.TdClient
+import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.files.TdFile
 import io.github.iufb.reach.navigation.ProfileRoute
 import io.github.iufb.reach.users.UsersRepository
@@ -96,6 +97,7 @@ private data class FullInfo(
  */
 @HiltViewModel
 class ProfileViewModel @Inject constructor(
+    private val userErrors: UserErrors,
     savedStateHandle: SavedStateHandle,
     private val td: TdClient,
     private val chats: ChatsRepository,
@@ -132,7 +134,8 @@ class ProfileViewModel @Inject constructor(
                 about = info.about,
                 canWrite = route.userId != 0L,
                 isUser = true,
-                isMuted = chat?.isMuted,
+                // У «Избранного» уведомлений нет: тумблер не показываем (#216)
+                isMuted = chat?.takeUnless { it.isSavedMessages }?.isMuted,
                 autoDeleteTime = chat?.takeUnless { it.isSavedMessages }?.autoDeleteTime,
                 canChangeAutoDelete = canChangeInfo,
                 isContact = user.isContact.takeIf { me != 0L && user.id != me },
@@ -149,7 +152,7 @@ class ProfileViewModel @Inject constructor(
                 about = info.about,
                 memberCount = info.memberCount,
                 isChannel = chat.kind == ChatKind.Channel,
-                isMuted = chat.isMuted,
+                isMuted = chat.takeUnless { it.isSavedMessages }?.isMuted,
                 autoDeleteTime = chat.autoDeleteTime,
                 canChangeAutoDelete = canChangeInfo,
                 canOpenMembers = info.canGetMembers,
@@ -194,7 +197,7 @@ class ProfileViewModel @Inject constructor(
     fun saveContact(firstName: String, lastName: String) {
         val id = userId ?: return
         viewModelScope.launch {
-            runCatching { contacts.save(id, firstName, lastName) }.onFailure { _error.emit(it.message.orEmpty()) }
+            runCatching { contacts.save(id, firstName, lastName) }.onFailure { _error.emit(userErrors.message(it)) }
         }
     }
 
@@ -203,7 +206,7 @@ class ProfileViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching {
                 td.send(TdApi.SetMessageSenderBlockList(TdApi.MessageSenderUser(id), if (blocked) TdApi.BlockListMain() else null))
-            }.onSuccess { load() }.onFailure { _error.emit(it.message.orEmpty()) }
+            }.onSuccess { load() }.onFailure { _error.emit(userErrors.message(it)) }
         }
     }
 
@@ -220,14 +223,14 @@ class ProfileViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { td.send(if (delete) TdApi.DeleteChat(route.chatId) else TdApi.LeaveChat(route.chatId)) }
                 .onSuccess { _left.emit(Unit) }
-                .onFailure { _error.emit(it.message.orEmpty()) }
+                .onFailure { _error.emit(userErrors.message(it)) }
         }
     }
 
     fun removeContact() {
         val id = userId ?: return
         viewModelScope.launch {
-            runCatching { contacts.remove(id) }.onFailure { _error.emit(it.message.orEmpty()) }
+            runCatching { contacts.remove(id) }.onFailure { _error.emit(userErrors.message(it)) }
         }
     }
 
@@ -284,7 +287,7 @@ class ProfileViewModel @Inject constructor(
             runCatching { td.send(TdApi.SetChatMessageAutoDeleteTime(route.chatId, seconds)) }
                 .onFailure {
                     Log.w(TAG, "setChatMessageAutoDeleteTime failed", it)
-                    _error.emit(it.message.orEmpty())
+                    _error.emit(userErrors.message(it))
                 }
         }
     }

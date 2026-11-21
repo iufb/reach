@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.iufb.reach.core.td.TdClient
+import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.navigation.InviteLinksRoute
 import io.github.iufb.reach.users.User
 import io.github.iufb.reach.users.UsersRepository
@@ -54,6 +55,7 @@ data class InviteLinksState(
 /** Ссылки-приглашения группы или канала и заявки на вступление (PRODUCT.md §4.6). */
 @HiltViewModel
 class InviteLinksViewModel @Inject constructor(
+    private val userErrors: UserErrors,
     savedStateHandle: SavedStateHandle,
     private val td: TdClient,
     users: UsersRepository,
@@ -93,7 +95,7 @@ class InviteLinksViewModel @Inject constructor(
             }.onFailure {
                 Log.w(TAG, "load invite links failed", it)
                 _state.value = _state.value.copy(loaded = true)
-                _errors.emit(it.message.orEmpty())
+                _errors.emit(userErrors.message(it))
             }
             loadRequests()
         }
@@ -125,7 +127,7 @@ class InviteLinksViewModel @Inject constructor(
         requestRows.value = requestRows.value.filterNot { it.userId == request.user.id }
         viewModelScope.launch {
             runCatching { td.send(TdApi.ProcessChatJoinRequest(chatId, request.user.id, approve)) }
-                .onFailure { _errors.emit(it.message.orEmpty()) }
+                .onFailure { _errors.emit(userErrors.message(it)) }
             loadRequests()
         }
     }
@@ -134,7 +136,7 @@ class InviteLinksViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { block() }.onFailure {
                 Log.w(TAG, "invite link action failed", it)
-                _errors.emit(it.message.orEmpty())
+                _errors.emit(userErrors.message(it))
             }
             reload()
         }

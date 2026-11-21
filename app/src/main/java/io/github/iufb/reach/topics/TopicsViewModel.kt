@@ -12,6 +12,7 @@ import io.github.iufb.reach.chats.GroupRef
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.toBody
 import io.github.iufb.reach.core.td.TdClient
+import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.navigation.TopicsRoute
 import kotlinx.coroutines.CoroutineStart
 import kotlinx.coroutines.FlowPreview
@@ -56,6 +57,7 @@ data class TopicRights(val canCreate: Boolean = false, val canManage: Boolean = 
 @OptIn(FlowPreview::class)
 @HiltViewModel
 class TopicsViewModel @Inject constructor(
+    private val userErrors: UserErrors,
     savedStateHandle: SavedStateHandle,
     private val td: TdClient,
     chatsRepository: ChatsRepository,
@@ -178,7 +180,7 @@ class TopicsViewModel @Inject constructor(
             }.onSuccess {
                 reload()
                 _openTopic.emit(it.forumTopicId)
-            }.onFailure { _errors.emit(it.message.orEmpty()) }
+            }.onFailure { _errors.emit(userErrors.message(it)) }
         }
     }
 
@@ -190,7 +192,7 @@ class TopicsViewModel @Inject constructor(
         viewModelScope.launch {
             runCatching { block() }.onFailure {
                 Log.w(TAG, "topic action failed", it)
-                _errors.emit(it.message.orEmpty())
+                _errors.emit(userErrors.message(it))
             }
         }
     }
