@@ -99,10 +99,11 @@ internal fun rememberEmojiPanelState(): EmojiPanelState {
 @Composable
 internal fun EmojiArea(state: EmojiPanelState, onPick: (String) -> Unit) {
     val density = LocalDensity.current
-    val imePx = WindowInsets.ime.getBottom(density)
+    val ime = WindowInsets.ime
+    val imePx = ime.getBottom(density)
     val navPx = WindowInsets.navigationBars.getBottom(density)
     LaunchedEffect(state) {
-        snapshotFlow { WindowInsets.ime.getBottom(density) }.collect { if (it > state.keyboardPx) state.keyboardPx = it }
+        snapshotFlow { ime.getBottom(density) }.collect { if (it > state.keyboardPx) state.keyboardPx = it }
     }
     // Нижний край поля ввода над экраном: max(ime, nav) — его даёт родитель (imePadding) и отступ ниже.
     // Панель добирает до высоты клавиатуры, сколько та ещё не заняла.
