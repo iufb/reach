@@ -414,7 +414,8 @@ private fun ChatRow(chat: Chat, isPinned: Boolean, activity: String?, onClick: (
                 Text(
                     // «печатает…» важнее черновика и последнего сообщения
                     activity?.let { AnnotatedString(it) }
-                        ?: chat.draft?.let { draftPreview(it) }
+                        // Черновик без текста (только ответ, например из другого клиента) не показываем
+                        ?: chat.draft?.takeIf { it.text.text.isNotBlank() }?.let { draftPreview(it) }
                         ?: AnnotatedString(chat.lastMessage?.let { previewText(it) }.orEmpty()),
                     modifier = Modifier.weight(1f),
                     style = MaterialTheme.typography.bodyMedium,

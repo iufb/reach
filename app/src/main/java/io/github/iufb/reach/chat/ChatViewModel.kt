@@ -155,6 +155,10 @@ class ChatViewModel @Inject constructor(
     /** Набранное в поле ввода, с оформлением. */
     val draft: StateFlow<RichText> = _draft.asStateFlow()
 
+    private val _focusRequest = MutableStateFlow(0)
+    /** Растёт, когда поле ввода должно получить фокус: «Ответить», «Изменить». */
+    val focusRequest: StateFlow<Int> = _focusRequest.asStateFlow()
+
     private val _replyTo = MutableStateFlow<Message?>(null)
     /** Сообщение, на которое отвечаем; плашка над полем ввода. */
     val replyTo: StateFlow<Message?> = _replyTo.asStateFlow()
@@ -375,7 +379,10 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    /** Уходим с экрана — сохраняем набранное и ответ как черновик (или стираем черновик, если всё пусто). */
+    /**
+     * Уходим с экрана — сохраняем набранное и ответ как черновик. Без текста черновик стираем, даже если
+     * выбран ответ: иначе в списке чатов пустой «Черновик: », а чат поднимается наверх (#219).
+     */
     private fun saveDraft() {
         if (scope != ChatScope.Whole) return
         // Во время редактирования в поле правка, а черновик — отложенный текст
@@ -384,7 +391,7 @@ class ChatViewModel @Inject constructor(
         val replyId = (if (editing) stashedReply else _replyTo.value)?.id
         val saved = chat.value?.draft
         if (text == (saved?.text ?: RichText.Empty) && replyId == saved?.replyToMessageId) return
-        val draft = if (text.isBlank() && replyId == null) null else {
+        val draft = if (text.isBlank()) null else {
             val content = TdApi.DraftMessageContentText(text.toFormattedText(), null)
             val replyTo = replyId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
             TdApi.DraftMessage(replyTo, 0, content, 0, null)
@@ -886,6 +893,7 @@ class ChatViewModel @Inject constructor(
     fun startReply(message: Message) {
         _menu.value = null
         _replyTo.value = message
+        _focusRequest.update { it + 1 }
     }
 
     fun cancelReply() {
@@ -927,6 +935,7 @@ class ChatViewModel @Inject constructor(
         _replyTo.value = null
         _draft.value = text
         _sendError.value = null
+        _focusRequest.update { it + 1 }
     }
 
     fun cancelEdit() {

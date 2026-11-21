@@ -141,6 +141,7 @@ fun ChatScreen(
     val menu by viewModel.menu.collectAsStateWithLifecycle()
     val pinned by viewModel.pinned.collectAsStateWithLifecycle()
     val replyTo by viewModel.replyTo.collectAsStateWithLifecycle()
+    val focusRequest by viewModel.focusRequest.collectAsStateWithLifecycle()
     val editing by viewModel.editing.collectAsStateWithLifecycle()
     val deleting by viewModel.deleting.collectAsStateWithLifecycle()
     val selection by viewModel.selection.collectAsStateWithLifecycle()
@@ -271,7 +272,7 @@ fun ChatScreen(
                 ComposerState(
                     draft, sendError, replyTo, editing,
                     viewModel::onDraftChange, viewModel::onFormat, viewModel::send, viewModel::cancelReply, viewModel::cancelEdit,
-                    mentionSuggestions, viewModel::onMentionQuery, viewModel::pickMention,
+                    focusRequest, mentionSuggestions, viewModel::onMentionQuery, viewModel::pickMention,
                     linkPreview, viewModel::dismissLinkPreview,
                     onAttachPhoto = {
                         photoPicker.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
