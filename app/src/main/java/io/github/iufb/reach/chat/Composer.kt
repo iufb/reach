@@ -107,11 +107,8 @@ internal class ComposerState(
     /** Превью ссылки из набранного; `null` — ссылки нет или превью убрали. */
     val linkPreview: LinkPreview? = null,
     val onDismissLinkPreview: () -> Unit = {},
-    /** Скрепка слева от поля: фото или файл; `null` — вложения недоступны. */
-    val onAttachPhoto: (() -> Unit)? = null,
-    val onAttachFile: (() -> Unit)? = null,
-    /** «Опрос» в меню скрепки; `null` — опросы здесь недоступны (личка). */
-    val onAttachPoll: (() -> Unit)? = null,
+    /** Скрепка слева от поля открывает меню вложений ([AttachSheet]); `null` — вложения недоступны. */
+    val onAttach: (() -> Unit)? = null,
     /** Голосовые; `null` — записывать нельзя. */
     val voice: VoiceInput? = null,
     /** Меню по долгому нажатию на «отправить»; `null` — меню нет. */
@@ -256,8 +253,8 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, em
                         Modifier.weight(1f).padding(end = 6.dp).glass(RoundedCornerShape(FIELD_CORNER)),
                     )
                 } else {
-                    if (state.editing == null && (state.onAttachPhoto != null || state.onAttachFile != null)) {
-                        GlassCircle { AttachButton(state.onAttachPhoto, state.onAttachFile, state.onAttachPoll) }
+                    if (state.editing == null && state.onAttach != null) {
+                        GlassCircle { AttachButton(state.onAttach) }
                     }
                     Column(Modifier.weight(1f).padding(horizontal = 6.dp).glass(RoundedCornerShape(FIELD_CORNER))) {
                         when {
@@ -500,33 +497,19 @@ private fun MentionSuggestions(candidates: List<MentionCandidate>, onPick: (Ment
     }
 }
 
-/** Скрепка с выбором: фото из галереи или любой файл. */
+/** Скрепка: открывает меню вложений. */
 @Composable
-private fun AttachButton(onPhoto: (() -> Unit)?, onFile: (() -> Unit)?, onPoll: (() -> Unit)?) {
-    var open by remember { mutableStateOf(false) }
-    Box {
-        val description = stringResource(R.string.attach)
-        Box(
-            Modifier
-                .size(PillHeight)
-                .clip(CircleShape)
-                .clickable(role = Role.Button) { open = true }
-                .semantics { contentDescription = description },
-            contentAlignment = Alignment.Center,
-        ) {
-            Icon(painterResource(R.drawable.ic_attach), contentDescription = null, Modifier.size(24.dp), tint = ReachTheme.colors.label)
-        }
-        DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-            onPhoto?.let { pick ->
-                DropdownMenuItem(text = { Text(stringResource(R.string.attach_photo)) }, onClick = { open = false; pick() })
-            }
-            onFile?.let { pick ->
-                DropdownMenuItem(text = { Text(stringResource(R.string.attach_file)) }, onClick = { open = false; pick() })
-            }
-            onPoll?.let { create ->
-                DropdownMenuItem(text = { Text(stringResource(R.string.attach_poll)) }, onClick = { open = false; create() })
-            }
-        }
+private fun AttachButton(onClick: () -> Unit) {
+    val description = stringResource(R.string.attach)
+    Box(
+        Modifier
+            .size(PillHeight)
+            .clip(CircleShape)
+            .clickable(role = Role.Button, onClick = onClick)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(painterResource(R.drawable.ic_attach), contentDescription = null, Modifier.size(24.dp), tint = ReachTheme.colors.label)
     }
 }
 
