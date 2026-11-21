@@ -46,6 +46,7 @@ class Notifier @Inject constructor(
     @ApplicationContext private val context: Context,
     private val td: TdClient,
     @ApplicationScope private val scope: CoroutineScope,
+    private val visibleChats: VisibleChats,
 ) {
     private val manager = NotificationManagerCompat.from(context)
     private val groups = mutableMapOf<Int, Group>()
@@ -115,6 +116,11 @@ class Notifier @Inject constructor(
     @SuppressLint("MissingPermission") // проверено в canNotify
     private suspend fun post(groupId: Int, group: Group, alert: Boolean) {
         if (!canNotify()) return
+        // Чат открыт на экране — сообщения и так видны; TDLib уберёт группу, когда они будут просмотрены
+        if (visibleChats.isVisible(group.chatId)) {
+            manager.cancel(groupId)
+            return
+        }
         val chat = runCatching { td.send(TdApi.GetChat(group.chatId)) }.getOrNull() ?: return
         val isGroupChat = chat.type is TdApi.ChatTypeBasicGroup ||
             (chat.type as? TdApi.ChatTypeSupergroup)?.isChannel == false
