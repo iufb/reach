@@ -2,6 +2,7 @@ package io.github.iufb.reach.ui.components
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -84,3 +85,22 @@ fun SearchField(
 }
 
 private val SEARCH_HEIGHT = 40.dp
+
+/**
+ * Поле поиска, которое само не редактируется: тап открывает экран поиска (список чатов).
+ * Лупа и плейсхолдер по центру, как в Telegram iOS.
+ */
+@Composable
+fun SearchButton(onClick: () -> Unit, modifier: Modifier = Modifier, placeholder: String = stringResource(R.string.search_hint)) {
+    val colors = ReachTheme.colors
+    Row(
+        modifier.fillMaxWidth().height(SEARCH_HEIGHT).clip(RoundedCornerShape(percent = 50)).background(colors.fill)
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.Center,
+    ) {
+        Icon(painterResource(R.drawable.ic_search), null, Modifier.size(20.dp), tint = colors.secondaryLabel)
+        Spacer(Modifier.width(6.dp))
+        Text(placeholder, style = MaterialTheme.typography.bodyLarge, color = colors.secondaryLabel, maxLines = 1)
+    }
+}
