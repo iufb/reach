@@ -1,22 +1,17 @@
 package io.github.iufb.reach.chat
 
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Row
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.Modifier
+import kotlinx.coroutines.launch
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import io.github.iufb.reach.R
+import io.github.iufb.reach.ui.components.ActionSheet
+import io.github.iufb.reach.ui.components.SheetAction
 
 /**
  * Запрос на удаление: какие сообщения и как их можно удалить.
@@ -30,30 +25,34 @@ data class DeleteRequest(
     val canForSelf: Boolean,
 )
 
-/** Подтверждение удаления; галочка «у всех» — только когда есть выбор. */
+/**
+ * Подтверждение удаления — action sheet Telegram iOS: заголовок с числом сообщений и красные варианты
+ * «Удалить у всех» / «Удалить у меня» (какие доступны), ниже отдельной карточкой «Отмена».
+ */
 @Composable
 internal fun DeleteDialog(request: DeleteRequest, onConfirm: (revoke: Boolean) -> Unit, onDismiss: () -> Unit) {
-    val choice = request.canForAll && request.canForSelf
-    var forAll by rememberSaveable(request) { mutableStateOf(true) }
     val count = request.messageIds.size
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(pluralStringResource(R.plurals.delete_title, count, count)) },
-        text = if (choice) {
-            {
-                Row(Modifier.clickable { forAll = !forAll }, verticalAlignment = Alignment.CenterVertically) {
-                    Checkbox(checked = forAll, onCheckedChange = { forAll = it })
-                    Text(stringResource(R.string.delete_for_all), style = MaterialTheme.typography.bodyLarge)
-                }
+    // ActionSheet сначала закрывается, потом выполняет пункт, а закрытие сбрасывает запрос в модели.
+    // Поэтому «отмену» откладываем: если следом выбрали удаление, отменять нечего
+    val scope = rememberCoroutineScope()
+    var confirmed by remember { mutableStateOf(false) }
+    val confirm = { revoke: Boolean ->
+        confirmed = true
+        onConfirm(revoke)
+    }
+    val dismiss = { scope.launch { if (!confirmed) onDismiss() }; Unit }
+    val forAll = stringResource(R.string.delete_for_all)
+    val forMe = stringResource(R.string.delete_for_me)
+    val plain = stringResource(R.string.delete_confirm)
+    val actions = buildList {
+        when {
+            request.canForAll && request.canForSelf -> {
+                add(SheetAction(forAll, destructive = true) { confirm(true) })
+                add(SheetAction(forMe, destructive = true) { confirm(false) })
             }
-        } else {
-            null
-        },
-        confirmButton = {
-            TextButton(onClick = { onConfirm(if (choice) forAll else request.canForAll) }) {
-                Text(stringResource(R.string.delete_confirm), color = MaterialTheme.colorScheme.error)
-            }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
-    )
+            // Выбора нет: удаление идёт так, как разрешено
+            else -> add(SheetAction(plain, destructive = true) { confirm(request.canForAll) })
+        }
+    }
+    ActionSheet(actions, onDismiss = dismiss, title = pluralStringResource(R.plurals.delete_title, count, count))
 }
