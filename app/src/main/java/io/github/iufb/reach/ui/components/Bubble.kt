@@ -46,14 +46,14 @@ class BubbleShape(
                 moveTo(edge - r, bottom)
                 // Нижний край тела уходит в острие справа внизу и плавно возвращается к боковой стороне
                 lineTo(edge + tw - 1f, bottom)
-                quadraticTo(edge + tw * 0.3f, bottom - tw * 0.2f, edge, bottom - tw * 2.4f)
+                quadraticTo(edge + tw * 0.15f, bottom - tw * 0.15f, edge, bottom - tw * 2.6f)
                 lineTo(edge, bottom - r)
                 close()
             } else {
                 val edge = body.left
                 moveTo(edge + r, bottom)
                 lineTo(edge - tw + 1f, bottom)
-                quadraticTo(edge - tw * 0.3f, bottom - tw * 0.2f, edge, bottom - tw * 2.4f)
+                quadraticTo(edge - tw * 0.15f, bottom - tw * 0.15f, edge, bottom - tw * 2.6f)
                 lineTo(edge, bottom - r)
                 close()
             }
@@ -68,7 +68,7 @@ class BubbleShape(
 }
 
 val BubbleRadius = 17.dp
-val TailWidth = 6.dp
+val TailWidth = 7.dp
 
 /**
  * Пузырь с цветом по направлению и внутренним отступом; ширину и выравнивание задаёт лента.

@@ -46,7 +46,14 @@ fun ReachTopBar(
     Box(
         modifier
             .fillMaxWidth()
-            .background(Brush.verticalGradient(listOf(colors.background, colors.background.copy(alpha = 0f))))
+            // Под статус-баром почти непрозрачно, к низу шапки — затухает: содержимое уходит под неё мягко
+            .background(
+                Brush.verticalGradient(
+                    0f to colors.background,
+                    0.45f to colors.background.copy(alpha = 0.88f),
+                    1f to colors.background.copy(alpha = 0f),
+                ),
+            )
             .statusBarsPadding()
             .height(TopBarHeight)
             .padding(horizontal = 12.dp),
