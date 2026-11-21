@@ -24,6 +24,8 @@ object Dates {
     private val DATE_TIME = DateTimeFormatter.ofPattern("d MMMM yyyy, HH:mm", AppLocale)
     private val NUMERIC = DateTimeFormatter.ofPattern("dd.MM.yy", AppLocale)
     private val DAY_MONTH = DateTimeFormatter.ofPattern("d MMM", AppLocale)
+    private val DAY = DateTimeFormatter.ofPattern("d MMMM", AppLocale)
+    private val DAY_YEAR = DateTimeFormatter.ofPattern("d MMMM yyyy", AppLocale)
 
     fun at(unixSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): ZonedDateTime =
         Instant.ofEpochSecond(unixSeconds).atZone(zone)
@@ -41,6 +43,9 @@ object Dates {
     fun numericDate(moment: ZonedDateTime): String = moment.format(NUMERIC)
 
     fun time(moment: ZonedDateTime): String = moment.format(TIME)
+
+    /** «21 ноября» / «21 ноября 2025» — плашка дня в ленте. */
+    fun day(day: LocalDate, withYear: Boolean): String = day.format(if (withYear) DAY_YEAR else DAY)
 
     /** «21 нояб.» — подписи оси графиков, [millis] — миллисекунды. */
     fun chartDay(millis: Long, zone: ZoneId = ZoneId.systemDefault()): String =
