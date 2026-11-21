@@ -120,6 +120,8 @@ internal sealed interface Spoilers {
 internal interface MentionHandler {
     fun openUsername(username: String)
     fun openUser(userId: Long)
+    /** Тап по хэштегу: поиск по нему (#221). */
+    fun openHashtag(tag: String) {}
 }
 
 /** `null` — упоминания только выделены цветом. */
@@ -223,7 +225,15 @@ internal fun RichText.toAnnotatedString(
                 }
             }
             // По тапу пока ничего: поиск по хэштегу — вместе с поиском (v0.3)
-            is SpanKind.Hashtag -> addStyle(SpanStyle(color = colors.link), start, end)
+            is SpanKind.Hashtag -> {
+                val style = SpanStyle(color = colors.link)
+                val handler = mentions
+                if (clickableLinks && handler != null && !isHidden(start, end)) {
+                    addLink(LinkAnnotation.Clickable("hashtag", TextLinkStyles(style)) { handler.openHashtag(kind.tag) }, start, end)
+                } else {
+                    addStyle(style, start, end)
+                }
+            }
             is SpanKind.CustomEmoji -> Unit
         }
     }

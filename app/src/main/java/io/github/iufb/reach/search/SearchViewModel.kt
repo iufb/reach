@@ -1,8 +1,10 @@
 package io.github.iufb.reach.search
 
 import android.util.Log
+import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.iufb.reach.chats.Chat
 import io.github.iufb.reach.chats.ChatsRepository
@@ -10,6 +12,7 @@ import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.toBody
 import io.github.iufb.reach.core.td.TdClient
 import io.github.iufb.reach.core.td.TdException
+import io.github.iufb.reach.navigation.SearchRoute
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -56,6 +59,7 @@ data class SearchResults(
  */
 @HiltViewModel
 class SearchViewModel @Inject constructor(
+    savedStateHandle: SavedStateHandle,
     private val td: TdClient,
     chats: ChatsRepository,
 ) : ViewModel() {
@@ -84,7 +88,7 @@ class SearchViewModel @Inject constructor(
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), SearchResults(loading = true))
 
     init {
-        onQueryChange("")
+        onQueryChange(savedStateHandle.toRoute<SearchRoute>().query)
     }
 
     fun onQueryChange(value: String) {

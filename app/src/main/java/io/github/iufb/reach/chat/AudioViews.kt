@@ -1,5 +1,10 @@
 package io.github.iufb.reach.chat
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -29,6 +34,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -49,7 +55,9 @@ import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.AudioInfo
 import io.github.iufb.reach.chats.PhotoInfo
 import io.github.iufb.reach.chats.formatDuration
+import io.github.iufb.reach.media.AudioPlayer
 import io.github.iufb.reach.media.AudioState
+import io.github.iufb.reach.media.AudioTrack
 import io.github.iufb.reach.media.rememberAudioPlayer
 
 /** Трек в пузыре: обложка с ▶/⏸, название, исполнитель, прогресс и время. */
@@ -73,7 +81,8 @@ internal fun AudioRow(
                 tint = MaterialTheme.colorScheme.onPrimary,
             )
         }
-        Column(Modifier.padding(start = 10.dp).weight(1f, fill = false)) {
+        // Ширина и высота не зависят от того, играет ли трек: иначе при старте и остановке лента дёргается (#215)
+        Column(Modifier.padding(start = 10.dp).width(AUDIO_INFO_WIDTH)) {
             Text(audio.displayTitle, style = MaterialTheme.typography.bodyMedium, maxLines = 1, overflow = TextOverflow.Ellipsis)
             if (audio.performer.isNotBlank()) {
                 Text(
@@ -84,13 +93,12 @@ internal fun AudioRow(
                     overflow = TextOverflow.Ellipsis,
                 )
             }
-            if (playback != null) {
-                Slider(
-                    value = playback.progress,
-                    onValueChange = onSeek,
-                    modifier = Modifier.height(24.dp).width(200.dp),
-                )
-            }
+            Slider(
+                value = playback?.progress ?: 0f,
+                onValueChange = onSeek,
+                enabled = playback != null,
+                modifier = Modifier.height(24.dp).fillMaxWidth(),
+            )
             Text(
                 if (playback != null) {
                     "${formatDuration(playback.positionMs / 1000)} / ${formatDuration(playback.durationMs / 1000)}"
@@ -122,7 +130,22 @@ private fun Cover(cover: PhotoInfo?, size: Dp) {
 internal fun NowPlayingBar() {
     val player = rememberAudioPlayer()
     val state by player.state.collectAsState()
-    val track = state.track ?: return
+    // Последний трек держим, чтобы плашка уезжала анимированно, а не пропадала разом (#215)
+    var lastTrack by remember { mutableStateOf(state.track) }
+    SideEffect { state.track?.let { lastTrack = it } }
+    AnimatedVisibility(
+        visible = state.track != null,
+        enter = expandVertically() + fadeIn(),
+        exit = shrinkVertically() + fadeOut(),
+    ) {
+        val track = state.track ?: lastTrack
+        if (track != null) NowPlayingContent(track, state, player)
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun NowPlayingContent(track: AudioTrack, state: AudioState, player: AudioPlayer) {
     var expanded by remember { mutableStateOf(false) }
     Surface(color = MaterialTheme.colorScheme.surfaceContainerHigh, modifier = Modifier.fillMaxWidth().clickable { expanded = true }) {
         Column {
@@ -206,3 +229,5 @@ private fun trackTitle(title: String, isVoice: Boolean): String = when {
     isVoice -> stringResource(R.string.content_voice_note)
     else -> stringResource(R.string.content_audio)
 }
+
+private val AUDIO_INFO_WIDTH = 200.dp

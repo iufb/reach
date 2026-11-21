@@ -453,6 +453,7 @@
 
     <!-- Служебные сообщения -->
     <string name="service_chat_created">Группа создана</string>
+    <string name="service_channel_created">Канал создан</string>
     <string name="service_members_added">Добавлены участники</string>
     <string name="service_member_joined">Новый участник</string>
     <string name="service_member_left">Участник покинул группу</string>

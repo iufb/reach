@@ -44,6 +44,7 @@ fun serviceKindText(kind: ServiceKind): String = stringResource(kind.labelRes())
 @StringRes
 fun ServiceKind.labelRes(): Int = when (this) {
     ServiceKind.ChatCreated -> R.string.service_chat_created
+    ServiceKind.ChannelCreated -> R.string.service_channel_created
     ServiceKind.MembersAdded -> R.string.service_members_added
     ServiceKind.MemberJoined -> R.string.service_member_joined
     ServiceKind.MemberLeft -> R.string.service_member_left
