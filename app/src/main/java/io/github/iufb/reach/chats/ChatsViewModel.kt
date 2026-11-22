@@ -28,6 +28,9 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import io.github.iufb.reach.chat.HistoryPrefetch
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.withTimeoutOrNull
 import javax.inject.Inject
 
 /** Вкладка папки; [title] `null` — это «Все чаты». */
@@ -45,6 +48,7 @@ class ChatsViewModel @Inject constructor(
     private val chatsRepository: ChatsRepository,
     presence: PresenceRepository,
     savedStateHandle: SavedStateHandle,
+    private val historyPrefetch: HistoryPrefetch,
 ) : ViewModel() {
 
     /** Кто что делает в чатах: «печатает…» вместо последнего сообщения. */
@@ -193,7 +197,28 @@ class ChatsViewModel @Inject constructor(
         }
     }
 
+    private var opening: Job? = null
+
+    /**
+     * Открыть чат, когда загружена первая страница истории ([HistoryPrefetch]), но не дольше
+     * [PREFETCH_WAIT_MS]: лента появляется сразу с переходом, а не посреди него. Повторные тапы,
+     * пока ждём, игнорируются.
+     */
+    fun openWhenReady(chatId: Long, open: () -> Unit) {
+        if (opening?.isActive == true) return
+        val chat = chatsRepository.chats.value[chatId]
+        if (chat == null) {
+            open()
+            return
+        }
+        opening = viewModelScope.launch {
+            withTimeoutOrNull(PREFETCH_WAIT_MS) { historyPrefetch.load(chat) }
+            open()
+        }
+    }
+
     private companion object {
+        const val PREFETCH_WAIT_MS = 250L
         const val TAG = "ChatsViewModel"
         const val STOP_TIMEOUT_MS = 5_000L
         const val ARCHIVE_PREVIEW = 5

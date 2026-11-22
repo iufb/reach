@@ -125,6 +125,7 @@ class ChatViewModel @Inject constructor(
     private val recorder: VoiceRecorder,
     private val photoEditor: PhotoEditRenderer,
     private val visibleChats: VisibleChats,
+    prefetch: HistoryPrefetch,
 ) : ViewModel() {
 
     private val route = savedStateHandle.toRoute<ChatRoute>()
@@ -133,7 +134,7 @@ class ChatViewModel @Inject constructor(
     private val startMessageId: Long = route.messageId
     /** Весь чат, тред комментариев или топик форума. */
     val scope: ChatScope = ChatScope.of(route.threadId, route.topicId)
-    private val history = ChatHistory(chatId, td, scope)
+    private val history = ChatHistory(chatId, td, scope, prefetch)
 
     private val _scopeInfo = MutableStateFlow<ScopeInfo?>(null)
     /** Шапка и корень треда / топика; `null` — открыт весь чат или ещё грузится. */

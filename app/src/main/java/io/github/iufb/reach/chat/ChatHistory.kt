@@ -27,7 +27,13 @@ import org.drinkless.tdlib.TdApi
  * [followUpdates] держит отрезок в актуальном виде: новые, изменённые и удалённые сообщения.
  * Новые добавляются, только если отрезок доходит до конца истории — иначе они придут с [loadNewer].
  */
-class ChatHistory(private val chatId: Long, private val td: TdClient, private val scope: ChatScope = ChatScope.Whole) {
+class ChatHistory(
+    private val chatId: Long,
+    private val td: TdClient,
+    private val scope: ChatScope = ChatScope.Whole,
+    /** Первая страница, загруженная списком чатов до перехода; есть — без повторного запроса. */
+    private val prefetch: HistoryPrefetch? = null,
+) {
 
     data class State(
         /** Сначала новые. */
@@ -362,7 +368,8 @@ class ChatHistory(private val chatId: Long, private val td: TdClient, private va
     private suspend fun fetch(fromMessageId: Long, offset: Int, limit: Int): List<Message> =
         runCatching {
             when (scope) {
-                ChatScope.Whole -> td.send(TdApi.GetChatHistory(chatId, fromMessageId, offset, limit, false))
+                ChatScope.Whole -> prefetch?.take(HistoryPrefetch.Key(chatId, fromMessageId, offset, limit))
+                    ?: td.send(TdApi.GetChatHistory(chatId, fromMessageId, offset, limit, false))
                 is ChatScope.Thread -> td.send(TdApi.GetMessageThreadHistory(chatId, scope.threadId, fromMessageId, offset, limit))
                 is ChatScope.Topic -> td.send(TdApi.GetForumTopicHistory(chatId, scope.topicId, fromMessageId, offset, limit))
             }
@@ -377,7 +384,7 @@ class ChatHistory(private val chatId: Long, private val td: TdClient, private va
 
     private companion object {
         const val TAG = "ChatHistory"
-        const val PAGE = 50
+        const val PAGE = HistoryPrefetch.PAGE
     }
 }
 

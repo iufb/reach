@@ -104,7 +104,8 @@ fun ChatsScreen(
     val chats by viewModel.chats.collectAsStateWithLifecycle()
     val openForumAware: (Long) -> Unit = { id ->
         val target = chats?.firstOrNull { it.id == id }
-        if (target != null && target.viewAsTopics && !target.isSavedMessages) onOpenTopics(id) else onChatClick(id)
+        if (target != null && target.viewAsTopics && !target.isSavedMessages) onOpenTopics(id)
+        else viewModel.openWhenReady(id) { onChatClick(id) }
     }
     val allLoaded by viewModel.allLoaded.collectAsStateWithLifecycle()
     val loggingOut by viewModel.loggingOut.collectAsStateWithLifecycle()
