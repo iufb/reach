@@ -1,6 +1,15 @@
 package io.github.iufb.reach.contacts
 
 import androidx.annotation.DrawableRes
+import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import io.github.iufb.reach.ui.components.GroupedSection
+import io.github.iufb.reach.ui.components.GroupedTextField
+import io.github.iufb.reach.ui.components.SheetHeader
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -23,16 +32,13 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -207,40 +213,43 @@ private fun AddContact(viewModel: ContactsViewModel, onDone: () -> Unit) {
     )
 }
 
+/** «Новый контакт» во весь экран: номер, имя, фамилия; «Добавить» — когда есть номер и имя. */
 @Composable
 private fun AddContactDialog(onAdd: (phone: String, first: String, last: String) -> Unit, onDismiss: () -> Unit) {
     var phone by rememberSaveable { mutableStateOf("+") }
     var first by rememberSaveable { mutableStateOf("") }
     var last by rememberSaveable { mutableStateOf("") }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.contacts_add)) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(
-                    value = phone,
-                    onValueChange = { phone = it },
-                    label = { Text(stringResource(R.string.contacts_phone)) },
-                    singleLine = true,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                )
-                OutlinedTextField(value = first, onValueChange = { first = it }, label = { Text(stringResource(R.string.contacts_first_name)) }, singleLine = true)
-                OutlinedTextField(value = last, onValueChange = { last = it }, label = { Text(stringResource(R.string.contacts_last_name)) }, singleLine = true)
-            }
-        },
-        confirmButton = {
-            TextButton(
-                enabled = phone.count { it.isDigit() } >= MIN_PHONE_DIGITS && first.isNotBlank(),
-                onClick = { onAdd(phone, first, last) },
-            ) { Text(stringResource(R.string.contacts_add_confirm)) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
-    )
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    FormSheet(
+        title = stringResource(R.string.contacts_add),
+        action = stringResource(R.string.contacts_add_confirm),
+        actionEnabled = phone.count { it.isDigit() } >= MIN_PHONE_DIGITS && first.isNotBlank(),
+        onAction = { onAdd(phone, first, last) },
+        onDismiss = onDismiss,
+    ) {
+        GroupedSection {
+            GroupedTextField(first, { first = it }, placeholder = stringResource(R.string.contacts_first_name), focusRequester = focus)
+            GroupedTextField(last, { last = it }, placeholder = stringResource(R.string.contacts_last_name), divider = false)
+        }
+        GroupedSection {
+            GroupedTextField(
+                phone,
+                { phone = it },
+                placeholder = stringResource(R.string.contacts_phone),
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                divider = false,
+            )
+        }
+    }
 }
 
 private const val MIN_PHONE_DIGITS = 5
 
-/** Имя и фамилия контакта: добавление из профиля или переименование. */
+/**
+ * Имя и фамилия контакта во весь экран, как правка контакта в Telegram iOS: «Отмена» / заголовок /
+ * «Готово», имя и фамилия карточкой. Добавление из профиля и переименование.
+ */
 @Composable
 fun ContactNameDialog(
     title: String,
@@ -251,16 +260,50 @@ fun ContactNameDialog(
 ) {
     var first by rememberSaveable { mutableStateOf(initialFirst) }
     var last by rememberSaveable { mutableStateOf(initialLast) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                OutlinedTextField(value = first, onValueChange = { first = it }, label = { Text(stringResource(R.string.contacts_first_name)) }, singleLine = true)
-                OutlinedTextField(value = last, onValueChange = { last = it }, label = { Text(stringResource(R.string.contacts_last_name)) }, singleLine = true)
-            }
-        },
-        confirmButton = { TextButton(enabled = first.isNotBlank(), onClick = { onSave(first, last) }) { Text(stringResource(R.string.save)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
-    )
+    val focus = remember { FocusRequester() }
+    LaunchedEffect(Unit) { focus.requestFocus() }
+    FormSheet(
+        title = title,
+        action = stringResource(R.string.new_chat_done),
+        actionEnabled = first.isNotBlank(),
+        onAction = { onSave(first, last) },
+        onDismiss = onDismiss,
+    ) {
+        GroupedSection(footer = stringResource(R.string.contact_edit_hint)) {
+            GroupedTextField(first, { first = it }, placeholder = stringResource(R.string.contacts_first_name), focusRequester = focus)
+            GroupedTextField(last, { last = it }, placeholder = stringResource(R.string.contacts_last_name), divider = false)
+        }
+    }
+}
+
+/** Шторка-форма во весь экран на сером фоне: шапка «Отмена / заголовок / действие», ниже карточки. */
+@Composable
+private fun FormSheet(
+    title: String,
+    action: String,
+    actionEnabled: Boolean,
+    onAction: () -> Unit,
+    onDismiss: () -> Unit,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Column(
+            Modifier
+                .fillMaxSize()
+                .background(ReachTheme.colors.groupedBackground)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .imePadding(),
+        ) {
+            SheetHeader(
+                title = title,
+                cancel = stringResource(R.string.cancel),
+                onCancel = onDismiss,
+                action = action,
+                actionEnabled = actionEnabled,
+                onAction = onAction,
+            )
+            content()
+        }
+    }
 }

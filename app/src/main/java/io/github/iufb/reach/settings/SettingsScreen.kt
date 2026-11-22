@@ -21,14 +21,12 @@ import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
+import io.github.iufb.reach.ui.components.PillTextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -53,8 +51,6 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
-import io.github.iufb.reach.chats.UsernameStatus
-import io.github.iufb.reach.contacts.ContactNameDialog
 import io.github.iufb.reach.navigation.MainTab
 import io.github.iufb.reach.navigation.MainTabBar
 import io.github.iufb.reach.ui.components.ActionSheet
@@ -71,9 +67,6 @@ import io.github.iufb.reach.ui.components.glassSource
 import io.github.iufb.reach.ui.theme.CellIconColors
 import io.github.iufb.reach.ui.theme.ReachTheme
 
-/** Какой пункт профиля сейчас правится. */
-private enum class Editing { Name, Bio, Username }
-
 /**
  * Настройки как в Telegram iOS: крупная шапка с аватаром, именем и номером, ниже — сгруппированные
  * карточки с цветными значками. Когда шапка уезжает под бар, в нём проявляется имя.
@@ -81,6 +74,8 @@ private enum class Editing { Name, Bio, Username }
 @Composable
 fun SettingsScreen(
     onSelectTab: (MainTab) -> Unit,
+    /** «Изменить профиль»: имя, о себе, имя пользователя. */
+    onEditProfile: () -> Unit,
     onOpenAutoDownload: () -> Unit,
     onOpenBlocked: (() -> Unit)? = null,
     onOpenContactSync: (() -> Unit)? = null,
@@ -90,11 +85,8 @@ fun SettingsScreen(
 ) {
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val loggingOut by viewModel.loggingOut.collectAsStateWithLifecycle()
-    val bioMax by viewModel.bioMax.collectAsStateWithLifecycle()
-    val usernameStatus by viewModel.usernameStatus.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
-    var editing by rememberSaveable { mutableStateOf<Editing?>(null) }
     var photoSheet by rememberSaveable { mutableStateOf(false) }
     var confirmLogOut by rememberSaveable { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
@@ -146,18 +138,15 @@ fun SettingsScreen(
                         )
                     }
                     GroupedSection {
-                        GroupedCell(stringResource(R.string.settings_name), onClick = { editing = Editing.Name }, value = me.user.fullName)
+                        GroupedCell(stringResource(R.string.settings_name), onClick = onEditProfile, value = me.user.fullName)
                         GroupedCell(
                             stringResource(R.string.profile_username),
-                            onClick = {
-                                viewModel.usernameInput.value = me.user.username
-                                editing = Editing.Username
-                            },
+                            onClick = onEditProfile,
                             value = if (me.user.username.isBlank()) stringResource(R.string.settings_username_empty) else "@${me.user.username}",
                         )
                         GroupedCell(
                             stringResource(R.string.profile_bio),
-                            onClick = { editing = Editing.Bio },
+                            onClick = onEditProfile,
                             subtitle = me.bio.ifBlank { stringResource(R.string.settings_bio_empty) },
                         )
                         // Номер виден, но не меняется: смена номера — вне скоупа
@@ -181,6 +170,7 @@ fun SettingsScreen(
             }
             ReachTopBar(
                 title = me?.user?.fullName,
+                actions = { if (me != null) PillTextButton(stringResource(R.string.profile_edit), onClick = onEditProfile) },
                 background = colors.groupedBackground,
                 titleAlpha = { titleAlpha },
                 scrimAlpha = { titleAlpha },
@@ -188,42 +178,6 @@ fun SettingsScreen(
             MainTabBar(MainTab.Settings, onSelectTab, Modifier.align(Alignment.BottomCenter))
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = TabBarHeight + 16.dp))
             if (me != null) {
-                when (editing) {
-                    Editing.Name -> ContactNameDialog(
-                        title = stringResource(R.string.settings_name),
-                        initialFirst = me.user.firstName,
-                        initialLast = me.user.lastName,
-                        onSave = { first, last ->
-                            editing = null
-                            viewModel.setName(first, last)
-                        },
-                        onDismiss = { editing = null },
-                    )
-                    Editing.Bio -> TextDialog(
-                        title = stringResource(R.string.profile_bio),
-                        initial = me.bio,
-                        maxLength = bioMax,
-                        onSave = {
-                            editing = null
-                            viewModel.setBio(it)
-                        },
-                        onDismiss = { editing = null },
-                    )
-                    Editing.Username -> UsernameDialog(
-                        initial = me.user.username,
-                        status = usernameStatus,
-                        onChange = { viewModel.usernameInput.value = it },
-                        onSave = {
-                            editing = null
-                            viewModel.setUsername(it)
-                        },
-                        onDismiss = {
-                            editing = null
-                            viewModel.usernameInput.value = null
-                        },
-                    )
-                    null -> Unit
-                }
                 if (photoSheet) {
                     ActionSheet(
                         actions = buildList {
@@ -295,60 +249,3 @@ private fun LinkCell(link: SettingsLink, divider: Boolean) {
 private val HEADER_TOP = 8.dp
 private val AVATAR = 100.dp
 private const val TITLE_FADE_MS = 180
-
-@Composable
-private fun TextDialog(title: String, initial: String, maxLength: Int, onSave: (String) -> Unit, onDismiss: () -> Unit) {
-    var text by rememberSaveable { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it.take(maxLength) },
-                supportingText = { Text("${text.length} / $maxLength") },
-                maxLines = 4,
-            )
-        },
-        confirmButton = { TextButton(onClick = { onSave(text) }) { Text(stringResource(R.string.save)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
-    )
-}
-
-/** Username с проверкой по мере ввода; пустой — убрать username. */
-@Composable
-fun UsernameDialog(
-    initial: String,
-    status: UsernameStatus?,
-    onChange: (String) -> Unit,
-    onSave: (String) -> Unit,
-    onDismiss: () -> Unit,
-) {
-    var text by rememberSaveable { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(stringResource(R.string.profile_username)) },
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = {
-                    text = it.removePrefix("@").filter { c -> c.isLetterOrDigit() || c == '_' }
-                    onChange(text)
-                },
-                prefix = { Text("@") },
-                singleLine = true,
-                isError = status != null && !status.isOk,
-                supportingText = {
-                    when {
-                        text.isEmpty() -> Text(stringResource(R.string.username_remove_hint))
-                        status != null -> Text(stringResource(status.message))
-                    }
-                },
-            )
-        },
-        confirmButton = {
-            TextButton(enabled = text.isEmpty() || status?.isOk == true, onClick = { onSave(text) }) { Text(stringResource(R.string.save)) }
-        },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
-    )
-}

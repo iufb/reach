@@ -697,6 +697,11 @@
     <string name="contact_add">Добавить в контакты</string>
     <string name="contact_edit">Изменить контакт</string>
     <string name="profile_edit">Изменить</string>
+    <string name="edit_profile_title">Профиль</string>
+    <string name="edit_profile_name_hint">Укажите имя и, если хотите, фото профиля.</string>
+    <string name="edit_profile_bio_hint">Пара строк о себе. Осталось символов: %1$d.</string>
+    <string name="edit_profile_username_hint">По имени пользователя вас можно найти без номера телефона.</string>
+    <string name="contact_edit_hint">Имя видите только вы.</string>
     <string name="edit_chat_photo_new">Установить новое фото</string>
     <string name="edit_chat_group_name">Название группы</string>
     <string name="edit_chat_channel_name">Название канала</string>

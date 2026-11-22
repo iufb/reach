@@ -26,14 +26,15 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chat.AudioRow
 import io.github.iufb.reach.chat.DocumentRow
 import io.github.iufb.reach.chat.Message
 import io.github.iufb.reach.chat.PhotoThumbnail
-import io.github.iufb.reach.chat.RichTextView
 import io.github.iufb.reach.chat.VideoThumbnail
 import io.github.iufb.reach.chat.ViewerItem
 import io.github.iufb.reach.chat.VoiceNoteView
@@ -123,12 +124,15 @@ private fun MessageRow(
         bottomStart = if (last) GroupedCorner else 0.dp,
         bottomEnd = if (last) GroupedCorner else 0.dp,
     )
+    val uriHandler = LocalUriHandler.current
     Box(Modifier.padding(horizontal = 16.dp).padding(top = if (first) 8.dp else 0.dp).clip(shape).background(colors.cell)) {
         WithShowInChat(
             onClick = {
                 when (val body = message.content) {
                     is MessageBody.Document -> actions.onDocumentClick(body.document)
                     is MessageBody.Voice, is MessageBody.Audio -> actions.onAudioToggle(message)
+                    // Вкладка «Ссылки»: тап открывает первую ссылку, долгий тап — «Показать в чате»
+                    is MessageBody.Text -> firstUrl(body.text.text)?.let { runCatching { uriHandler.openUri(it) } } ?: actions.onShowInChat(message)
                     else -> actions.onShowInChat(message)
                 }
             },
@@ -152,7 +156,8 @@ private fun MessageRow(
                             onToggle = { actions.onAudioToggle(message) },
                             onSeek = actions.onAudioSeek,
                         )
-                        is MessageBody.Text -> RichTextView(body.text)
+                        // Простой текст, а не RichTextView: ссылки в нём перехватывали бы тап и долгий тап всей строки
+                        is MessageBody.Text -> Text(body.text.text, color = colors.label, maxLines = LINK_PREVIEW_LINES, overflow = TextOverflow.Ellipsis)
                         else -> Text(bodySummary(body), color = colors.label)
                     }
                 }
@@ -194,3 +199,9 @@ private fun Message.viewerItem(): ViewerItem? = when (val body = content) {
 }
 
 private const val LOAD_AHEAD = 12
+private const val LINK_PREVIEW_LINES = 3
+private val URL = Regex("""(?i)\b((https?://|www\.|t\.me/)[^\s]+)""")
+
+/** Первая ссылка в тексте; без схемы — дописываем https. */
+private fun firstUrl(text: String): String? =
+    URL.find(text)?.value?.let { if (it.startsWith("http", ignoreCase = true)) it else "https://$it" }
