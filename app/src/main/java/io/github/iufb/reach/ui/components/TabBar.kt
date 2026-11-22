@@ -129,7 +129,9 @@ fun ReachTabBar(
     val held by animateFloatAsState(if (anyPressed) 1f else 0f, spring(dampingRatio = 0.7f), label = "lensHeld")
     val shader = remember { RuntimeShader(LENS_SHADER) }
     val restFill = colors.fill
-    val glassFill = colors.label.copy(alpha = 0.06f)
+    // Пузырь почти прозрачный: та же заливка, только бледнее; кромка — тонкая тень и блик сверху
+    val glassFill = restFill.copy(alpha = restFill.alpha * GLASS_FILL_ALPHA)
+    val edge = colors.label
 
     /** Линза в координатах ряда вкладок высотой [rowHeight]; [g] — насколько она «стекло». */
     fun lensRect(g: Float, rowHeight: Float, growX: Float, growY: Float) =
@@ -158,6 +160,7 @@ fun ReachTabBar(
                 val corner = CornerRadius(r.height / 2)
                 drawRoundRect(lerp(restFill, glassFill, g), r.topLeft, r.size, corner)
                 if (g > 0f) {
+                    drawRoundRect(edge.copy(alpha = 0.14f * g), r.topLeft, r.size, corner, style = Stroke(width = 1.dp.toPx()))
                     drawRoundRect(
                         Brush.verticalGradient(
                             listOf(Color.White.copy(alpha = 0.7f * g), Color.White.copy(alpha = 0.08f * g), Color.White.copy(alpha = 0.35f * g)),
@@ -299,3 +302,4 @@ private val LENS_GROW_Y = 8.dp
 private const val LENS_DAMPING = 0.72f
 private const val LENS_LIFT_MS = 120
 private const val CAPSULE_SWELL = 0.025f
+private const val GLASS_FILL_ALPHA = 0.3f
