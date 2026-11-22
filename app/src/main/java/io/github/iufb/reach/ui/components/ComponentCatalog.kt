@@ -28,11 +28,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import io.github.iufb.reach.R
+import io.github.iufb.reach.ui.theme.CellIconColors
 import io.github.iufb.reach.ui.theme.ReachTheme
 
 /**
@@ -59,23 +59,23 @@ fun ComponentCatalogScreen(onBack: () -> Unit) {
                         GroupedCell(
                             "Уведомления и звуки",
                             onClick = {},
-                            icon = { CellIcon(painterResource(R.drawable.ic_notification), Color(0xFFFF3B30)) },
+                            icon = { CellIcon(painterResource(R.drawable.ic_notification), CellIconColors.Red) },
                         )
                         GroupedCell(
                             "Конфиденциальность",
                             onClick = {},
-                            icon = { CellIcon(painterResource(R.drawable.ic_lock), Color(0xFF8E8E93)) },
+                            icon = { CellIcon(painterResource(R.drawable.ic_lock), CellIconColors.Gray) },
                         )
                         GroupedCell(
                             "Язык",
                             onClick = {},
                             value = "Русский",
-                            icon = { CellIcon(painterResource(R.drawable.ic_link), Color(0xFFAF52DE)) },
+                            icon = { CellIcon(painterResource(R.drawable.ic_link), CellIconColors.Purple) },
                         )
                         GroupedCell(
                             "Без звука",
                             divider = false,
-                            icon = { CellIcon(painterResource(R.drawable.ic_muted), Color(0xFF34C759)) },
+                            icon = { CellIcon(painterResource(R.drawable.ic_muted), CellIconColors.Green) },
                             trailing = { Switch(toggle, { toggle = it }) },
                         )
                     }
