@@ -39,6 +39,7 @@ import androidx.compose.ui.text.PlaceholderVerticalAlign
 import io.github.iufb.reach.media.CustomEmojiView
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
+import io.github.iufb.reach.ui.theme.LocalMonospace
 import androidx.compose.ui.unit.TextUnit
 
 /** Текст сообщения с форматированием; ссылки открываются по тапу (LocalUriHandler). */
@@ -148,7 +149,14 @@ private class SafeUriHandler(private val delegate: UriHandler) : UriHandler {
     }
 }
 
-internal data class RichTextColors(val link: Color, val codeBackground: Color, val quote: Color, val spoiler: Color)
+/** [code] — шрифт кода: моноширинный, со своим emoji-шрифтом в fallback, если он выбран. */
+internal data class RichTextColors(
+    val link: Color,
+    val codeBackground: Color,
+    val quote: Color,
+    val spoiler: Color,
+    val code: FontFamily = FontFamily.Monospace,
+)
 
 @Composable
 internal fun richTextColors() = RichTextColors(
@@ -156,6 +164,7 @@ internal fun richTextColors() = RichTextColors(
     codeBackground = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
     quote = MaterialTheme.colorScheme.primary,
     spoiler = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
+    code = LocalMonospace.current,
 )
 
 /**
@@ -205,9 +214,9 @@ internal fun RichText.toAnnotatedString(
                 // Стиль добавляется последним (ниже), чтобы прозрачность перекрыла цвета ссылок и цитат
                 is Spoilers.Hidden -> Unit
             }
-            SpanKind.Code -> addStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = colors.codeBackground), start, end)
+            SpanKind.Code -> addStyle(SpanStyle(fontFamily = colors.code, background = colors.codeBackground), start, end)
             is SpanKind.Pre -> {
-                addStyle(SpanStyle(fontFamily = FontFamily.Monospace, background = colors.codeBackground), start, end)
+                addStyle(SpanStyle(fontFamily = colors.code, background = colors.codeBackground), start, end)
                 paragraph(start, end, ParagraphStyle())
             }
             SpanKind.Quote -> {

@@ -16,11 +16,15 @@ not in CI, not in issues or PRs. Only this build code lives in the repo. Output 
 Needs macOS and Docker (OrbStack) running. From the repo root:
 
 ```sh
-tools/fonts/build.sh            # strike 96 (default)
+tools/fonts/build.sh            # strike 127 (default)
 tools/fonts/build.sh 96 127     # one emoji font per strike, to compare
 ```
 
-Result in `fonts-local/out/`: `SF-Pro.ttf`, `AppleColorEmoji-96.ttf` (and `-127` if asked).
+Result in `fonts-local/out/`: `SF-Pro.ttf`, `AppleColorEmoji-127.ttf` (and `-96` if asked).
+
+Default strike 127 (113 MB) was picked on the phone (#254): at 17 sp text 96 and 127 look the
+same, but large single emoji (96 sp without animation) and sticker placeholders are visibly
+softer with 96 (66 MB).
 
 Apple ships sbix strikes 20, 26, 32, 40, 48, 52, 64, 96 and 160. A CBDT strike can be at
 most 127 ppem (its metrics are int8), so 160 can't be kept as is: for a ppem Apple doesn't
@@ -41,6 +45,13 @@ font the app must reject or fall back from.
   When bumping the SHA, read the converter's diff first: it is third-party code.
 - `emoji.yaml` is the converter recipe (based on its `configs/linux.yaml`, plus `GSUB`);
   `entrypoint.sh` puts the strike into it; `derive_strike.py` makes non-native strikes.
+- `android_fixups.py` prepares the font to be the first font of Android's fallback chain
+  (Reach puts it before the text font, otherwise the text font's ❤, ☀, ↔, digits … win
+  over ❤️, ☀️, ↔️, 1️⃣ and sequences like ❤️‍🔥 fall apart): text-like symbols (digits,
+  #, *, ©, ®, ™, arrows …) and space leave the regular `cmap` and stay emoji only with
+  U+FE0F (`cmap` format 14); every other emoji-style sequence is a default UVS entry;
+  vertical metrics become Inter's, since the first font sets the line's ascent/descent.
+  Sequences with a text-like base and no U+FE0F (e.g. `0031 20E3`) are no longer emoji.
 - `verify.py` checks tables (`CBDT`, `CBLC`, `cmap`, `GSUB`, no `sbix`), shapes sample
   sequences, runs the converter's own GSUB check over every known sequence, and prints
   the SF Pro `fvar` axes.
@@ -48,5 +59,5 @@ font the app must reject or fall back from.
 ## Add the fonts to the app
 
 On the phone: Settings → Font, pick the file for text (`SF-Pro.ttf`) or emoji
-(`AppleColorEmoji-96.ttf`). Or send the files to Saved Messages once and use
+(`AppleColorEmoji-127.ttf`). Or send the files to Saved Messages once and use
 "Install as font" on the document. The choice applies after restarting the app.

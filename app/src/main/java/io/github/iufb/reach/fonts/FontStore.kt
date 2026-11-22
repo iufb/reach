@@ -1,9 +1,11 @@
 package io.github.iufb.reach.fonts
 
 import android.content.Context
+import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.fonts.Font
 import android.graphics.fonts.FontFamily
+import android.graphics.text.TextRunShaper
 import android.net.Uri
 import android.os.SystemClock
 import android.util.Log
@@ -38,12 +40,14 @@ data class FontSelection(val text: String?, val emoji: String?)
  * Все поля `null` — стандартные Inter и Noto (через EmojiCompat).
  */
 data class DeviceFonts(
-    /** Выбранный текстовый шрифт (или Inter) с выбранным emoji-шрифтом в fallback; `null` — ничего не выбрано. */
+    /** Выбранный emoji-шрифт, за ним текстовый (или Inter); `null` — ничего не выбрано. */
     val text: Typeface?,
     /** Файл выбранного текстового шрифта, `null` — Inter. */
     val textFile: File?,
     /** Файл выбранного emoji-шрифта, `null` — Noto + EmojiCompat. */
     val emojiFile: File?,
+    /** Emoji-шрифт стоит первым в цепочке fallback (он подготовлен для этого, см. [emojiGoesFirst]). */
+    val emojiFirst: Boolean = false,
 ) {
     /** Id применённых шрифтов (имя файла без `.ttf`), `null` — стандартный. */
     val textId: String? get() = textFile?.nameWithoutExtension
@@ -165,7 +169,7 @@ class FontStore @Inject constructor(
             "текст ${text?.name?.let { "«$it»" } ?: "Inter"} + эмодзи ${emoji?.name?.let { "«$it»" } ?: "Noto"}"
         }
         Log.i(TAG, "fonts: $summary, $took ms")
-        return DeviceFonts(typeface, text?.file, emoji?.file)
+        return DeviceFonts(typeface, text?.file, emoji?.file, emoji?.font?.let(::emojiGoesFirst) ?: false)
     }
 
     /**
@@ -177,15 +181,17 @@ class FontStore @Inject constructor(
         typeface(font(textId), font(emojiId))
     }
 
-    /** Текстовый шрифт (или Inter) основной, emoji-шрифт — первый fallback, дальше системные. */
+    /** Emoji-шрифт (если выбран и [emojiGoesFirst]), за ним текстовый (или Inter), дальше системные. */
     private fun typeface(text: Font?, emoji: Font?): Typeface? {
         if (text == null && emoji == null) return null
         return try {
-            val main = text ?: Font.Builder(context.resources, R.font.inter_variable).build()
-            Typeface.CustomFallbackBuilder(FontFamily.Builder(main).build())
-                .apply { emoji?.let { addCustomFallback(FontFamily.Builder(it).build()) } }
-                .setSystemFallback("sans-serif")
-                .build()
+            val main = FontFamily.Builder(text ?: Font.Builder(context.resources, R.font.inter_variable).build()).build()
+            val builder = when {
+                emoji == null -> Typeface.CustomFallbackBuilder(main)
+                emojiGoesFirst(emoji) -> Typeface.CustomFallbackBuilder(FontFamily.Builder(emoji).build()).addCustomFallback(main)
+                else -> Typeface.CustomFallbackBuilder(main).addCustomFallback(FontFamily.Builder(emoji).build())
+            }
+            builder.setSystemFallback("sans-serif").build()
         } catch (e: Exception) {
             Log.w(TAG, "fonts: typeface build failed", e)
             null
@@ -221,3 +227,21 @@ class FontStore @Inject constructor(
         const val KEY_EMOJI = "emoji"
     }
 }
+
+/**
+ * Можно ли ставить emoji-шрифт первым в цепочке fallback. Android отдаёт знак первому шрифту, который
+ * его покрывает, и с текстовым шрифтом впереди ❤️, ☀️, 1️⃣ брались бы из него, а ❤️‍🔥 распадался.
+ * Но первым можно ставить только шрифт без пробела и цифр — их убирает `tools/fonts/android_fixups.py`.
+ * Шрифт, собранный без него, остаётся после текстового: цифры и пробелы важнее.
+ */
+internal fun emojiGoesFirst(emoji: Font): Boolean {
+    val alone = Typeface.CustomFallbackBuilder(FontFamily.Builder(emoji).build()).build()
+    val paint = Paint().apply { typeface = alone }
+    val glyphs = TextRunShaper.shapeTextRun(TEXT_PROBE, 0, TEXT_PROBE.length, 0, TEXT_PROBE.length, 0f, 0f, false, paint)
+    val path = emoji.file?.absolutePath ?: return false
+    val first = (0 until glyphs.glyphCount()).none { glyphs.getFont(it).file?.absolutePath == path }
+    if (!first) Log.w("Reach", "fonts: emoji font has digits/space (built without android_fixups.py), keeping it after the text font")
+    return first
+}
+
+private const val TEXT_PROBE = "1 #"

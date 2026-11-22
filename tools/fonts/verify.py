@@ -3,6 +3,7 @@
 
 Emoji (each AppleColorEmoji-*.ttf):
   - has CBDT, CBLC, cmap, GSUB; has no sbix;
+  - android_fixups.py ran: no digits/space in the regular cmap, ❤️ and 1️⃣ in cmap format 14;
   - sample ZWJ sequences, flags and skin tones shape to one glyph;
   - every sequence the converter knows shapes as in its verify_gsub.py.
 SF Pro: prints the fvar axes and their ranges.
@@ -11,6 +12,7 @@ SF Pro: prints the fvar axes and their ranges.
 from __future__ import annotations
 
 import argparse
+import dataclasses
 import sys
 from pathlib import Path
 
@@ -44,6 +46,16 @@ def check_emoji(path: Path, source: Path) -> list[str]:
     for tag in FORBIDDEN_TABLES:
         if tag in font:
             errors.append(f"unexpected table {tag}")
+    uvs = next((t for t in font["cmap"].tables if t.format == 14), None) if "cmap" in font else None
+    vs16 = {base for base, _ in uvs.uvsDict.get(0xFE0F, [])} if uvs else set()
+    print(f"  cmap format 14: {len(vs16)} sequences with U+FE0F")
+    for base in (0x2764, 0x0031):
+        if base not in vs16:
+            errors.append(f"cmap format 14 has no U+{base:04X} U+FE0F")
+    best = font.getBestCmap() if "cmap" in font else {}
+    for cp in (0x0020, 0x0031):
+        if cp in best:
+            errors.append(f"U+{cp:04X} is in the regular cmap: it would win over the text font")
     strikes = [s.bitmapSizeTable.ppemY for s in font["CBLC"].strikes] if "CBLC" in font else []
     print(f"  strikes: {strikes}, glyphs: {len(font.getGlyphOrder())}")
 
@@ -75,8 +87,27 @@ def check_all_sequences(path: Path, source: Path) -> list[str]:
     records = load_sequence_inventory(
         list(default_sequence_files()), list(default_project_sequence_files())
     )
-    src = ShapingOracle(source, font_number=0)
+    # android_fixups.py moved text-like bases (digits, ©, arrows …) to cmap format 14 only.
+    # Sequences with such a base and no U+FE0F after it are intentionally not emoji; for the
+    # rest the converter's check looks up component glyph names in the regular cmap.
     gen = ShapingOracle(path)
+    uvs = next(t for t in gen.ttfont["cmap"].tables if t.format == 14)
+    fe0f_only = {base: glyph for base, glyph in uvs.uvsDict.get(0xFE0F, []) if glyph}
+
+    def keeps_fe0f(seq: tuple[int, ...]) -> bool:
+        return all(nxt == 0xFE0F for cp, nxt in zip(seq, seq[1:] + (0,)) if cp in fe0f_only)
+
+    kept = []
+    for record in records:
+        raws = tuple(raw for raw in record.raw_sequences if keeps_fe0f(raw))
+        if raws:
+            kept.append(dataclasses.replace(record, raw_sequences=raws))
+    print(f"  sequences: skipped {len(records) - len(kept)} records with a text-like base and no U+FE0F")
+    records = kept
+    for table in gen.ttfont["cmap"].tables:
+        if table.format in (4, 12):
+            table.cmap.update(fe0f_only)
+    src = ShapingOracle(source, font_number=0)
     try:
         mismatches = verify_records(src, gen, records)
     finally:

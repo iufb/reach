@@ -34,6 +34,8 @@ print("Wrote", sys.argv[2])
     python -I /opt/reach/derive_strike.py "$TTC" "$strike" "$src"
     [ -f "$src" ] || src="$TTC"
     cd /opt/apple-emoji-ttf
-    exec python cli.py -c "$recipe" -i "$src" -o "/out/AppleColorEmoji-$strike.ttf"
+    python cli.py -c "$recipe" -i "$src" -o "/out/AppleColorEmoji-$strike.ttf"
+    # Reach puts the emoji font first in the fallback chain: cmap and metrics for that
+    exec python -I /opt/reach/android_fixups.py "/out/AppleColorEmoji-$strike.ttf"
     ;;
 esac

@@ -8,7 +8,10 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontFamily
 import io.github.iufb.reach.fonts.CustomTextFont
+import io.github.iufb.reach.fonts.DeviceFonts
 
 /** Доступ к токенам темы: `ReachTheme.colors.accent`. */
 object ReachTheme {
@@ -38,12 +41,22 @@ fun ReachTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
     // Свой текстовый шрифт из Настройки → Шрифт (InterfaceFonts.text), `null` — Inter. Без горячей замены.
     textFont: CustomTextFont? = null,
+    // Свои шрифты из загрузчика: здесь нужен emoji-шрифт для Inter и кода (#254), `null` — стандартные
+    fonts: DeviceFonts? = null,
     content: @Composable () -> Unit,
 ) {
     val colors = if (darkTheme) NightColors else DayColors
     val scheme = remember(colors) { colors.toMaterial() }
-    val typography = remember(textFont) { reachTypography(textFont) }
-    CompositionLocalProvider(LocalReachColors provides colors) {
+    val context = LocalContext.current
+    val families = remember(fonts) { DeviceFontFamilies.of(context, fonts) }
+    val typography = remember(textFont, families) {
+        // Свой текстовый шрифт сам несёт emoji-шрифт (CustomTextFont); Inter — через DeviceFontFamilies
+        if (textFont == null && families != null) InterTypography.withFontFamily(families.text) else reachTypography(textFont)
+    }
+    CompositionLocalProvider(
+        LocalReachColors provides colors,
+        LocalMonospace provides (families?.monospace ?: FontFamily.Monospace),
+    ) {
         MaterialTheme(colorScheme = scheme, typography = typography, content = content)
     }
 }
