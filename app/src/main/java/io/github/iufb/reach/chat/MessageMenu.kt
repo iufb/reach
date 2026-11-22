@@ -3,6 +3,8 @@ package io.github.iufb.reach.chat
 import io.github.iufb.reach.chats.ContentKind
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.RichText
+import io.github.iufb.reach.fonts.LocalFont
+import io.github.iufb.reach.fonts.isFontFileName
 import org.drinkless.tdlib.TdApi
 
 /**
@@ -23,10 +25,12 @@ data class MessageActions(
     val canStopPoll: Boolean = false,
     /** «Отменить голос». */
     val canRetractVote: Boolean = false,
+    /** Документ `.ttf`/`.otf`: «Установить как шрифт» (#275). */
+    val canInstallFont: Boolean = false,
 ) {
     val canDelete: Boolean get() = canDeleteForAll || canDeleteForSelf
     val isEmpty: Boolean get() = copyText == null && !canReply && !canEdit && !canDelete && !canForward && !canPin &&
-        !canStopPoll && !canRetractVote
+        !canStopPoll && !canRetractVote && !canInstallFont
 }
 
 /** Открытое меню действий над [message]; [reactions] — ряд реакций сверху. */
@@ -70,6 +74,7 @@ internal fun messageActions(message: Message, properties: TdApi.MessagePropertie
         // stopPoll проверяется по can_be_edited
         canStopPoll = poll != null && !poll.isClosed && message.isOutgoing && properties?.canBeEdited == true,
         canRetractVote = poll?.canRetract == true,
+        canInstallFont = (message.content as? MessageBody.Document)?.document?.fileName?.let(::isFontFileName) == true,
     )
 }
 
@@ -95,3 +100,9 @@ private val CAPTIONED = setOf(
     ContentKind.Photo, ContentKind.Video, ContentKind.Document, ContentKind.Audio,
     ContentKind.VoiceNote, ContentKind.Animation,
 )
+
+/** Итог «Установить как шрифт»: шрифт добавлен или ошибка ([message] `null` — общий текст). */
+sealed interface FontNotice {
+    data class Added(val font: LocalFont) : FontNotice
+    data class Failed(val message: String?) : FontNotice
+}

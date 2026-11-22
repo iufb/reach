@@ -12,6 +12,8 @@ import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.StickerInfo
 import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.files.DocumentDownloads
+import io.github.iufb.reach.fonts.FontImportException
+import io.github.iufb.reach.fonts.FontStore
 import io.github.iufb.reach.media.AudioPlayer
 import io.github.iufb.reach.media.AudioState
 import io.github.iufb.reach.media.AudioTrack
@@ -126,6 +128,7 @@ class ChatViewModel @Inject constructor(
     private val photoEditor: PhotoEditRenderer,
     private val visibleChats: VisibleChats,
     private val prefetch: HistoryPrefetch,
+    private val fontStore: FontStore,
 ) : ViewModel() {
 
     private val route = savedStateHandle.toRoute<ChatRoute>()
@@ -797,6 +800,34 @@ class ChatViewModel @Inject constructor(
 
     /** Тап по документу: скачан — открыть, качается — остановить, иначе — скачать. */
     fun onDocumentClick(document: DocumentInfo) = documents.onClick(document)
+
+    private val _fontNotice = MutableStateFlow<FontNotice?>(null)
+    /** Итог «Установить как шрифт» для тоста; `null` — тоста нет. */
+    val fontNotice: StateFlow<FontNotice?> = _fontNotice.asStateFlow()
+
+    /**
+     * «Установить как шрифт» (#275): скачать документ, если ещё не скачан (прогресс — в ячейке),
+     * и импортировать в [FontStore]. Шрифт не выбирается: выбор — в Настройках → Шрифт.
+     */
+    fun installFont(message: Message) {
+        _menu.value = null
+        val document = (message.content as? MessageBody.Document)?.document ?: return
+        viewModelScope.launch {
+            val path = documents.awaitPath(document)
+            _fontNotice.value = if (path == null) {
+                FontNotice.Failed(null)
+            } else {
+                fontStore.import(java.io.File(path)).fold(
+                    onSuccess = { FontNotice.Added(it) },
+                    onFailure = { FontNotice.Failed((it as? FontImportException)?.problem?.message) },
+                )
+            }
+        }
+    }
+
+    fun dismissFontNotice(notice: FontNotice) {
+        _fontNotice.compareAndSet(notice, null)
+    }
 
     /** Отправка файла, выбранного через системный выбор. */
     fun sendFile(uri: Uri) {
