@@ -21,7 +21,12 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.drawscope.DrawScope
 import androidx.compose.ui.unit.dp
+import android.graphics.Paint
+import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
+import androidx.compose.ui.graphics.nativeCanvas
+import androidx.compose.ui.graphics.toArgb
 import kotlin.math.PI
+import kotlin.math.cos
 import kotlin.math.sin
 
 /**
@@ -43,23 +48,67 @@ internal fun rememberSpoilerPhase(): State<Float> =
 /**
  * Частицы в [area]: положения псевдослучайны, но постоянны для области; каждая мигает в своей фазе
  * и чуть дрейфует. Плотность — по площади, с потолком на случай большого текста.
+ *
+ * Рисуется каждый кадр на главном потоке, поэтому без поштучных вызовов: параметры частиц посчитаны
+ * один раз ([Particles]), а частицы раскладываются по [ALPHA_LEVELS] уровням яркости и каждый уровень
+ * рисуется одним `drawPoints` — несколько вызовов вместо сотен `drawCircle`.
  */
 internal fun DrawScope.drawSpoilerParticles(area: Rect, phase: Float, color: Color) {
     if (area.isEmpty) return
     val step = 6.dp.toPx()
     val count = ((area.width * area.height) / (step * step)).toInt().coerceIn(MIN_PARTICLES, MAX_PARTICLES)
-    val radius = 0.9.dp.toPx()
     val drift = 2.dp.toPx()
+    val buffers = Particles.buffers
+    val sizes = Particles.sizes
+    sizes.fill(0)
     for (i in 0 until count) {
-        val seed = i * 2654435761L
-        val x = area.left + fraction(seed) * area.width
-        val y = area.top + fraction(seed shr 7) * area.height
-        val own = (phase + fraction(seed shr 13)) % 1f
-        val alpha = sin(own * PI).toFloat()
-        val angle = fraction(seed shr 19) * 2 * PI
-        val dx = (kotlin.math.cos(angle) * drift * own).toFloat()
-        val dy = (sin(angle) * drift * own).toFloat()
-        drawCircle(color.copy(alpha = color.alpha * alpha), radius, Offset(x + dx, y + dy))
+        val own = (phase + Particles.phase[i]) % 1f
+        val level = (sin(own * PI).toFloat() * ALPHA_LEVELS).toInt().coerceAtMost(ALPHA_LEVELS - 1)
+        if (level == 0) continue
+        val buffer = buffers[level]
+        val at = sizes[level]
+        buffer[at] = area.left + Particles.x[i] * area.width + Particles.dx[i] * drift * own
+        buffer[at + 1] = area.top + Particles.y[i] * area.height + Particles.dy[i] * drift * own
+        sizes[level] = at + 2
+    }
+    val paint = Particles.paint
+    paint.strokeWidth = 1.8.dp.toPx()
+    drawIntoCanvas { canvas ->
+        for (level in 1 until ALPHA_LEVELS) {
+            if (sizes[level] == 0) continue
+            paint.color = color.copy(alpha = color.alpha * (level + 0.5f) / ALPHA_LEVELS).toArgb()
+            canvas.nativeCanvas.drawPoints(buffers[level], 0, sizes[level], paint)
+        }
+    }
+}
+
+/**
+ * Неизменные параметры частиц (положение, фаза, направление дрейфа) на [MAX_PARTICLES] штук и рабочие
+ * буферы точек по уровням яркости. Рисование идёт только на главном потоке, буферы общие.
+ */
+private object Particles {
+    val x = FloatArray(MAX_PARTICLES)
+    val y = FloatArray(MAX_PARTICLES)
+    val phase = FloatArray(MAX_PARTICLES)
+    val dx = FloatArray(MAX_PARTICLES)
+    val dy = FloatArray(MAX_PARTICLES)
+    val buffers = Array(ALPHA_LEVELS) { FloatArray(MAX_PARTICLES * 2) }
+    val sizes = IntArray(ALPHA_LEVELS)
+    val paint = Paint().apply {
+        isAntiAlias = true
+        strokeCap = Paint.Cap.ROUND
+    }
+
+    init {
+        for (i in 0 until MAX_PARTICLES) {
+            val seed = i * 2654435761L
+            x[i] = fraction(seed)
+            y[i] = fraction(seed shr 7)
+            phase[i] = fraction(seed shr 13)
+            val angle = fraction(seed shr 19) * 2 * PI
+            dx[i] = cos(angle).toFloat()
+            dy[i] = sin(angle).toFloat()
+        }
     }
 }
 
@@ -88,6 +137,8 @@ private val SPOILER_BLUR = 24.dp
 private const val SPOILER_PERIOD_MS = 2_400
 private const val MIN_PARTICLES = 12
 private const val MAX_PARTICLES = 600
+/** Уровни яркости частиц; нулевой (почти погасшие) не рисуется. */
+private const val ALPHA_LEVELS = 6
 
 /** Медиа под спойлером в ленте: первый тап раскрывает, следующие — открывают просмотр. */
 internal class MediaSpoiler(private val revealed: MutableState<Boolean>, private val hasSpoiler: Boolean) {
