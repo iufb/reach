@@ -20,7 +20,7 @@ import io.github.iufb.reach.files.FilesRepository
 import io.github.iufb.reach.media.AudioPlayer
 import io.github.iufb.reach.media.AudioState
 import io.github.iufb.reach.media.AudioTrack
-import io.github.iufb.reach.navigation.GalleryRoute
+import io.github.iufb.reach.navigation.ProfileRoute
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -61,8 +61,9 @@ data class TabPage(
 )
 
 /**
- * Медиа-галерея чата (PRODUCT.md §4.4): сообщения по типам через `searchChatMessages`
- * с фильтром, постранично. Счётчики — `getChatMessageCount`; пустые вкладки не показываются.
+ * Медиа-галерея чата (PRODUCT.md §4.4) — вкладки внизу профиля, как в Telegram iOS: сообщения по типам
+ * через `searchChatMessages` с фильтром, постранично. Счётчики — `getChatMessageCount`; пустые вкладки
+ * не показываются. Чат — из [ProfileRoute]: у пользователя без чата это личный чат с ним (id совпадают).
  */
 @HiltViewModel
 class GalleryViewModel @Inject constructor(
@@ -72,7 +73,7 @@ class GalleryViewModel @Inject constructor(
     private val audioPlayer: AudioPlayer,
 ) : ViewModel() {
 
-    val chatId: Long = savedStateHandle.toRoute<GalleryRoute>().chatId
+    val chatId: Long = savedStateHandle.toRoute<ProfileRoute>().let { if (it.chatId != 0L) it.chatId else it.userId }
 
     private val _counts = MutableStateFlow<Map<GalleryTab, Int>?>(null)
     /** Сколько сообщений каждого типа; `null` — ещё считаем. */

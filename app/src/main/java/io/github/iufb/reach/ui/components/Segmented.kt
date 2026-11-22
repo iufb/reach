@@ -3,6 +3,8 @@ package io.github.iufb.reach.ui.components
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Box
@@ -24,6 +26,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
@@ -84,6 +87,51 @@ fun SegmentedControl(
                         overflow = TextOverflow.Ellipsis,
                     )
                 }
+            }
+        }
+    }
+}
+
+/**
+ * Вкладки-пилюли с прокруткой (медиа в профиле): стеклянная дорожка по размеру содержимого,
+ * выбранная вкладка — плашка `fill` / `cell`. Подходит, когда вкладок много и они разной ширины.
+ */
+@Composable
+fun PillTabs(
+    items: List<String>,
+    selected: Int,
+    onSelect: (Int) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = ReachTheme.colors
+    val pill = RoundedCornerShape(percent = 50)
+    val thumb = if (colors.isDark) colors.fill else colors.groupedBackground
+    Row(
+        modifier
+            .horizontalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .glass(pill)
+            .padding(SEGMENT_INSET),
+    ) {
+        items.forEachIndexed { index, label ->
+            val isSelected = index == selected
+            Box(
+                Modifier
+                    .height(SEGMENT_HEIGHT)
+                    .clip(pill)
+                    .background(if (isSelected) thumb else Color.Transparent)
+                    .clickable(role = Role.Tab) { onSelect(index) }
+                    .semantics { this.selected = isSelected }
+                    .padding(horizontal = 14.dp),
+                contentAlignment = Alignment.Center,
+            ) {
+                Text(
+                    label,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = if (isSelected) FontWeight.SemiBold else FontWeight.Normal,
+                    color = colors.label,
+                    maxLines = 1,
+                )
             }
         }
     }

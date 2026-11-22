@@ -267,8 +267,15 @@
     <string name="video_pause">Пауза</string>
     <string name="video_play_error">Не удалось воспроизвести видео</string>
     <string name="sticker_set">Стикерпак</string>
-    <string name="profile_gallery">Медиа, ссылки и файлы</string>
-    <string name="gallery_title">Медиа и файлы</string>
+    <string name="profile_action_message">сообщение</string>
+    <string name="profile_action_mute">выкл. звук</string>
+    <string name="profile_action_unmute">вкл. звук</string>
+    <string name="profile_action_more">ещё</string>
+    <string name="profile_info_phone">телефон</string>
+    <string name="profile_info_username">имя пользователя</string>
+    <string name="profile_info_link">ссылка</string>
+    <string name="profile_info_bio">о себе</string>
+    <string name="profile_info_description">описание</string>
     <string name="gallery_media">Медиа</string>
     <string name="gallery_files">Файлы</string>
     <string name="gallery_links">Ссылки</string>
@@ -662,6 +669,7 @@
     <string name="contacts_not_found">Этого номера нет в Telegram</string>
     <string name="contact_add">Добавить в контакты</string>
     <string name="contact_edit">Изменить контакт</string>
+    <string name="profile_edit">Изменить</string>
     <string name="contact_remove">Удалить из контактов</string>
     <string name="service_topic_created">Создан топик</string>
     <string name="service_topic_created_named">Создан топик «%1$s»</string>
