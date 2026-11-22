@@ -155,3 +155,17 @@ internal fun ReachColors.toMaterial(): ColorScheme {
         scrim = Color.Black,
     )
 }
+
+/**
+ * Фоны цветных значков в ячейках настроек — системные цвета iOS. От темы не зависят: значок белый
+ * на насыщенном квадрате читается и на светлых, и на тёмных карточках.
+ */
+object CellIconColors {
+    val Red = Color(0xFFFF3B30)
+    val Orange = Color(0xFFFF9500)
+    val Green = Color(0xFF34C759)
+    val Teal = Color(0xFF30B0C7)
+    val Blue = Color(0xFF007AFF)
+    val Purple = Color(0xFFAF52DE)
+    val Gray = Color(0xFF8E8E93)
+}

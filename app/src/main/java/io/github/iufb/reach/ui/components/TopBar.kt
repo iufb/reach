@@ -19,6 +19,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import io.github.iufb.reach.ui.theme.ReachTheme
@@ -33,6 +34,7 @@ val TopBarHeight = 56.dp
  * [titlePill] — заголовок в стеклянной пилюле (экран чата: имя и статус); иначе просто текст по центру.
  * [onTitleClick] — тап по заголовку (профиль собеседника).
  * [background] — цвет экрана под шапкой, в него затухает градиент (у сгруппированных — `groupedBackground`).
+ * [titleAlpha] — прозрачность заголовка: экраны с крупной шапкой проявляют его, когда шапка уехала под бар.
  */
 @Composable
 fun ReachTopBar(
@@ -44,6 +46,7 @@ fun ReachTopBar(
     navigation: (@Composable () -> Unit)? = null,
     actions: @Composable RowScope.() -> Unit = {},
     background: Color = ReachTheme.colors.background,
+    titleAlpha: () -> Float = { 1f },
 ) {
     val colors = ReachTheme.colors
     Box(
@@ -67,6 +70,7 @@ fun ReachTopBar(
         if (title != null) {
             val titleModifier = Modifier
                 .align(Alignment.Center)
+                .graphicsLayer { alpha = titleAlpha() }
                 .widthIn(max = 240.dp)
                 .then(if (titlePill) Modifier.glass(RoundedCornerShape(percent = 50)) else Modifier)
                 .then(if (onTitleClick != null) Modifier.clickable(onClick = onTitleClick) else Modifier)

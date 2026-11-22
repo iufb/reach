@@ -291,6 +291,10 @@
     <string name="autodownload_voice">Голосовые</string>
     <string name="autodownload_stickers">Стикеры</string>
     <string name="autodownload_up_to">до %1$s</string>
+    <string name="autodownload_types">Типы медиа</string>
+    <string name="autodownload_limit_title">Скачивать автоматически до</string>
+    <string name="size_mb">%1$s МБ</string>
+    <string name="size_gb">%1$s ГБ</string>
     <string name="autodownload_hint">Остальное скачивается по тапу. Фото, видео и файлы — настройки Telegram и сохраняются в аккаунте.</string>
     <string name="player_previous">Предыдущий трек</string>
     <string name="player_next">Следующий трек</string>
@@ -491,6 +495,8 @@
     <string name="settings_bio_empty">Расскажите о себе</string>
     <string name="settings_username_empty">Не задан</string>
     <string name="settings_photo_change">Выбрать фото</string>
+    <string name="settings_photo_edit">Изменить фото</string>
+    <string name="settings_photo_set">Установить фото</string>
     <string name="settings_photo_delete">Удалить фото</string>
     <string name="blocked_title">Заблокированные</string>
     <string name="contact_sync_title">Синхронизация контактов</string>
