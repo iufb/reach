@@ -627,6 +627,7 @@
     <string name="invite_limit_short">Лимит участников</string>
     <string name="invite_limit_hint">Пусто — без лимита. С заявками лимит не задаётся.</string>
     <string name="invite_revoke_confirm">Отозвать ссылку? По ней больше нельзя будет вступить.</string>
+    <string name="invite_new_title">Новая ссылка</string>
     <string name="invite_more">Дополнительные ссылки</string>
     <string name="invite_requests_switch">Вступление по заявке</string>
     <string name="invite_expiry">Срок действия</string>

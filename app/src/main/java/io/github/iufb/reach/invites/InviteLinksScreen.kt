@@ -11,7 +11,6 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
@@ -64,9 +63,8 @@ import io.github.iufb.reach.ui.components.GroupedRow
 import io.github.iufb.reach.ui.components.GroupedSection
 import io.github.iufb.reach.ui.components.GroupedTextField
 import io.github.iufb.reach.ui.components.ListScreen
-import io.github.iufb.reach.ui.components.PillTextButton
 import io.github.iufb.reach.ui.components.SheetAction
-import io.github.iufb.reach.ui.components.TopBarHeight
+import io.github.iufb.reach.ui.components.SheetHeader
 import io.github.iufb.reach.ui.components.groupedHeader
 import io.github.iufb.reach.ui.components.groupedItems
 import io.github.iufb.reach.ui.format.Dates
@@ -294,21 +292,13 @@ private fun LinkEditor(existing: InviteLink?, onSave: (LinkDraft) -> Unit, onDis
     val colors = ReachTheme.colors
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Column(Modifier.fillMaxSize().background(colors.groupedBackground).statusBarsPadding().navigationBarsPadding().imePadding()) {
-            Box(Modifier.fillMaxWidth().height(TopBarHeight).padding(horizontal = 12.dp)) {
-                PillTextButton(stringResource(R.string.cancel), onClick = onDismiss, modifier = Modifier.align(Alignment.CenterStart))
-                Text(
-                    stringResource(if (existing == null) R.string.invite_create else R.string.message_action_edit),
-                    modifier = Modifier.align(Alignment.Center),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = colors.label,
-                )
-                PillTextButton(
-                    stringResource(R.string.save),
-                    onClick = { onSave(LinkDraft(name, expires, limit.toIntOrNull()?.coerceIn(0, MAX_LIMIT) ?: 0, requests)) },
-                    modifier = Modifier.align(Alignment.CenterEnd),
-                    bold = true,
-                )
-            }
+            SheetHeader(
+                title = stringResource(if (existing == null) R.string.invite_new_title else R.string.message_action_edit),
+                cancel = stringResource(R.string.cancel),
+                onCancel = onDismiss,
+                action = stringResource(R.string.save),
+                onAction = { onSave(LinkDraft(name, expires, limit.toIntOrNull()?.coerceIn(0, MAX_LIMIT) ?: 0, requests)) },
+            )
             Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState())) {
                 GroupedSection(header = stringResource(R.string.invite_name_short), footer = stringResource(R.string.invite_name_hint)) {
                     GroupedTextField(name, { name = it.take(NAME_MAX) }, placeholder = stringResource(R.string.invite_name_short), divider = false)

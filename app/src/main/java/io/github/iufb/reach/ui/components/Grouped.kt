@@ -27,6 +27,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
@@ -51,7 +52,7 @@ fun GroupedSection(
     Column(modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp)) {
         if (header != null) {
             Text(
-                header,
+                header.uppercase(),
                 modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 6.dp),
                 style = MaterialTheme.typography.bodySmall,
                 color = colors.secondaryLabel,
@@ -82,6 +83,39 @@ fun ListSectionHeader(text: String, modifier: Modifier = Modifier) {
         style = MaterialTheme.typography.bodySmall,
         color = colors.secondaryLabel,
     )
+}
+
+/**
+ * Шапка шторки во весь экран: слева «Отмена», по центру заголовок (многоточие, если не влез), справа
+ * действие. Заголовок не заезжает под кнопки.
+ */
+@Composable
+fun SheetHeader(
+    title: String,
+    cancel: String,
+    onCancel: () -> Unit,
+    modifier: Modifier = Modifier,
+    action: String? = null,
+    actionEnabled: Boolean = true,
+    onAction: () -> Unit = {},
+) {
+    Row(
+        modifier.fillMaxWidth().heightIn(min = TopBarHeight).padding(horizontal = 12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        PillTextButton(cancel, onClick = onCancel)
+        Text(
+            title,
+            modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
+            style = MaterialTheme.typography.titleMedium,
+            color = ReachTheme.colors.label,
+            textAlign = TextAlign.Center,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+        )
+        if (action != null) PillTextButton(action, onClick = onAction, bold = true, enabled = actionEnabled)
+        else Spacer(Modifier.width(PillHeight))
+    }
 }
 
 /** Цветной квадрат со значком слева в ячейке, как в настройках iOS. */

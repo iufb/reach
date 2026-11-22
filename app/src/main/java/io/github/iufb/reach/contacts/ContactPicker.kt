@@ -1,19 +1,12 @@
 package io.github.iufb.reach.contacts
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
-import io.github.iufb.reach.ui.components.PillTextButton
-import io.github.iufb.reach.ui.components.TopBarHeight
 import io.github.iufb.reach.ui.theme.ReachTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -31,6 +24,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.iufb.reach.R
 import io.github.iufb.reach.ui.components.RoundCheck
+import io.github.iufb.reach.ui.components.SheetHeader
 import io.github.iufb.reach.ui.components.SearchField
 import io.github.iufb.reach.users.User
 
@@ -96,19 +90,14 @@ fun ContactPickerSheet(
     val colors = ReachTheme.colors
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         Column(Modifier.fillMaxSize().background(colors.background).statusBarsPadding().navigationBarsPadding().imePadding()) {
-            Box(Modifier.fillMaxWidth().height(TopBarHeight).padding(horizontal = 12.dp)) {
-                PillTextButton(stringResource(R.string.cancel), onClick = onDismiss, modifier = Modifier.align(Alignment.CenterStart))
-                Text(
-                    title,
-                    modifier = Modifier.align(Alignment.Center),
-                    style = MaterialTheme.typography.titleLarge,
-                    color = colors.label,
-                    maxLines = 1,
-                )
-                confirm?.let { (label, action) ->
-                    PillTextButton(label, onClick = action, modifier = Modifier.align(Alignment.CenterEnd), bold = true, enabled = selected.isNotEmpty())
-                }
-            }
+            SheetHeader(
+                title = title,
+                cancel = stringResource(R.string.cancel),
+                onCancel = onDismiss,
+                action = confirm?.first,
+                actionEnabled = selected.isNotEmpty(),
+                onAction = { confirm?.second?.invoke() },
+            )
             ContactPicker(
                 contacts,
                 selected,
