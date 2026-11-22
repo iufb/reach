@@ -133,9 +133,19 @@ fun ReachTabBar(
     val glassFill = restFill.copy(alpha = restFill.alpha * GLASS_FILL_ALPHA)
     val edge = colors.label
 
+    /**
+     * Положение и ширина линзы. До первой анимации — прямо из замера вкладок: замер приходит в том же
+     * кадре, что и отрисовка, и на новом экране-вкладке линза видна с первого кадра.
+     */
+    fun lensSpan(): Pair<Float, Float> =
+        if (placed) lensX.value to lensW.value
+        else previous?.let { bounds.getOrNull(it) }?.takeIf { it.second > 0f } ?: bounds.getOrNull(selected) ?: (0f to 0f)
+
     /** Линза в координатах ряда вкладок высотой [rowHeight]; [g] — насколько она «стекло». */
-    fun lensRect(g: Float, rowHeight: Float, growX: Float, growY: Float) =
-        Rect(lensX.value - growX * g, -growY * g, lensX.value + lensW.value + growX * g, rowHeight + growY * g)
+    fun lensRect(g: Float, rowHeight: Float, growX: Float, growY: Float): Rect {
+        val (x, w) = lensSpan()
+        return Rect(x - growX * g, -growY * g, x + w + growX * g, rowHeight + growY * g)
+    }
 
     Box(
         modifier
@@ -153,7 +163,7 @@ fun ReachTabBar(
         // Линза: залитая капсула на месте, стеклянный пузырь с кромкой в движении
         Box(
             Modifier.matchParentSize().drawBehind {
-                if (lensW.value <= 0f) return@drawBehind
+                if (lensSpan().second <= 0f) return@drawBehind
                 val g = maxOf(moving.value, held)
                 val pad = INNER_PAD.toPx()
                 val r = lensRect(g, size.height - pad * 2, LENS_GROW_X.toPx(), LENS_GROW_Y.toPx()).translate(Offset(pad, pad))
@@ -181,7 +191,7 @@ fun ReachTabBar(
                 .padding(INNER_PAD)
                 .graphicsLayer {
                     val g = maxOf(moving.value, held)
-                    renderEffect = if (g > 0f && lensW.value > 0f) {
+                    renderEffect = if (g > 0f && lensSpan().second > 0f) {
                         val r = lensRect(g, size.height, LENS_GROW_X.toPx(), LENS_GROW_Y.toPx())
                         shader.setFloatUniform("lens", r.left, r.top, r.right, r.bottom)
                         shader.setFloatUniform("strength", g)
@@ -206,7 +216,7 @@ fun ReachTabBar(
                 Modifier
                     .clearAndSetSemantics {}
                     .drawWithContent {
-                        if (lensW.value <= 0f) return@drawWithContent
+                        if (lensSpan().second <= 0f) return@drawWithContent
                         val r = lensRect(maxOf(moving.value, held), size.height, LENS_GROW_X.toPx(), LENS_GROW_Y.toPx())
                         val path = Path().apply { addRoundRect(RoundRect(r, CornerRadius(r.height / 2))) }
                         clipPath(path) { this@drawWithContent.drawContent() }
