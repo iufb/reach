@@ -33,8 +33,8 @@ import androidx.compose.ui.unit.dp
 import io.github.iufb.reach.ui.theme.ReachTheme
 
 /**
- * Сегментный переключатель iOS: дорожка цвета `fill`, выбранный сегмент — плашка `cell`,
- * которая переезжает к новому выбору.
+ * Сегментный переключатель iOS: на дорожке плашка выбранного сегмента, которая переезжает к новому выбору.
+ * Плашка светлее дорожки в обеих темах: днём белая `cell` на сером `fill`, ночью наоборот.
  */
 @Composable
 fun SegmentedControl(
@@ -45,12 +45,14 @@ fun SegmentedControl(
 ) {
     val colors = ReachTheme.colors
     val track = RoundedCornerShape(percent = 50)
+    val trackColor = if (colors.isDark) colors.cell else colors.fill
+    val thumbColor = if (colors.isDark) colors.fill else colors.cell
     BoxWithConstraints(
         modifier
             .fillMaxWidth()
             .height(SEGMENT_HEIGHT)
             .clip(track)
-            .background(colors.fill)
+            .background(trackColor)
             .padding(SEGMENT_INSET),
     ) {
         val segment = maxWidth / items.size
@@ -61,7 +63,7 @@ fun SegmentedControl(
                 .width(segment)
                 .fillMaxHeight()
                 .shadow(1.dp, track)
-                .background(colors.cell, track),
+                .background(thumbColor, track),
         )
         Row(Modifier.fillMaxWidth()) {
             items.forEachIndexed { index, label ->

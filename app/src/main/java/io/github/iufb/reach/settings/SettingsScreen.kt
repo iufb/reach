@@ -115,9 +115,10 @@ fun SettingsScreen(
     GlassScope {
         Box(Modifier.fillMaxSize().background(colors.groupedBackground)) {
             val me = profile
-            if (me == null || loggingOut) {
+            if (loggingOut) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center), color = colors.accent)
-            } else {
+            } else if (me != null) {
+                // Пока профиль не пришёл (кадр-другой после перехода) — пустой фон, без мелькания спиннера
                 Column(
                     Modifier
                         .fillMaxSize()
