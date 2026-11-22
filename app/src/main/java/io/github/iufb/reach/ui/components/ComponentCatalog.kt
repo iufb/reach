@@ -32,6 +32,8 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import io.github.iufb.reach.R
+import io.github.iufb.reach.auth.AuthPreviewDialog
+import io.github.iufb.reach.auth.AuthPreviewStep
 import io.github.iufb.reach.ui.theme.CellIconColors
 import io.github.iufb.reach.ui.theme.ReachTheme
 
@@ -47,6 +49,7 @@ fun ComponentCatalogScreen(onBack: () -> Unit) {
     var sheet by remember { mutableStateOf(false) }
     var alert by remember { mutableStateOf(false) }
     var toggle by remember { mutableStateOf(true) }
+    var authStep by remember { mutableStateOf<AuthPreviewStep?>(null) }
     GlassScope {
         Box(Modifier.fillMaxSize().background(colors.groupedBackground)) {
             LazyColumn(
@@ -78,6 +81,14 @@ fun ComponentCatalogScreen(onBack: () -> Unit) {
                             icon = { CellIcon(painterResource(R.drawable.ic_muted), CellIconColors.Green) },
                             trailing = { Switch(toggle, { toggle = it }) },
                         )
+                    }
+                }
+                item {
+                    GroupedSection(header = "Экраны входа", footer = "Шаги входа с локальным состоянием — без выхода из аккаунта.") {
+                        GroupedCell("Номер телефона", onClick = { authStep = AuthPreviewStep.Phone })
+                        GroupedCell("Код подтверждения", onClick = { authStep = AuthPreviewStep.Code })
+                        GroupedCell("Облачный пароль", onClick = { authStep = AuthPreviewStep.Password })
+                        GroupedCell("Регистрация", onClick = { authStep = AuthPreviewStep.Registration }, divider = false)
                     }
                 }
                 item {
@@ -134,6 +145,7 @@ fun ComponentCatalogScreen(onBack: () -> Unit) {
             )
         }
     }
+    authStep?.let { AuthPreviewDialog(it) { authStep = null } }
     if (sheet) {
         ActionSheet(
             title = "Удалить чат «Audit Group»?",
