@@ -33,6 +33,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import io.github.iufb.reach.chats.MUTE_FOREVER
+import io.github.iufb.reach.users.UserStatus
 import org.drinkless.tdlib.TdApi
 import javax.inject.Inject
 
@@ -51,6 +52,10 @@ data class Profile(
     val memberCount: Int = 0,
     val isChannel: Boolean = false,
     val isUser: Boolean = false,
+    /** «Избранное»: шапка с закладкой вместо своего профиля, без контактов и номера. */
+    val isSavedMessages: Boolean = false,
+    /** «в сети» / «был(а)…» под именем; только у пользователя. */
+    val status: UserStatus = UserStatus.Unknown,
     /** Показать «Написать»: профиль пользователя открыт не из его чата. */
     val canWrite: Boolean = false,
     /** Уведомления чата выключены; `null` — профиль открыт не из чата, переключателя нет. */
@@ -124,6 +129,13 @@ class ProfileViewModel @Inject constructor(
         val chat = chatMap[route.chatId]
         val canChangeInfo = chat != null && chat.canChangeInfo(chat.group?.let(statuses::get))
         when {
+            user != null && chat?.isSavedMessages == true -> Profile(
+                title = user.fullName,
+                photo = null,
+                accentColorId = user.accentColorId,
+                isUser = true,
+                isSavedMessages = true,
+            )
             user != null -> Profile(
                 title = user.fullName,
                 photo = user.photo,
@@ -131,6 +143,7 @@ class ProfileViewModel @Inject constructor(
                 fullPhoto = info.photo,
                 username = user.username,
                 phoneNumber = user.phoneNumber,
+                status = user.status,
                 about = info.about,
                 canWrite = route.userId != 0L,
                 isUser = true,

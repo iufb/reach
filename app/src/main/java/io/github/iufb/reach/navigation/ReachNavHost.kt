@@ -53,7 +53,6 @@ import io.github.iufb.reach.settings.SettingsScreen
 import io.github.iufb.reach.ui.components.ComponentCatalogScreen
 import io.github.iufb.reach.chats.ChatsScreen
 import io.github.iufb.reach.forward.ForwardScreen
-import io.github.iufb.reach.gallery.GalleryScreen
 import io.github.iufb.reach.profile.ProfileScreen
 import io.github.iufb.reach.search.SearchScreen
 import io.github.iufb.reach.settings.AutoDownloadScreen
@@ -77,7 +76,6 @@ import kotlinx.serialization.Serializable
 @Serializable data class ForwardRoute(val fromChatId: Long, val messageIds: List<Long>)
 /** Профиль чата ([chatId]) или пользователя ([userId]); второй — 0. */
 @Serializable data class ProfileRoute(val chatId: Long = 0, val userId: Long = 0)
-@Serializable data class GalleryRoute(val chatId: Long)
 @Serializable data object AutoDownloadRoute
 @Serializable data class ScheduledRoute(val chatId: Long)
 @Serializable data class TopicsRoute(val chatId: Long)
@@ -216,7 +214,7 @@ fun ReachNavHost(
                     ProfileScreen(
                         onBack = { navController.popBackStack() },
                         onOpenChat = { navController.navigate(ChatRoute(it)) },
-                        onOpenGallery = { navController.navigate(GalleryRoute(it)) },
+                        onShowInChat = { chatId, messageId -> navController.navigate(ChatRoute(chatId, messageId)) },
                         onOpenMembers = { navController.navigate(MembersRoute(it)) },
                         onOpenPermissions = { navController.navigate(PermissionsRoute(it)) },
                         onOpenInviteLinks = { navController.navigate(InviteLinksRoute(it)) },
@@ -257,12 +255,6 @@ fun ReachNavHost(
                 composable<BlockedRoute> { BlockedScreen(onBack = { navController.popBackStack() }) }
                 composable<ContactSyncRoute> { ContactSyncScreen(onBack = { navController.popBackStack() }) }
                 composable<AutoDownloadRoute> { AutoDownloadScreen(onBack = { navController.popBackStack() }) }
-                composable<GalleryRoute> {
-                    GalleryScreen(
-                        onBack = { navController.popBackStack() },
-                        onShowInChat = { chatId, messageId -> navController.navigate(ChatRoute(chatId, messageId)) },
-                    )
-                }
                 // Шторка поверх чата (Telegram iOS): после пересылки остаёмся в чате, он показывает тост
                 dialog<ForwardRoute>(dialogProperties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
                     ForwardScreen(
