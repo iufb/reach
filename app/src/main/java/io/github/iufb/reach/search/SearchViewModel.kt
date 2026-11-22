@@ -76,7 +76,8 @@ class SearchViewModel @Inject constructor(
     private val _query = MutableStateFlow("")
     val query: StateFlow<String> = _query.asStateFlow()
 
-    private val found = MutableStateFlow(Found())
+    // Пока не пришли недавние — «загрузка»: экран не мелькает пустым состоянием при открытии
+    private val found = MutableStateFlow(Found(loading = true))
     private var searchJob: Job? = null
     private var moreJob: Job? = null
     private var lastQuery: String? = null

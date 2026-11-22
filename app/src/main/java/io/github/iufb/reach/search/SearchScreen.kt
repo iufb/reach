@@ -60,6 +60,8 @@ import io.github.iufb.reach.ui.format.Dates
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
+import kotlinx.coroutines.flow.first
+import androidx.navigation.compose.LocalNavAnimatedContentScope
 
 /**
  * Глобальный поиск как в Telegram iOS: сверху поле поиска и «Отмена»; без запроса — ряд недавних
@@ -75,7 +77,13 @@ fun SearchScreen(
     val query by viewModel.query.collectAsStateWithLifecycle()
     val results by viewModel.results.collectAsStateWithLifecycle()
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
+    // Клавиатура — после въезда экрана: если поднимать её во время слайда, окно пересчитывается
+    // каждый кадр анимации и переход дёргается
+    val transition = LocalNavAnimatedContentScope.current.transition
+    LaunchedEffect(Unit) {
+        snapshotFlow { transition.isRunning }.first { !it }
+        focus.requestFocus()
+    }
     val open = { chatId: Long ->
         viewModel.onChatOpened(chatId)
         onOpenChat(chatId)
