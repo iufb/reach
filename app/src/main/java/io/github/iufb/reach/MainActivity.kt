@@ -33,8 +33,11 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
+import io.github.iufb.reach.fonts.InterfaceFonts
 import io.github.iufb.reach.navigation.ReachNavHost
+import io.github.iufb.reach.photoedit.OverlayPainter
 import io.github.iufb.reach.ui.theme.ReachTheme
+import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
@@ -45,8 +48,11 @@ class MainActivity : ComponentActivity() {
     /** Ссылка `t.me/…` / `tg://…`, с которой открыли приложение. */
     private val openLinkRequest = MutableStateFlow<String?>(null)
 
+    @Inject lateinit var interfaceFonts: InterfaceFonts
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        OverlayPainter.typeface = interfaceFonts.bold()
         // После пересоздания активити запрос уже выполнен
         if (savedInstanceState == null) {
             openChatRequest.value = intent.chatIdExtra()
@@ -54,7 +60,7 @@ class MainActivity : ComponentActivity() {
         }
         enableEdgeToEdge()
         setContent {
-            ReachTheme {
+            ReachTheme(textFont = interfaceFonts.text) {
                 if (hasApiCredentials()) {
                     val openChatId by openChatRequest.collectAsStateWithLifecycle()
                     val openLink by openLinkRequest.collectAsStateWithLifecycle()

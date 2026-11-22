@@ -8,6 +8,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.remember
+import io.github.iufb.reach.fonts.CustomTextFont
 
 /** Доступ к токенам темы: `ReachTheme.colors.accent`. */
 object ReachTheme {
@@ -33,10 +34,16 @@ fun reachBarColors() = with(ReachTheme.colors) {
 }
 
 @Composable
-fun ReachTheme(darkTheme: Boolean = isSystemInDarkTheme(), content: @Composable () -> Unit) {
+fun ReachTheme(
+    darkTheme: Boolean = isSystemInDarkTheme(),
+    // Свой текстовый шрифт из Настройки → Шрифт (InterfaceFonts.text), `null` — Inter. Без горячей замены.
+    textFont: CustomTextFont? = null,
+    content: @Composable () -> Unit,
+) {
     val colors = if (darkTheme) NightColors else DayColors
     val scheme = remember(colors) { colors.toMaterial() }
+    val typography = remember(textFont) { reachTypography(textFont) }
     CompositionLocalProvider(LocalReachColors provides colors) {
-        MaterialTheme(colorScheme = scheme, typography = ReachTypography, content = content)
+        MaterialTheme(colorScheme = scheme, typography = typography, content = content)
     }
 }

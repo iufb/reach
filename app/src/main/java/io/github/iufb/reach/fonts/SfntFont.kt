@@ -19,8 +19,22 @@ enum class FontProblem(val message: String) {
 
 class FontImportException(val problem: FontProblem) : Exception(problem.message)
 
-/** Что удалось узнать из заголовков шрифта. [name] — семейство из таблицы `name`, если оно есть. */
-data class FontInfo(val kind: FontKind, val name: String?)
+/**
+ * Что удалось узнать из заголовков шрифта. [name] — семейство из таблицы `name`, если оно есть;
+ * [postScriptName] — `name` ID 6.
+ */
+data class FontInfo(val kind: FontKind, val name: String?, val postScriptName: String? = null) {
+    /**
+     * SF Pro: системный `SFNS.ttf` с Mac (`.SFNS-…`, семейство называется «System Font») или SF Pro с сайта Apple.
+     * Для него типографика берёт метрики iOS (#253).
+     */
+    val isSfPro: Boolean
+        get() = postScriptName?.let { ps -> SF_PRO_PREFIXES.any { ps.startsWith(it) } } == true
+
+    private companion object {
+        val SF_PRO_PREFIXES = listOf(".SFNS", ".SFUI", "SFPro")
+    }
+}
 
 /** Чтение байтов файла шрифта по смещению — чтобы не держать в памяти файл на десятки мегабайт. */
 interface FontBytes {
@@ -88,12 +102,15 @@ object SfntFont {
             "glyf" in tables || "CFF " in tables || "CFF2" in tables -> FontKind.Text
             else -> return fail(FontProblem.NoGlyphs)
         }
-        val name = tables["name"]?.let { (offset, length) -> bytes.read(offset, length)?.let(::familyName) }
-        return Result.success(FontInfo(kind, name))
+        val nameTable = tables["name"]?.let { (offset, length) -> bytes.read(offset, length) }
+        return Result.success(FontInfo(kind, nameTable?.let(::familyName), nameTable?.let { name(it, NAME_POSTSCRIPT) }))
     }
 
     /** Семейство: `name` ID 16 (Typographic Family), иначе ID 1 (Font Family). */
-    internal fun familyName(table: ByteArray): String? {
+    internal fun familyName(table: ByteArray): String? = name(table, NAME_TYPOGRAPHIC_FAMILY, NAME_FAMILY)
+
+    /** Запись `name` с первым из [ids], что есть; среди языков — английский Windows. */
+    private fun name(table: ByteArray, vararg ids: Int): String? {
         if (table.size < 6) return null
         val count = table.u16(2)
         val storage = table.u16(4)
@@ -104,7 +121,7 @@ object SfntFont {
             val platform = table.u16(at)
             val language = table.u16(at + 4)
             val nameId = table.u16(at + 6)
-            if (nameId != 16 && nameId != 1) return@mapNotNull null
+            if (nameId !in ids) return@mapNotNull null
             val length = table.u16(at + 8)
             val start = storage + table.u16(at + 10)
             if (start + length > table.size) return@mapNotNull null
@@ -118,7 +135,7 @@ object SfntFont {
         }
         return entries.minWithOrNull(
             compareBy<Entry>(
-                { if (it.nameId == 16) 0 else 1 },
+                { ids.indexOf(it.nameId) },
                 {
                     when {
                         it.platform == PLATFORM_WINDOWS && it.language == LANGUAGE_EN_US -> 0
@@ -147,4 +164,7 @@ object SfntFont {
     private const val PLATFORM_MAC = 1
     private const val PLATFORM_WINDOWS = 3
     private const val LANGUAGE_EN_US = 0x409
+    private const val NAME_FAMILY = 1
+    private const val NAME_POSTSCRIPT = 6
+    private const val NAME_TYPOGRAPHIC_FAMILY = 16
 }
