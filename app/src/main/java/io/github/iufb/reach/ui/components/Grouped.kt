@@ -23,6 +23,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.painter.Painter
@@ -215,6 +217,8 @@ fun GroupedTextField(
     maxLines: Int = if (singleLine) 1 else 6,
     keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
     divider: Boolean = true,
+    /** Фокус на само поле (открыть клавиатуру сразу). */
+    focusRequester: FocusRequester? = null,
 ) {
     val colors = ReachTheme.colors
     val style = MaterialTheme.typography.bodyLarge.copy(color = colors.label)
@@ -222,7 +226,7 @@ fun GroupedTextField(
         BasicTextField(
             value = value,
             onValueChange = onValueChange,
-            modifier = Modifier.fillMaxWidth().heightIn(min = CELL_HEIGHT).padding(horizontal = 16.dp, vertical = 14.dp),
+            modifier = Modifier.fillMaxWidth().then(if (focusRequester != null) Modifier.focusRequester(focusRequester) else Modifier).heightIn(min = CELL_HEIGHT).padding(horizontal = 16.dp, vertical = 14.dp),
             textStyle = style,
             singleLine = singleLine,
             maxLines = maxLines,

@@ -1,36 +1,26 @@
 package io.github.iufb.reach.topics
 
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -52,13 +42,21 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.bodySummary
+import io.github.iufb.reach.ui.components.ActionSheet
+import io.github.iufb.reach.ui.components.ListScreen
+import io.github.iufb.reach.ui.components.PillGroup
+import io.github.iufb.reach.ui.components.PillGroupIcon
+import io.github.iufb.reach.ui.components.SheetAction
+import io.github.iufb.reach.ui.components.TextInputSheet
 import io.github.iufb.reach.ui.format.Dates
-import io.github.iufb.reach.ui.theme.reachBarColors
+import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 
-/** Форум: список топиков вместо общей истории. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Форум в стиле Telegram iOS: темы списком как чаты (значок темы, название, последнее сообщение, время,
+ * непрочитанные), в шапке — «новая тема» и «ещё» (показать сообщениями). Долгий тап — лист управления.
+ */
 @Composable
 fun TopicsScreen(
     onBack: () -> Unit,
@@ -76,81 +74,64 @@ fun TopicsScreen(
     LaunchedEffect(viewModel) { viewModel.openTopic.collect { open(viewModel.chatId, it) } }
     var creating by rememberSaveable { mutableStateOf(false) }
     var renaming by remember { mutableStateOf<Topic?>(null) }
+    var managing by remember { mutableStateOf<Topic?>(null) }
     var menu by remember { mutableStateOf(false) }
+    val listState = rememberLazyListState()
+    LaunchedEffect(listState) {
+        snapshotFlow { (listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) >= listState.layoutInfo.totalItemsCount - 10 }
+            .distinctUntilChanged()
+            .filter { it }
+            .collect { viewModel.loadMore() }
+    }
+    val list = topics
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
-        topBar = {
-            TopAppBar(
-                colors = reachBarColors(),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
-                    }
-                },
-                title = {
-                    Text(
-                        chat?.title.orEmpty(),
-                        modifier = Modifier.combinedClickable(onClick = { onOpenProfile(viewModel.chatId) }),
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                },
-                actions = {
-                    Box {
-                        IconButton(onClick = { menu = true }) {
-                            Icon(painterResource(R.drawable.ic_more), contentDescription = stringResource(R.string.chat_list_menu))
-                        }
-                        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-                            DropdownMenuItem(
-                                text = { Text(stringResource(R.string.topics_as_messages)) },
-                                onClick = {
-                                    menu = false
-                                    onOpenAsMessages(viewModel.chatId)
-                                },
-                            )
-                        }
-                    }
-                },
+    ListScreen(
+        title = chat?.title.orEmpty(),
+        onBack = onBack,
+        background = ReachTheme.colors.background,
+        snackbar = snackbar,
+        loading = list == null,
+        state = listState,
+        onTitleClick = { onOpenProfile(viewModel.chatId) },
+        actions = {
+            PillGroup {
+                if (rights.canCreate) PillGroupIcon(painterResource(R.drawable.ic_edit), stringResource(R.string.topic_new), { creating = true })
+                PillGroupIcon(painterResource(R.drawable.ic_more), stringResource(R.string.chat_list_menu), { menu = true })
+            }
+        },
+    ) {
+        items(list.orEmpty(), key = { it.id }) { topic ->
+            TopicRow(
+                topic,
+                onClick = { onOpenTopic(viewModel.chatId, topic.id) },
+                onLongClick = if (rights.canManage || topic.isOutgoing) ({ managing = topic }) else null,
             )
-        },
-        floatingActionButton = {
-            if (rights.canCreate) {
-                FloatingActionButton(onClick = { creating = true }) {
-                    Icon(painterResource(R.drawable.ic_edit), contentDescription = stringResource(R.string.topic_new))
-                }
-            }
-        },
-    ) { padding ->
-        val list = topics
-        if (list == null) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            return@Scaffold
-        }
-        val listState = rememberLazyListState()
-        LaunchedEffect(listState) {
-            snapshotFlow { (listState.layoutInfo.visibleItemsInfo.lastOrNull()?.index ?: 0) >= listState.layoutInfo.totalItemsCount - 10 }
-                .distinctUntilChanged()
-                .filter { it }
-                .collect { viewModel.loadMore() }
-        }
-        LazyColumn(Modifier.fillMaxSize().padding(padding), state = listState) {
-            items(list, key = { it.id }) { topic ->
-                TopicRow(
-                    topic,
-                    canManage = rights.canManage || topic.isOutgoing,
-                    onClick = { onOpenTopic(viewModel.chatId, topic.id) },
-                    onRename = { renaming = topic },
-                    onToggleClosed = { viewModel.setClosed(topic, !topic.isClosed) },
-                )
-            }
         }
     }
+
+    if (menu) {
+        ActionSheet(
+            actions = listOf(SheetAction(stringResource(R.string.topics_as_messages)) { onOpenAsMessages(viewModel.chatId) }),
+            onDismiss = { menu = false },
+        )
+    }
+    managing?.let { topic ->
+        ActionSheet(
+            title = topic.name,
+            actions = buildList {
+                if (!topic.isGeneral) add(SheetAction(stringResource(R.string.topic_rename)) { renaming = topic })
+                add(SheetAction(stringResource(if (topic.isClosed) R.string.topic_reopen else R.string.topic_close)) { viewModel.setClosed(topic, !topic.isClosed) })
+            },
+            onDismiss = { managing = null },
+        )
+    }
     if (creating) {
-        TopicNameDialog(
+        TextInputSheet(
             title = stringResource(R.string.topic_new),
             initial = "",
-            onConfirm = {
+            placeholder = stringResource(R.string.topic_name_hint),
+            maxLength = TOPIC_NAME_MAX,
+            onSave = {
                 creating = false
                 viewModel.create(it)
             },
@@ -158,10 +139,12 @@ fun TopicsScreen(
         )
     }
     renaming?.let { topic ->
-        TopicNameDialog(
+        TextInputSheet(
             title = stringResource(R.string.topic_rename),
             initial = topic.name,
-            onConfirm = {
+            placeholder = stringResource(R.string.topic_name_hint),
+            maxLength = TOPIC_NAME_MAX,
+            onSave = {
                 renaming = null
                 viewModel.rename(topic, it)
             },
@@ -170,17 +153,13 @@ fun TopicsScreen(
     }
 }
 
+/** Строка темы как строка чата: значок, название (замок / булавка), время, последнее сообщение, непрочитанные. */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun TopicRow(topic: Topic, canManage: Boolean, onClick: () -> Unit, onRename: () -> Unit, onToggleClosed: () -> Unit) {
-    var menu by remember { mutableStateOf(false) }
-    Box {
-        Row(
-            Modifier
-                .fillMaxWidth()
-                .combinedClickable(onClick = onClick, onLongClick = if (canManage) ({ menu = true }) else null)
-                .padding(horizontal = 16.dp, vertical = 10.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
+private fun TopicRow(topic: Topic, onClick: () -> Unit, onLongClick: (() -> Unit)?) {
+    val colors = ReachTheme.colors
+    Column(Modifier.fillMaxWidth().combinedClickable(onClick = onClick, onLongClick = onLongClick)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
             TopicIcon(topic)
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
@@ -188,33 +167,19 @@ private fun TopicRow(topic: Topic, canManage: Boolean, onClick: () -> Unit, onRe
                     Text(
                         topic.name,
                         modifier = Modifier.weight(1f, fill = false),
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.label,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    if (topic.isClosed) {
-                        Spacer(Modifier.width(4.dp))
-                        Icon(
-                            painterResource(R.drawable.ic_lock),
-                            contentDescription = stringResource(R.string.topic_closed),
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    if (topic.isPinned) {
-                        Spacer(Modifier.width(4.dp))
-                        Icon(
-                            painterResource(R.drawable.ic_pin),
-                            contentDescription = stringResource(R.string.topic_pinned),
-                            modifier = Modifier.size(14.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
+                    if (topic.isClosed) StatusIcon(R.drawable.ic_lock, R.string.topic_closed)
+                    if (topic.isPinned) StatusIcon(R.drawable.ic_pin, R.string.topic_pinned)
                     Spacer(Modifier.weight(1f))
                     Text(
                         Dates.chatListTime(topic.lastMessageDate.toLong()),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = colors.secondaryLabel,
                     )
                 }
                 Row(verticalAlignment = Alignment.CenterVertically) {
@@ -222,66 +187,53 @@ private fun TopicRow(topic: Topic, canManage: Boolean, onClick: () -> Unit, onRe
                         topic.lastMessage?.let { bodySummary(it).replace('\n', ' ') }.orEmpty(),
                         modifier = Modifier.weight(1f),
                         style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1,
+                        color = colors.secondaryLabel,
+                        maxLines = 2,
                         overflow = TextOverflow.Ellipsis,
                     )
                     if (topic.unreadCount > 0) {
                         Text(
                             topic.unreadCount.toString(),
                             modifier = Modifier
-                                .background(MaterialTheme.colorScheme.primary, CircleShape)
+                                .padding(start = 8.dp)
+                                .background(colors.accent, CircleShape)
                                 .padding(horizontal = 7.dp, vertical = 1.dp),
-                            style = MaterialTheme.typography.labelSmall,
+                            style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.SemiBold,
-                            color = MaterialTheme.colorScheme.onPrimary,
+                            color = colors.onAccent,
                         )
                     }
                 }
             }
         }
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            if (!topic.isGeneral) {
-                DropdownMenuItem(text = { Text(stringResource(R.string.topic_rename)) }, onClick = { menu = false; onRename() })
-            }
-            DropdownMenuItem(
-                text = { Text(stringResource(if (topic.isClosed) R.string.topic_reopen else R.string.topic_close)) },
-                onClick = { menu = false; onToggleClosed() },
-            )
-        }
+        HorizontalDivider(Modifier.padding(start = 16.dp + TOPIC_ICON + 12.dp), thickness = 0.5.dp, color = colors.separator)
     }
 }
 
-/** Значок: круг цвета топика с первой буквой; «#» у общего топика. */
+@Composable
+private fun StatusIcon(@DrawableRes icon: Int, @StringRes description: Int) {
+    Icon(
+        painterResource(icon),
+        contentDescription = stringResource(description),
+        modifier = Modifier.padding(start = 4.dp).size(14.dp),
+        tint = ReachTheme.colors.secondaryLabel,
+    )
+}
+
+/** Значок: круг цвета темы с первой буквой; «#» у общей темы. */
 @Composable
 private fun TopicIcon(topic: Topic) {
-    val color = if (topic.isGeneral) MaterialTheme.colorScheme.surfaceVariant else Color(0xFF000000 or topic.iconColor.toLong())
-    Box(Modifier.size(40.dp).background(color, CircleShape), contentAlignment = Alignment.Center) {
+    val colors = ReachTheme.colors
+    // Цвет значка задаёт сама тема (Telegram) — он из данных, а не из палитры приложения
+    val color = if (topic.isGeneral) colors.fill else Color(0xFF000000 or topic.iconColor.toLong())
+    Box(Modifier.size(TOPIC_ICON).background(color, CircleShape), contentAlignment = Alignment.Center) {
         Text(
             if (topic.isGeneral) "#" else topic.name.take(1).uppercase(),
             style = MaterialTheme.typography.titleMedium,
-            color = if (topic.isGeneral) MaterialTheme.colorScheme.onSurfaceVariant else Color.White,
+            color = if (topic.isGeneral) colors.secondaryLabel else colors.onAccent,
         )
     }
 }
 
-@Composable
-private fun TopicNameDialog(title: String, initial: String, onConfirm: (String) -> Unit, onDismiss: () -> Unit) {
-    var name by rememberSaveable { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title) },
-        text = {
-            OutlinedTextField(
-                value = name,
-                onValueChange = { name = it.take(TOPIC_NAME_MAX) },
-                singleLine = true,
-                placeholder = { Text(stringResource(R.string.topic_name_hint)) },
-            )
-        },
-        confirmButton = { TextButton(enabled = name.isNotBlank(), onClick = { onConfirm(name) }) { Text(stringResource(R.string.save)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
-    )
-}
-
+private val TOPIC_ICON = 44.dp
 private const val TOPIC_NAME_MAX = 128
