@@ -58,10 +58,18 @@ fun EditProfileScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltVie
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
     val me = profile
-    // Поля заполняются один раз, когда профиль пришёл; дальше их правит пользователь
-    var first by rememberSaveable(me != null) { mutableStateOf(me?.user?.firstName.orEmpty()) }
-    var last by rememberSaveable(me != null) { mutableStateOf(me?.user?.lastName.orEmpty()) }
-    var bio by rememberSaveable(me != null) { mutableStateOf(me?.bio.orEmpty()) }
+    // Поля повторяют профиль, пока их не трогали: «о себе» приходит отдельным запросом позже имени
+    var first by rememberSaveable { mutableStateOf("") }
+    var last by rememberSaveable { mutableStateOf("") }
+    var bio by rememberSaveable { mutableStateOf("") }
+    var touched by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(me) {
+        if (me != null && !touched) {
+            first = me.user.firstName
+            last = me.user.lastName
+            bio = me.bio
+        }
+    }
     var editingUsername by rememberSaveable { mutableStateOf(false) }
     var photoSheet by remember { mutableStateOf(false) }
     val picker = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri -> uri?.let(viewModel::setPhoto) }
@@ -122,13 +130,13 @@ fun EditProfileScreen(onBack: () -> Unit, viewModel: SettingsViewModel = hiltVie
         }
         item(key = "name") {
             GroupedSection(footer = nameHint) {
-                GroupedTextField(first, { first = it.take(NAME_MAX) }, placeholder = firstHint)
-                GroupedTextField(last, { last = it.take(NAME_MAX) }, placeholder = lastHint, divider = false)
+                GroupedTextField(first, { touched = true; first = it.take(NAME_MAX) }, placeholder = firstHint)
+                GroupedTextField(last, { touched = true; last = it.take(NAME_MAX) }, placeholder = lastHint, divider = false)
             }
         }
         item(key = "bio") {
             GroupedSection(header = bioTitle, footer = bioFooter) {
-                GroupedTextField(bio, { bio = it.take(bioMax) }, placeholder = bioTitle, singleLine = false, divider = false)
+                GroupedTextField(bio, { touched = true; bio = it.take(bioMax) }, placeholder = bioTitle, singleLine = false, divider = false)
             }
         }
         item(key = "account") {
