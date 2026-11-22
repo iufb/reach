@@ -40,6 +40,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.layout.onPlaced
+import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.contentDescription
@@ -140,7 +141,7 @@ fun ReachTabBar(
                         Modifier
                             .then(if (fill) Modifier.weight(1f) else Modifier.widthIn(min = TAB_MIN_WIDTH))
                             .fillMaxHeight()
-                            .onPlaced { if (index < bounds.size) bounds[index] = it.parentCoordinatesX() to it.size.width.toFloat() }
+                            .onPlaced { if (index < bounds.size) bounds[index] = it.positionInParent().x to it.size.width.toFloat() }
                             .clip(RoundedCornerShape(percent = 50))
                             .clickable(interactionSource = pressed[index], indication = null, role = Role.Tab) { onSelect(index) }
                             .semantics { this.selected = isSelected }
@@ -199,10 +200,6 @@ private fun Badge(count: Int, modifier: Modifier) {
         )
     }
 }
-
-/** X вкладки относительно ряда вкладок (он и линза лежат в одной капсуле с одинаковым отступом). */
-private fun androidx.compose.ui.layout.LayoutCoordinates.parentCoordinatesX(): Float =
-    parentCoordinates?.localPositionOf(this, androidx.compose.ui.geometry.Offset.Zero)?.x ?: 0f
 
 private val TAB_MIN_WIDTH = 64.dp
 private const val LENS_DAMPING = 0.78f
