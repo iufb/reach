@@ -109,6 +109,8 @@ fun ProfileScreen(
     onOpenPermissions: (chatId: Long) -> Unit = {},
     onOpenInviteLinks: (chatId: Long) -> Unit = {},
     onOpenStatistics: (chatId: Long) -> Unit = {},
+    /** «Изменить» группы или канала (#222). */
+    onEditChat: (chatId: Long) -> Unit = {},
     /** Вышли из группы или удалили её. */
     onLeft: () -> Unit = onBack,
     viewModel: ProfileViewModel = hiltViewModel(),
@@ -254,8 +256,9 @@ fun ProfileScreen(
                 title = current?.let { if (it.isSavedMessages) stringResource(R.string.saved_messages) else it.title },
                 navigation = { BackPill(onBack) },
                 actions = {
-                    if (current?.isContact == true) {
-                        PillTextButton(stringResource(R.string.profile_edit), onClick = { editingContact = true })
+                    when {
+                        current?.isContact == true -> PillTextButton(stringResource(R.string.profile_edit), onClick = { editingContact = true })
+                        current?.canEditChat == true -> PillTextButton(stringResource(R.string.profile_edit), onClick = { onEditChat(viewModel.chatId) })
                     }
                 },
                 background = colors.groupedBackground,

@@ -40,6 +40,7 @@ import io.github.iufb.reach.chat.ChatScreen
 import io.github.iufb.reach.chat.ScheduledScreen
 import io.github.iufb.reach.topics.TopicsScreen
 import io.github.iufb.reach.contacts.ContactsScreen
+import io.github.iufb.reach.editchat.EditChatScreen
 import io.github.iufb.reach.contacts.NewMessageScreen
 import io.github.iufb.reach.newchat.NewChatScreen
 import io.github.iufb.reach.members.MembersScreen
@@ -93,6 +94,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class PermissionsRoute(val chatId: Long, val userId: Long = 0)
 @Serializable data class InviteLinksRoute(val chatId: Long)
 @Serializable data class StatisticsRoute(val chatId: Long)
+@Serializable data class EditChatRoute(val chatId: Long)
 
 /**
  * Два графа: вход и основной. Какой экран показан, решает [AuthState]:
@@ -229,6 +231,7 @@ fun ReachNavHost(
                         onOpenPermissions = { navController.navigate(PermissionsRoute(it)) },
                         onOpenInviteLinks = { navController.navigate(InviteLinksRoute(it)) },
                         onOpenStatistics = { navController.navigate(StatisticsRoute(it)) },
+                        onEditChat = { navController.navigate(EditChatRoute(it)) },
                         // Вышли из группы — её чата больше нет: назад к списку
                         onLeft = { navController.popBackStack<ChatsRoute>(inclusive = false) },
                     )
@@ -241,6 +244,7 @@ fun ReachNavHost(
                         onRestrict = { chatId, userId -> navController.navigate(PermissionsRoute(chatId, userId)) },
                     )
                 }
+                composable<EditChatRoute> { EditChatScreen(onBack = { navController.popBackStack() }) }
                 composable<AdminRightsRoute> { AdminRightsScreen(onBack = { navController.popBackStack() }) }
                 composable<PermissionsRoute> { PermissionsScreen(onBack = { navController.popBackStack() }) }
                 composable<InviteLinksRoute> { InviteLinksScreen(onBack = { navController.popBackStack() }) }

@@ -694,6 +694,13 @@
     <string name="contact_add">Добавить в контакты</string>
     <string name="contact_edit">Изменить контакт</string>
     <string name="profile_edit">Изменить</string>
+    <string name="edit_chat_photo_new">Установить новое фото</string>
+    <string name="edit_chat_group_name">Название группы</string>
+    <string name="edit_chat_channel_name">Название канала</string>
+    <string name="edit_chat_description">Описание</string>
+    <string name="edit_chat_description_hint">Описание видно всем в профиле.</string>
+    <string name="edit_chat_topics">Темы</string>
+    <string name="edit_chat_topics_hint">Чат группы делится на темы — отдельные ветки обсуждений.</string>
     <string name="contact_remove">Удалить из контактов</string>
     <string name="service_topic_created">Создан топик</string>
     <string name="service_topic_created_named">Создан топик «%1$s»</string>
