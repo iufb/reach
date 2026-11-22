@@ -181,6 +181,7 @@ fun SettingsScreen(
                 navigation = { BackPill(onBack) },
                 background = colors.groupedBackground,
                 titleAlpha = { titleAlpha },
+                scrimAlpha = { titleAlpha },
             )
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
             if (me != null) {

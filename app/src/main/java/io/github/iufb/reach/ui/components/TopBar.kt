@@ -1,6 +1,5 @@
 package io.github.iufb.reach.ui.components
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -17,6 +16,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
@@ -35,6 +35,7 @@ val TopBarHeight = 56.dp
  * [onTitleClick] — тап по заголовку (профиль собеседника).
  * [background] — цвет экрана под шапкой, в него затухает градиент (у сгруппированных — `groupedBackground`).
  * [titleAlpha] — прозрачность заголовка: экраны с крупной шапкой проявляют его, когда шапка уехала под бар.
+ * [scrimAlpha] — прозрачность градиента под шапкой: у таких экранов его нет, пока крупная шапка на месте.
  */
 @Composable
 fun ReachTopBar(
@@ -47,19 +48,23 @@ fun ReachTopBar(
     actions: @Composable RowScope.() -> Unit = {},
     background: Color = ReachTheme.colors.background,
     titleAlpha: () -> Float = { 1f },
+    scrimAlpha: () -> Float = { 1f },
 ) {
     val colors = ReachTheme.colors
     Box(
         modifier
             .fillMaxWidth()
             // Под статус-баром почти непрозрачно, к низу шапки — затухает: содержимое уходит под неё мягко
-            .background(
-                Brush.verticalGradient(
-                    0f to background,
-                    0.45f to background.copy(alpha = 0.88f),
-                    1f to background.copy(alpha = 0f),
-                ),
-            )
+            .drawBehind {
+                drawRect(
+                    Brush.verticalGradient(
+                        0f to background,
+                        0.45f to background.copy(alpha = 0.88f),
+                        1f to background.copy(alpha = 0f),
+                    ),
+                    alpha = scrimAlpha(),
+                )
+            }
             .statusBarsPadding()
             .height(TopBarHeight)
             .padding(horizontal = 12.dp),
