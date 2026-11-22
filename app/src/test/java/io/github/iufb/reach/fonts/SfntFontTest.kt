@@ -1,6 +1,7 @@
 package io.github.iufb.reach.fonts
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -51,6 +52,22 @@ class SfntFontTest {
     }
 
     @Test fun noNameTable() = assertNull(SfntFont.inspect(font("glyf")).getOrThrow().name)
+
+    @Test fun macSystemFontIsSfPro() {
+        val name = nameTable(1 to "System Font", 6 to ".SFNS-Regular")
+        val info = SfntFont.inspect(font("glyf", tables = mapOf("name" to name))).getOrThrow()
+        assertEquals("System Font", info.name)
+        assertEquals(".SFNS-Regular", info.postScriptName)
+        assertTrue(info.isSfPro)
+    }
+
+    @Test fun appleDownloadIsSfPro() =
+        assertTrue(FontInfo(FontKind.Text, "SF Pro", "SFPro-Regular").isSfPro)
+
+    @Test fun otherFontIsNotSfPro() {
+        assertFalse(FontInfo(FontKind.Text, "Inter", "Inter-Regular").isSfPro)
+        assertFalse(FontInfo(FontKind.Text, "Some", null).isSfPro)
+    }
 
     private fun assertKind(kind: FontKind, bytes: ByteArray) {
         assertEquals(kind, SfntFont.inspect(bytes).getOrThrow().kind)

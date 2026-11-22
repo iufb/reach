@@ -15,6 +15,9 @@ import kotlin.math.min
  */
 object OverlayPainter {
 
+    /** Шрифт надписей: жирный SF Pro, если он выбран в Настройки → Шрифт (ставит MainActivity при старте). */
+    @Volatile var typeface: Typeface = Typeface.DEFAULT_BOLD
+
     fun draw(canvas: Canvas, edit: PhotoEdit, area: RectF, extraStroke: BrushStroke? = null) {
         drawStrokes(canvas, if (extraStroke == null) edit.strokes else edit.strokes + extraStroke, area)
         drawTexts(canvas, edit.texts, area)
@@ -86,7 +89,7 @@ object OverlayPainter {
     }
 
     private fun textPaint() = Paint(Paint.ANTI_ALIAS_FLAG).apply {
-        typeface = Typeface.DEFAULT_BOLD
+        typeface = this@OverlayPainter.typeface
         textAlign = Paint.Align.CENTER
     }
 
