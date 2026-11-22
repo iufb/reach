@@ -216,6 +216,7 @@ fun ReachNavHost(
                         onOpenScheduled = { navController.navigate(ScheduledRoute(it)) },
                         onOpenThread = { chatId, threadId -> navController.navigate(ChatRoute(chatId, threadId = threadId)) },
                         onSearch = { navController.navigate(SearchRoute(it)) },
+                        onOpenFontSettings = { navController.navigate(FontRoute) },
                     )
                 }
                 composable<ScheduledRoute> { ScheduledScreen(onBack = { navController.popBackStack() }) }
