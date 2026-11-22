@@ -550,7 +550,7 @@ private fun CropTools(image: ImageBitmap, edit: PhotoEdit, onChange: (PhotoEdit)
 
 @Composable
 private fun DrawTools(brush: BrushSettings) {
-    Column(Modifier.fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             EditorPill(stringResource(R.string.photo_edit_brush), selected = !brush.eraser) { brush.eraser = false }
             EditorPill(stringResource(R.string.photo_edit_eraser), selected = brush.eraser) { brush.eraser = true }
@@ -578,7 +578,7 @@ private fun TextTools(
     onColor: (Int) -> Unit,
     color: Int,
 ) {
-    Column(Modifier.fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
             EditorPill(stringResource(R.string.photo_edit_text_add), selected = false, onClick = onAdd)
             if (selected != null) {
@@ -618,7 +618,7 @@ private fun FilterTools(image: Bitmap, state: EditorState) {
             .asImageBitmap()
     }
     val edit = state.edit
-    Column(Modifier.fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(FilterPreset.entries) { preset ->
                 val filter = remember(preset) { composeColorFilter(preset, Adjustments()) }
