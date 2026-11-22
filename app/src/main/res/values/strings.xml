@@ -551,6 +551,7 @@
     <string name="members_all">Все</string>
     <string name="members_admins">Админы</string>
     <string name="members_banned">Заблокированные</string>
+    <string name="members_removed_tab">Удалённые</string>
     <string name="members_search">Поиск участников</string>
     <string name="members_empty">Никого нет</string>
     <string name="members_add">Добавить участников</string>
@@ -615,12 +616,18 @@
     <string name="perm_create_topics">Создание топиков</string>
     <string name="invite_links_title">Ссылки-приглашения</string>
     <string name="invite_share">Поделиться</string>
-    <string name="invite_replace">Сбросить</string>
+    <string name="invite_replace">Сбросить ссылку</string>
     <string name="invite_create">Создать ссылку</string>
     <string name="invite_revoke">Отозвать</string>
     <string name="invite_revoked">Отозванные</string>
     <string name="invite_name">Название (видно только админам)</string>
     <string name="invite_limit">Лимит участников (пусто — без лимита)</string>
+    <string name="invite_name_short">Название</string>
+    <string name="invite_name_hint">Видно только админам.</string>
+    <string name="invite_limit_short">Лимит участников</string>
+    <string name="invite_limit_hint">Пусто — без лимита. С заявками лимит не задаётся.</string>
+    <string name="invite_revoke_confirm">Отозвать ссылку? По ней больше нельзя будет вступить.</string>
+    <string name="invite_more">Дополнительные ссылки</string>
     <string name="invite_requests_switch">Вступление по заявке</string>
     <string name="invite_expiry">Срок действия</string>
     <string name="invite_expiry_never">Бессрочно</string>

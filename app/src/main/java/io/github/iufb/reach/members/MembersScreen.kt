@@ -1,31 +1,15 @@
 package io.github.iufb.reach.members
 
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -38,18 +22,29 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.GroupRef
-import io.github.iufb.reach.contacts.ContactPicker
+import io.github.iufb.reach.contacts.ContactPickerSheet
 import io.github.iufb.reach.contacts.UserRow
-import io.github.iufb.reach.ui.theme.reachBarColors
+import io.github.iufb.reach.contacts.UserRowTextInset
+import io.github.iufb.reach.ui.components.ActionSheet
+import io.github.iufb.reach.ui.components.ListScreen
+import io.github.iufb.reach.ui.components.PillIconButton
+import io.github.iufb.reach.ui.components.SearchField
+import io.github.iufb.reach.ui.components.SegmentedControl
+import io.github.iufb.reach.ui.components.SheetAction
+import io.github.iufb.reach.ui.components.groupedItems
+import io.github.iufb.reach.ui.theme.ReachTheme
 import io.github.iufb.reach.users.User
 
-/** Участники: список с фильтрами и поиском, добавление, удаление, разбан. */
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Участники в стиле Telegram iOS: сегмент «Все / Админы / Удалённые», поиск, список карточкой;
+ * тап по участнику — лист действий, «+» в шапке — добавить из контактов.
+ */
 @Composable
 fun MembersScreen(
     onBack: () -> Unit,
@@ -72,168 +67,156 @@ fun MembersScreen(
     val back by rememberUpdatedState(onBack)
     LaunchedEffect(viewModel) { viewModel.closed.collect { back() } }
     var adding by rememberSaveable { mutableStateOf(false) }
+    var acting by remember { mutableStateOf<Pair<Member, User>?>(null) }
     var removing by remember { mutableStateOf<Pair<Member, User>?>(null) }
     val supergroup = viewModel.group is GroupRef.Super
+    val colors = ReachTheme.colors
+    val tabs = buildList {
+        add(MembersFilter.All)
+        add(MembersFilter.Admins)
+        if (supergroup && rights.canBan) add(MembersFilter.Banned)
+    }
 
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
-        topBar = {
-            Column {
-                TopAppBar(
-                    colors = reachBarColors(),
-                    navigationIcon = {
-                        IconButton(onClick = onBack) {
-                            Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
-                        }
-                    },
-                    title = { Text(stringResource(if (viewModel.isChannel) R.string.members_subscribers else R.string.members_title)) },
-                )
-                val tabs = buildList {
-                    add(MembersFilter.All)
-                    add(MembersFilter.Admins)
-                    if (supergroup && rights.canBan) add(MembersFilter.Banned)
-                }
-                TabRow(selectedTabIndex = tabs.indexOf(filter).coerceAtLeast(0)) {
-                    tabs.forEach { tab ->
-                        Tab(
-                            selected = tab == filter,
-                            onClick = { viewModel.filter.value = tab },
-                            text = {
-                                Text(
-                                    stringResource(
-                                        when (tab) {
-                                            MembersFilter.All -> R.string.members_all
-                                            MembersFilter.Admins -> R.string.members_admins
-                                            MembersFilter.Banned -> R.string.members_banned
-                                        },
-                                    ),
-                                )
-                            },
-                        )
-                    }
-                }
-            }
-        },
-        floatingActionButton = {
+    ListScreen(
+        title = stringResource(if (viewModel.isChannel) R.string.members_subscribers else R.string.members_title),
+        onBack = onBack,
+        snackbar = snackbar,
+        actions = {
             if (rights.canAdd && filter == MembersFilter.All) {
-                FloatingActionButton(onClick = { adding = true }) { Text("+", style = MaterialTheme.typography.headlineSmall) }
+                PillIconButton(painterResource(R.drawable.ic_add), stringResource(R.string.members_add), onClick = { adding = true })
             }
         },
-    ) { padding ->
-        Column(Modifier.fillMaxSize().padding(padding)) {
-            if (supergroup && filter != MembersFilter.Admins) {
-                OutlinedTextField(
-                    value = query,
-                    onValueChange = { viewModel.query.value = it },
-                    modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-                    placeholder = { Text(stringResource(R.string.members_search)) },
-                    singleLine = true,
+    ) {
+        item(key = "tabs") {
+            SegmentedControl(
+                items = tabs.map { stringResource(it.label()) },
+                selected = tabs.indexOf(filter).coerceAtLeast(0),
+                onSelect = { viewModel.filter.value = tabs[it] },
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
+            )
+        }
+        if (supergroup && filter != MembersFilter.Admins) {
+            item(key = "search") {
+                SearchField(
+                    query,
+                    onQueryChange = { viewModel.query.value = it },
+                    modifier = Modifier.padding(horizontal = 16.dp, vertical = 4.dp),
+                    placeholder = stringResource(R.string.members_search),
                 )
             }
-            val current = list
-            when {
-                current == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-                current.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                    Text(stringResource(R.string.members_empty), color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        val current = list
+        when {
+            current == null -> item(key = "loading") {
+                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = colors.accent) }
+            }
+            current.isEmpty() -> item(key = "empty") {
+                Text(
+                    stringResource(R.string.members_empty),
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    color = colors.secondaryLabel,
+                    textAlign = TextAlign.Center,
+                )
+            }
+            else -> {
+                item(key = "gap") { Spacer(Modifier.height(8.dp)) }
+                groupedItems(current, key = { it.first.userId }, dividerInset = UserRowTextInset - 16.dp) { (member, user) ->
+                    UserRow(
+                        user,
+                        onClick = { acting = member to user },
+                        trailing = member.roleLabel()?.let { label ->
+                            { Text(label, style = MaterialTheme.typography.bodyMedium, color = colors.secondaryLabel) }
+                        },
+                    )
                 }
-                else -> LazyColumn(Modifier.fillMaxSize()) {
-                    items(current, key = { it.first.userId }) { (member, user) ->
-                        MemberItem(
-                            member, user, rights,
-                            onOpen = { onOpenUser(user.id) },
-                            onRemove = { removing = member to user },
-                            onUnban = { viewModel.unban(member) },
-                            onEditAdmin = onEditAdmin?.let { edit -> { edit(viewModel.chatId, user.id) } },
-                            onRestrict = onRestrict?.takeIf { !viewModel.isChannel }?.let { r -> { r(viewModel.chatId, user.id) } },
-                        )
-                    }
-                    item { LaunchedEffect(current.size) { viewModel.loadMore() } }
-                }
+                item(key = "more") { LaunchedEffect(current.size) { viewModel.loadMore() } }
             }
         }
     }
+
+    acting?.let { (member, user) ->
+        val actions = memberActions(
+            member, rights,
+            onOpen = { onOpenUser(user.id) },
+            onRemove = { removing = member to user },
+            onUnban = { viewModel.unban(member) },
+            onEditAdmin = onEditAdmin?.let { edit -> { edit(viewModel.chatId, user.id) } },
+            onRestrict = onRestrict?.takeIf { !viewModel.isChannel }?.let { r -> { r(viewModel.chatId, user.id) } },
+        )
+        // Только «Открыть профиль» — сразу открываем, без листа
+        if (actions.size == 1) {
+            LaunchedEffect(member) {
+                acting = null
+                onOpenUser(user.id)
+            }
+        } else {
+            ActionSheet(title = user.fullName, actions = actions, onDismiss = { acting = null })
+        }
+    }
     removing?.let { (member, user) ->
-        AlertDialog(
-            onDismissRequest = { removing = null },
-            text = { Text(stringResource(R.string.members_remove_confirm, user.fullName)) },
-            confirmButton = {
-                TextButton(onClick = {
-                    removing = null
-                    viewModel.remove(member)
-                }) { Text(stringResource(R.string.members_remove), color = MaterialTheme.colorScheme.error) }
-            },
-            dismissButton = { TextButton(onClick = { removing = null }) { Text(stringResource(R.string.cancel)) } },
+        ActionSheet(
+            title = stringResource(R.string.members_remove_confirm, user.fullName),
+            actions = listOf(SheetAction(stringResource(R.string.members_remove), destructive = true) { viewModel.remove(member) }),
+            onDismiss = { removing = null },
         )
     }
     if (adding) {
         var selected by remember { mutableStateOf(emptySet<Long>()) }
-        val already = list.orEmpty().map { it.first.userId }.toSet()
-        AlertDialog(
-            onDismissRequest = { adding = false },
-            title = { Text(stringResource(R.string.members_add)) },
-            text = {
-                ContactPicker(
-                    contacts,
-                    selected,
-                    onToggle = { u -> selected = if (u.id in selected) selected - u.id else selected + u.id },
-                    modifier = Modifier.height(420.dp),
-                    disabled = already,
-                )
+        ContactPickerSheet(
+            title = stringResource(R.string.members_add),
+            contacts = contacts,
+            selected = selected,
+            onToggle = { u -> selected = if (u.id in selected) selected - u.id else selected + u.id },
+            onDismiss = { adding = false },
+            confirm = stringResource(R.string.contacts_add_confirm) to {
+                adding = false
+                viewModel.add(selected)
             },
-            confirmButton = {
-                TextButton(enabled = selected.isNotEmpty(), onClick = {
-                    adding = false
-                    viewModel.add(selected)
-                }) { Text(stringResource(R.string.contacts_add_confirm)) }
-            },
-            dismissButton = { TextButton(onClick = { adding = false }) { Text(stringResource(R.string.cancel)) } },
+            disabled = list.orEmpty().map { it.first.userId }.toSet(),
         )
     }
 }
 
+@StringRes
+private fun MembersFilter.label(): Int = when (this) {
+    MembersFilter.All -> R.string.members_all
+    MembersFilter.Admins -> R.string.members_admins
+    MembersFilter.Banned -> R.string.members_removed_tab
+}
+
+/** Роль справа в строке: «владелец», титул или «админ», «ограничен», «удалён». */
 @Composable
-private fun MemberItem(
+private fun Member.roleLabel(): String? = when (val role = role) {
+    MemberRole.Owner -> stringResource(R.string.member_owner)
+    is MemberRole.Admin -> title.ifBlank { stringResource(R.string.member_admin) }
+    is MemberRole.Restricted -> stringResource(R.string.member_restricted)
+    MemberRole.Banned -> stringResource(R.string.member_banned)
+    MemberRole.Member -> null
+}
+
+/** Что можно сделать с участником при текущих правах; первым — открыть профиль. */
+@Composable
+private fun memberActions(
     member: Member,
-    user: User,
     rights: MemberRights,
     onOpen: () -> Unit,
     onRemove: () -> Unit,
     onUnban: () -> Unit,
     onEditAdmin: (() -> Unit)?,
     onRestrict: (() -> Unit)?,
-) {
-    var menu by remember { mutableStateOf(false) }
+): List<SheetAction> {
     val role = member.role
-    val label = when (role) {
-        MemberRole.Owner -> stringResource(R.string.member_owner)
-        is MemberRole.Admin -> member.title.ifBlank { stringResource(R.string.member_admin) }
-        is MemberRole.Restricted -> stringResource(R.string.member_restricted)
-        MemberRole.Banned -> stringResource(R.string.member_banned)
-        MemberRole.Member -> null
-    }
     val editableAdmin = role is MemberRole.Admin && role.canBeEdited
     val canActOn = role != MemberRole.Owner && (role !is MemberRole.Admin || editableAdmin)
-    val actions = buildList<Pair<Int, () -> Unit>> {
-        add(R.string.member_open to onOpen)
+    return buildList {
+        add(SheetAction(stringResource(R.string.member_open), onClick = onOpen))
         if (rights.canPromote && canActOn && role != MemberRole.Banned && onEditAdmin != null) {
-            add((if (role is MemberRole.Admin) R.string.member_edit_admin else R.string.member_promote) to onEditAdmin)
+            add(SheetAction(stringResource(if (role is MemberRole.Admin) R.string.member_edit_admin else R.string.member_promote), onClick = onEditAdmin))
         }
         if (rights.canBan && canActOn && role !is MemberRole.Admin && role != MemberRole.Banned && onRestrict != null) {
-            add(R.string.member_restrict to onRestrict)
+            add(SheetAction(stringResource(R.string.member_restrict), onClick = onRestrict))
         }
-        if (rights.canBan && canActOn && role != MemberRole.Banned) add(R.string.members_remove to onRemove)
-        if (rights.canBan && role == MemberRole.Banned) add(R.string.member_unban to onUnban)
-    }
-    Box {
-        UserRow(
-            user,
-            onClick = { if (actions.size > 1) menu = true else onOpen() },
-            trailing = label?.let { { Text(it, style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.primary) } },
-        )
-        DropdownMenu(expanded = menu, onDismissRequest = { menu = false }) {
-            actions.forEach { (title, action) ->
-                DropdownMenuItem(text = { Text(stringResource(title)) }, onClick = { menu = false; action() })
-            }
-        }
+        if (rights.canBan && canActOn && role != MemberRole.Banned) add(SheetAction(stringResource(R.string.members_remove), destructive = true, onClick = onRemove))
+        if (rights.canBan && role == MemberRole.Banned) add(SheetAction(stringResource(R.string.member_unban), onClick = onUnban))
     }
 }

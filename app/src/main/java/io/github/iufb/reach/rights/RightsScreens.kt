@@ -1,37 +1,19 @@
 package io.github.iufb.reach.rights
 
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.selection.selectable
 import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.RadioButton
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Switch
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberUpdatedState
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -40,11 +22,19 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.contacts.UserRow
-import io.github.iufb.reach.ui.theme.reachBarColors
+import io.github.iufb.reach.ui.components.GroupedCell
+import io.github.iufb.reach.ui.components.GroupedSection
+import io.github.iufb.reach.ui.components.GroupedTextField
+import io.github.iufb.reach.ui.components.ListScreen
+import io.github.iufb.reach.ui.components.PillTextButton
+import io.github.iufb.reach.ui.theme.ReachTheme
 import io.github.iufb.reach.users.User
 import kotlinx.coroutines.flow.SharedFlow
 
-@OptIn(ExperimentalMaterial3Api::class)
+/**
+ * Общий каркас экранов прав (Telegram iOS): шапка с «Сохранить», карточка пользователя,
+ * ниже — [content] (ленивые секции).
+ */
 @Composable
 private fun FlagsScaffold(
     title: String,
@@ -54,53 +44,44 @@ private fun FlagsScaffold(
     events: SharedFlow<String?>,
     onBack: () -> Unit,
     onSave: () -> Unit,
-    content: @Composable () -> Unit,
+    content: LazyListScope.() -> Unit,
 ) {
     val snackbar = remember { SnackbarHostState() }
     val back by rememberUpdatedState(onBack)
     LaunchedEffect(events) { events.collect { if (it == null) back() else snackbar.showSnackbar(it) } }
-    Scaffold(
-        snackbarHost = { SnackbarHost(snackbar) },
-        topBar = {
-            TopAppBar(
-                colors = reachBarColors(),
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(painterResource(R.drawable.ic_arrow_back), contentDescription = stringResource(R.string.back))
-                    }
-                },
-                title = { Text(title) },
-                actions = { TextButton(enabled = loaded && !busy, onClick = onSave) { Text(stringResource(R.string.save)) } },
-            )
-        },
-    ) { padding ->
-        if (!loaded) {
-            Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            return@Scaffold
-        }
-        Column(Modifier.fillMaxSize().padding(padding).verticalScroll(rememberScrollState())) {
-            user?.let { UserRow(it, onClick = null) }
-            content()
-        }
+    ListScreen(
+        title = title,
+        onBack = onBack,
+        snackbar = snackbar,
+        loading = !loaded,
+        actions = { PillTextButton(stringResource(R.string.save), onClick = onSave, bold = true, enabled = loaded && !busy) },
+    ) {
+        user?.let { u -> item(key = "user") { GroupedSection { UserRow(u, onClick = null) } } }
+        content()
     }
 }
 
-@Composable
-private fun FlagRow(label: String, checked: Boolean, enabled: Boolean, onChange: (Boolean) -> Unit) {
-    Row(
-        Modifier
-            .fillMaxWidth()
-            .toggleable(checked, enabled = enabled, role = Role.Switch, onValueChange = onChange)
-            .padding(horizontal = 16.dp, vertical = 10.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            label,
-            Modifier.weight(1f),
-            style = MaterialTheme.typography.bodyLarge,
-            color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Switch(checked = checked, onCheckedChange = null, enabled = enabled)
+/** Переключатели прав одной карточкой; недоступные — приглушены. */
+private fun LazyListScope.flagsSection(
+    key: String,
+    footer: String,
+    flags: List<Triple<String, Boolean, Boolean>>,
+    onToggle: (Int, Boolean) -> Unit,
+) {
+    item(key = key) {
+        GroupedSection(footer = footer) {
+            flags.forEachIndexed { index, (label, checked, enabled) ->
+                GroupedCell(
+                    label,
+                    modifier = Modifier
+                        .toggleable(checked, enabled = enabled, role = Role.Switch) { onToggle(index, it) }
+                        .alpha(if (enabled) 1f else DISABLED_ALPHA),
+                    chevron = false,
+                    divider = index < flags.lastIndex,
+                    trailing = { Switch(checked = checked, onCheckedChange = null, enabled = enabled) },
+                )
+            }
+        }
     }
 }
 
@@ -109,31 +90,31 @@ private fun FlagRow(label: String, checked: Boolean, enabled: Boolean, onChange:
 fun AdminRightsScreen(onBack: () -> Unit, viewModel: AdminRightsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val user by viewModel.user.collectAsStateWithLifecycle()
+    val labels = state.shown.map { stringResource(ADMIN_FLAGS[it].label) }
+    val hint = stringResource(R.string.rights_admin_hint)
+    val titleHint = stringResource(R.string.rights_custom_title)
+    val dismissLabel = stringResource(R.string.rights_dismiss_admin)
     FlagsScaffold(
         stringResource(R.string.member_edit_admin), user, state.busy, state.loaded, viewModel.events, onBack, viewModel::save,
     ) {
-        Text(
-            stringResource(R.string.rights_admin_hint),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
+        flagsSection(
+            "flags",
+            footer = hint,
+            flags = state.shown.mapIndexed { n, i -> Triple(labels[n], state.values[i] == true, i in state.editable) },
+            onToggle = { n, on -> viewModel.toggle(state.shown[n], on) },
         )
-        state.shown.forEach { i ->
-            FlagRow(stringResource(ADMIN_FLAGS[i].label), state.values[i] == true, enabled = i in state.editable) { viewModel.toggle(i, it) }
-        }
         if (!state.isChannel) {
-            OutlinedTextField(
-                value = state.title,
-                onValueChange = viewModel::setTitle,
-                modifier = Modifier.fillMaxWidth().padding(16.dp),
-                label = { Text(stringResource(R.string.rights_custom_title)) },
-                singleLine = true,
-            )
+            item(key = "title") {
+                GroupedSection(header = titleHint) {
+                    GroupedTextField(state.title, viewModel::setTitle, placeholder = titleHint, divider = false)
+                }
+            }
         }
         if (state.existing) {
-            HorizontalDivider()
-            TextButton(onClick = viewModel::dismiss, enabled = !state.busy, modifier = Modifier.fillMaxWidth().padding(8.dp)) {
-                Text(stringResource(R.string.rights_dismiss_admin), color = MaterialTheme.colorScheme.error)
+            item(key = "dismiss") {
+                GroupedSection {
+                    GroupedCell(dismissLabel, onClick = viewModel::dismiss.takeIf { !state.busy }, destructive = true, chevron = false, divider = false)
+                }
             }
         }
     }
@@ -144,53 +125,56 @@ fun AdminRightsScreen(onBack: () -> Unit, viewModel: AdminRightsViewModel = hilt
 fun PermissionsScreen(onBack: () -> Unit, viewModel: PermissionsViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val user by viewModel.user.collectAsStateWithLifecycle()
+    val labels = state.shown.map { stringResource(PERMISSION_FLAGS[it].label) }
+    val hint = stringResource(if (viewModel.isDefault) R.string.permissions_hint else R.string.restrict_hint)
+    val durationTitle = stringResource(R.string.restrict_duration)
+    val durationLabels = RESTRICT_DURATIONS.map { stringResource(it.second) }
+    val liftLabel = stringResource(R.string.restrict_lift)
     FlagsScaffold(
         stringResource(if (viewModel.isDefault) R.string.permissions_title else R.string.member_restrict),
         if (viewModel.isDefault) null else user,
         state.busy, state.loaded, viewModel.events, onBack, viewModel::save,
     ) {
-        Text(
-            stringResource(if (viewModel.isDefault) R.string.permissions_hint else R.string.restrict_hint),
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp),
-            style = MaterialTheme.typography.labelMedium,
-            color = MaterialTheme.colorScheme.primary,
+        flagsSection(
+            "flags",
+            footer = hint,
+            flags = state.shown.mapIndexed { n, i -> Triple(labels[n], state.values[i] == true, i in state.editable) },
+            onToggle = { n, on -> viewModel.toggle(state.shown[n], on) },
         )
-        state.shown.forEach { i ->
-            FlagRow(stringResource(PERMISSION_FLAGS[i].label), state.values[i] == true, enabled = i in state.editable) { viewModel.toggle(i, it) }
-        }
         if (!viewModel.isDefault) {
-            HorizontalDivider(Modifier.padding(vertical = 8.dp))
-            Text(
-                stringResource(R.string.restrict_duration),
-                modifier = Modifier.padding(horizontal = 16.dp),
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.primary,
-            )
-            val now = (System.currentTimeMillis() / 1000).toInt()
-            RESTRICT_DURATIONS.forEach { (seconds, label) ->
-                // Выбранный срок узнаём по дате окончания с допуском
-                val selected = if (seconds == 0) state.untilDate == 0 else state.untilDate != 0 &&
-                    kotlin.math.abs(state.untilDate - now - seconds) < seconds / 2
-                Row(
-                    Modifier
-                        .fillMaxWidth()
-                        .selectable(selected, role = Role.RadioButton) { viewModel.setDuration(seconds) }
-                        .padding(horizontal = 16.dp, vertical = 6.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    RadioButton(selected = selected, onClick = null)
-                    Text(stringResource(label), Modifier.padding(start = 12.dp))
+            item(key = "duration") {
+                val now = (System.currentTimeMillis() / 1000).toInt()
+                GroupedSection(header = durationTitle) {
+                    RESTRICT_DURATIONS.forEachIndexed { index, (seconds, _) ->
+                        // Выбранный срок узнаём по дате окончания с допуском
+                        val selected = if (seconds == 0) state.untilDate == 0 else state.untilDate != 0 &&
+                            kotlin.math.abs(state.untilDate - now - seconds) < seconds / 2
+                        GroupedCell(
+                            durationLabels[index],
+                            modifier = Modifier.selectable(selected, role = Role.RadioButton) { viewModel.setDuration(seconds) },
+                            chevron = false,
+                            divider = index < RESTRICT_DURATIONS.lastIndex,
+                            trailing = {
+                                if (selected) {
+                                    Icon(painterResource(R.drawable.ic_check), contentDescription = null, Modifier.size(20.dp), tint = ReachTheme.colors.accent)
+                                }
+                            },
+                        )
+                    }
                 }
             }
             if (state.existing) {
-                HorizontalDivider()
-                TextButton(onClick = viewModel::lift, enabled = !state.busy, modifier = Modifier.fillMaxWidth().padding(8.dp)) {
-                    Text(stringResource(R.string.restrict_lift), color = MaterialTheme.colorScheme.error)
+                item(key = "lift") {
+                    GroupedSection {
+                        GroupedCell(liftLabel, onClick = viewModel::lift.takeIf { !state.busy }, destructive = true, chevron = false, divider = false)
+                    }
                 }
             }
         }
     }
 }
+
+private const val DISABLED_ALPHA = 0.5f
 
 private val RESTRICT_DURATIONS = listOf(
     0 to R.string.restrict_forever,

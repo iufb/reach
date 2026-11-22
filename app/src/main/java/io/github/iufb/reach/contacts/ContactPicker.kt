@@ -1,5 +1,20 @@
 package io.github.iufb.reach.contacts
 
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import io.github.iufb.reach.ui.components.PillTextButton
+import io.github.iufb.reach.ui.components.TopBarHeight
+import io.github.iufb.reach.ui.theme.ReachTheme
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -31,6 +46,8 @@ fun ContactPicker(
     modifier: Modifier = Modifier,
     disabled: Set<Long> = emptySet(),
     contentPadding: PaddingValues = PaddingValues(),
+    /** Круглые отметки слева; `false` — выбор одним тапом, без отметок. */
+    checks: Boolean = true,
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     val shown = if (query.isBlank()) {
@@ -53,10 +70,53 @@ fun ContactPicker(
                     user,
                     onClick = if (locked) null else ({ onToggle(user) }),
                     subtitle = if (locked) stringResource(R.string.picker_already_member) else null,
-                    leading = { RoundCheck(selected = locked || user.id in selected, enabled = !locked) },
+                    leading = if (checks) ({ RoundCheck(selected = locked || user.id in selected, enabled = !locked) }) else null,
                     divider = user != shown.last(),
                 )
             }
+        }
+    }
+}
+
+/**
+ * Шторка выбора контактов во весь экран (добавить участников, заблокировать): сверху «Отмена»,
+ * заголовок и [confirm] справа; ниже — [ContactPicker]. [confirm] `null` — выбор одним тапом
+ * (тогда [onToggle] сразу выполняет действие).
+ */
+@Composable
+fun ContactPickerSheet(
+    title: String,
+    contacts: List<User>,
+    selected: Set<Long>,
+    onToggle: (User) -> Unit,
+    onDismiss: () -> Unit,
+    confirm: Pair<String, () -> Unit>? = null,
+    disabled: Set<Long> = emptySet(),
+) {
+    val colors = ReachTheme.colors
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Column(Modifier.fillMaxSize().background(colors.background).statusBarsPadding().navigationBarsPadding().imePadding()) {
+            Box(Modifier.fillMaxWidth().height(TopBarHeight).padding(horizontal = 12.dp)) {
+                PillTextButton(stringResource(R.string.cancel), onClick = onDismiss, modifier = Modifier.align(Alignment.CenterStart))
+                Text(
+                    title,
+                    modifier = Modifier.align(Alignment.Center),
+                    style = MaterialTheme.typography.titleLarge,
+                    color = colors.label,
+                    maxLines = 1,
+                )
+                confirm?.let { (label, action) ->
+                    PillTextButton(label, onClick = action, modifier = Modifier.align(Alignment.CenterEnd), bold = true, enabled = selected.isNotEmpty())
+                }
+            }
+            ContactPicker(
+                contacts,
+                selected,
+                onToggle,
+                Modifier.weight(1f),
+                disabled = disabled,
+                checks = confirm != null,
+            )
         }
     }
 }
