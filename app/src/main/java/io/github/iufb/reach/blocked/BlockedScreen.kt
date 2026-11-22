@@ -94,7 +94,7 @@ class BlockedViewModel @Inject constructor(
         .distinctUntilChanged()
         .mapLatest { q ->
             if (q.isBlank()) emptyList()
-            else runCatching { td.send(TdApi.SearchPublicChats(q.trim().removePrefix("@"))).chatIds.toList() }
+            else runCatching { td.send(TdApi.SearchPublicChats(q.trim().removePrefix("@"), null)).chatIds.toList() }
                 .onFailure { Log.w(TAG, "searchPublicChats failed", it) }
                 .getOrDefault(emptyList())
         }
