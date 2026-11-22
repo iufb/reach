@@ -164,18 +164,20 @@ private fun TopicRow(topic: Topic, onClick: () -> Unit, onLongClick: (() -> Unit
             Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
-                    Text(
-                        topic.name,
-                        modifier = Modifier.weight(1f, fill = false),
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.SemiBold,
-                        color = colors.label,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (topic.isClosed) StatusIcon(R.drawable.ic_lock, R.string.topic_closed)
-                    if (topic.isPinned) StatusIcon(R.drawable.ic_pin, R.string.topic_pinned)
-                    Spacer(Modifier.weight(1f))
+                    // Название с замком / булавкой забирает всё место, время прижато вправо
+                    Row(Modifier.weight(1f), verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            topic.name,
+                            modifier = Modifier.weight(1f, fill = false),
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.SemiBold,
+                            color = colors.label,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (topic.isClosed) StatusIcon(R.drawable.ic_lock, R.string.topic_closed)
+                        if (topic.isPinned) StatusIcon(R.drawable.ic_pin, R.string.topic_pinned)
+                    }
                     Text(
                         Dates.chatListTime(topic.lastMessageDate.toLong()),
                         style = MaterialTheme.typography.bodySmall,
