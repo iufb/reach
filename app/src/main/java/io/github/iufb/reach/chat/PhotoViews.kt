@@ -1,6 +1,27 @@
 package io.github.iufb.reach.chat
 
 import androidx.compose.animation.core.Animatable
+import androidx.annotation.DrawableRes
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.semantics
+import io.github.iufb.reach.media.ExportedMedia
+import io.github.iufb.reach.media.rememberMediaExport
+import io.github.iufb.reach.ui.components.PillHeight
+import kotlinx.coroutines.delay
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -20,7 +41,6 @@ import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -114,8 +134,10 @@ internal fun PhotoViewer(photos: List<PhotoInfo>, initial: Int, onDismiss: () ->
     MediaViewer(photos.map(ViewerItem::Photo), initial, onDismiss)
 
 /**
- * Полноэкранный просмотр: листание между [items], у фото — зум щипком и двойным тапом,
- * у видео — плеер; закрытие свайпом вниз. Играет только видео на открытой странице.
+ * Полноэкранный просмотр как в Telegram iOS: листание между [items], у фото — зум щипком и двойным тапом,
+ * у видео — плеер. Сверху стеклянные кнопки: закрыть, «N из M», поделиться и сохранить в галерею.
+ * Тап прячет и показывает кнопки; свайп вниз закрывает, фон при этом гаснет вслед за пальцем.
+ * Цвета не зависят от темы: просмотр всегда на чёрном.
  */
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -125,45 +147,146 @@ internal fun MediaViewer(items: List<ViewerItem>, initial: Int, onDismiss: () ->
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
     ) {
         val pager = rememberPagerState(initialPage = initial.coerceIn(0, (items.size - 1).coerceAtLeast(0))) { items.size }
-        Box(Modifier.fillMaxSize().background(Color.Black)) {
+        var chrome by remember { mutableStateOf(true) }
+        // Насколько фото утянуто к закрытию: 0 — на месте, 1 — пора закрывать
+        val drag = remember { mutableFloatStateOf(0f) }
+        val toggleChrome = { chrome = !chrome }
+        val onDrag = { progress: Float -> drag.floatValue = progress }
+        Box(
+            Modifier
+                .fillMaxSize()
+                .drawBehind { drawRect(VIEWER_BACKGROUND, alpha = 1f - drag.floatValue.coerceIn(0f, 1f) * DRAG_FADE) },
+        ) {
             HorizontalPager(pager, Modifier.fillMaxSize(), key = { it }) { page ->
                 when (val item = items[page]) {
-                    is ViewerItem.Photo -> ZoomableImage(item.photo, onDismiss)
-                    is ViewerItem.Video -> VideoPage(item.video, active = page == pager.settledPage, onDismiss)
-                    is ViewerItem.Animation -> VideoPage(item.animation, active = page == pager.settledPage, onDismiss, gif = true)
+                    is ViewerItem.Photo -> ZoomableImage(item.photo, onDismiss, toggleChrome, onDrag)
+                    is ViewerItem.Video -> VideoPage(item.video, active = page == pager.settledPage, onDismiss, onDrag = onDrag)
+                    is ViewerItem.Animation -> VideoPage(item.animation, active = page == pager.settledPage, onDismiss, gif = true, onDrag = onDrag)
                 }
             }
-            IconButton(onClick = onDismiss, modifier = Modifier.statusBarsPadding().padding(8.dp)) {
-                Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.back), tint = Color.White)
-            }
-            if (items.size > 1) {
-                Text(
-                    "${pager.currentPage + 1} / ${items.size}",
-                    modifier = Modifier.align(Alignment.TopCenter).statusBarsPadding().padding(top = 20.dp),
-                    color = Color.White,
-                    style = MaterialTheme.typography.titleMedium,
-                )
-            }
+            val chromeAlpha by animateFloatAsState(if (chrome) 1f else 0f, tween(CHROME_FADE_MS), label = "chrome")
+            ViewerTopBar(
+                item = items.getOrNull(pager.currentPage),
+                counter = if (items.size > 1) stringResource(R.string.viewer_counter, pager.currentPage + 1, items.size) else null,
+                onClose = onDismiss,
+                modifier = Modifier.graphicsLayer { alpha = chromeAlpha * (1f - drag.floatValue.coerceIn(0f, 1f)) },
+                enabled = chrome,
+            )
         }
     }
 }
 
+/** Верх просмотра: закрыть, счётчик, поделиться и сохранить; под кнопками — короткое сообщение об итоге. */
+@Composable
+private fun ViewerTopBar(item: ViewerItem?, counter: String?, onClose: () -> Unit, modifier: Modifier, enabled: Boolean) {
+    val context = LocalContext.current
+    val export = rememberMediaExport()
+    val scope = rememberCoroutineScope()
+    var notice by remember { mutableStateOf<String?>(null) }
+    val savedText = stringResource(R.string.viewer_saved)
+    val failedText = stringResource(R.string.viewer_save_failed)
+    LaunchedEffect(notice) {
+        if (notice != null) {
+            delay(NOTICE_MS)
+            notice = null
+        }
+    }
+    Box(modifier.fillMaxWidth().statusBarsPadding().padding(horizontal = 12.dp, vertical = 6.dp)) {
+        ViewerButton(R.drawable.ic_close, stringResource(R.string.back), enabled, Modifier.align(Alignment.CenterStart), onClick = onClose)
+        if (counter != null) {
+            Text(
+                counter,
+                modifier = Modifier
+                    .align(Alignment.Center)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(VIEWER_PILL)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                color = VIEWER_CONTENT,
+                style = MaterialTheme.typography.titleSmall,
+            )
+        }
+        val media = item?.exported()
+        if (media != null) {
+            Row(
+                Modifier.align(Alignment.CenterEnd).clip(RoundedCornerShape(percent = 50)).background(VIEWER_PILL),
+            ) {
+                ViewerButton(R.drawable.ic_share, stringResource(R.string.viewer_share), enabled, background = false) {
+                    scope.launch { export.shareIntent(media)?.let(context::startActivity) ?: run { notice = failedText } }
+                }
+                ViewerButton(R.drawable.ic_download, stringResource(R.string.viewer_save), enabled, background = false) {
+                    scope.launch { notice = if (export.save(media)) savedText else failedText }
+                }
+            }
+        }
+        notice?.let {
+            Text(
+                it,
+                modifier = Modifier
+                    .align(Alignment.TopCenter)
+                    .padding(top = PillHeight + 16.dp)
+                    .clip(RoundedCornerShape(percent = 50))
+                    .background(VIEWER_PILL)
+                    .padding(horizontal = 16.dp, vertical = 8.dp),
+                color = VIEWER_CONTENT,
+                style = MaterialTheme.typography.bodyMedium,
+            )
+        }
+    }
+}
+
+/** Круглая кнопка просмотра: белый значок, по умолчанию на полупрозрачном круге. */
+@Composable
+private fun ViewerButton(
+    @DrawableRes icon: Int,
+    description: String,
+    enabled: Boolean,
+    modifier: Modifier = Modifier,
+    background: Boolean = true,
+    onClick: () -> Unit,
+) {
+    Box(
+        modifier
+            .size(PillHeight)
+            .clip(CircleShape)
+            .then(if (background) Modifier.background(VIEWER_PILL) else Modifier)
+            .clickable(enabled = enabled, role = Role.Button, onClickLabel = description, onClick = onClick)
+            .semantics { contentDescription = description },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(painterResource(icon), contentDescription = null, Modifier.size(22.dp), tint = VIEWER_CONTENT)
+    }
+}
+
+/** Файл для «поделиться» и «сохранить»: у фото — оригинал (или превью), у видео и GIF — сам ролик. */
+private fun ViewerItem.exported(): ExportedMedia? = when (this) {
+    is ViewerItem.Photo -> (photo.full ?: photo.preview)?.let { ExportedMedia(it, isVideo = false) }
+    is ViewerItem.Video -> ExportedMedia(video.file, isVideo = true)
+    is ViewerItem.Animation -> ExportedMedia(animation.file, isVideo = true)
+}
+
 /**
  * Картинка с зумом. Жесты отдаются листанию, пока фото не увеличено и палец идёт вбок;
- * вертикальный жест без зума тянет фото и закрывает просмотр.
+ * вертикальный жест без зума тянет фото и закрывает просмотр. [onTap] — показать / спрятать кнопки,
+ * [onDrag] — насколько фото утянуто к закрытию (0..1), для фона.
  */
 @Composable
-private fun ZoomableImage(photo: PhotoInfo, onDismiss: () -> Unit) {
+private fun ZoomableImage(photo: PhotoInfo, onDismiss: () -> Unit, onTap: () -> Unit, onDrag: (Float) -> Unit) {
     var scale by remember { mutableFloatStateOf(1f) }
     var offset by remember { mutableStateOf(Offset.Zero) }
     val dismissY = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
     val slop = LocalViewConfiguration.current.touchSlop
+    var height by remember { mutableIntStateOf(1) }
+    LaunchedEffect(dismissY) {
+        snapshotFlow { abs(dismissY.value) / (height * DISMISS_FRACTION * 2) }.collect { onDrag(it.coerceIn(0f, 1f)) }
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .onSizeChanged { height = it.height.coerceAtLeast(1) }
             .pointerInput(Unit) {
                 detectTapGestures(
+                    onTap = { onTap() },
                     onDoubleTap = {
                         scale = if (scale > 1f) 1f else DOUBLE_TAP_SCALE
                         offset = Offset.Zero
@@ -203,27 +326,28 @@ private fun ZoomableImage(photo: PhotoInfo, onDismiss: () -> Unit) {
     ) {
         val painter = rememberAsyncImagePainter(photo.full ?: photo.preview)
         val state by painter.state.collectAsState()
-        // Пока оригинал грузится — превью или миниатюра
-        if (state !is AsyncImagePainter.State.Success) {
-            AsyncImage(photo.preview ?: photo.minithumbnail, null, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
+        val transform = Modifier.graphicsLayer {
+            scaleX = scale
+            scaleY = scale
+            translationX = offset.x
+            translationY = offset.y + dismissY.value
         }
-        Image(
-            painter,
-            null,
-            Modifier
-                .fillMaxSize()
-                .graphicsLayer {
-                    scaleX = scale
-                    scaleY = scale
-                    translationX = offset.x
-                    translationY = offset.y + dismissY.value
-                },
-            contentScale = ContentScale.Fit,
-        )
-        if (state is AsyncImagePainter.State.Loading) CircularProgressIndicator(color = Color.White)
-        if (state is AsyncImagePainter.State.Error) Text(stringResource(R.string.photo_load_error), color = Color.White)
+        // Пока оригинал грузится — превью или миниатюра; двигается вместе с жестом
+        if (state !is AsyncImagePainter.State.Success) {
+            AsyncImage(photo.preview ?: photo.minithumbnail, null, Modifier.fillMaxSize().then(transform), contentScale = ContentScale.Fit)
+        }
+        Image(painter, null, Modifier.fillMaxSize().then(transform), contentScale = ContentScale.Fit)
+        if (state is AsyncImagePainter.State.Loading) CircularProgressIndicator(color = VIEWER_CONTENT)
+        if (state is AsyncImagePainter.State.Error) Text(stringResource(R.string.photo_load_error), color = VIEWER_CONTENT)
     }
 }
+
+private val VIEWER_BACKGROUND = Color.Black
+internal val VIEWER_CONTENT = Color.White
+private val VIEWER_PILL = Color.White.copy(alpha = 0.16f)
+private const val DRAG_FADE = 0.85f
+private const val CHROME_FADE_MS = 180
+private const val NOTICE_MS = 2_000L
 
 internal const val MIN_RATIO = 0.6f
 internal const val MAX_RATIO = 2f

@@ -114,6 +114,14 @@ internal interface MediaEntryPoint {
     fun tgsLoader(): TgsLoader
     fun videoStickers(): VideoStickers
     fun customEmojis(): CustomEmojis
+    fun mediaExport(): MediaExport
+}
+
+/** [MediaExport] из Compose — для полноэкранного просмотра. */
+@Composable
+internal fun rememberMediaExport(): MediaExport {
+    val context = LocalContext.current.applicationContext
+    return remember(context) { EntryPointAccessors.fromApplication(context, MediaEntryPoint::class.java).mediaExport() }
 }
 
 /** [VideoPlayers] из Compose — для экранов без своей ViewModel (полноэкранный просмотр). */

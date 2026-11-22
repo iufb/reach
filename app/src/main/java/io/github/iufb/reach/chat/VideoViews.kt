@@ -23,6 +23,8 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -106,13 +108,26 @@ private fun PlayBadge() {
  * и освобождается при уходе с неё; вертикальный свайп закрывает просмотр.
  */
 @Composable
-internal fun VideoPage(video: VideoInfo, active: Boolean, onDismiss: () -> Unit, gif: Boolean = false) {
+internal fun VideoPage(
+    video: VideoInfo,
+    active: Boolean,
+    onDismiss: () -> Unit,
+    gif: Boolean = false,
+    /** Насколько страница утянута к закрытию (0..1) — для фона просмотра. */
+    onDrag: (Float) -> Unit = {},
+) {
     val dismiss by rememberUpdatedState(onDismiss)
     val dismissY = remember { Animatable(0f) }
     val scope = rememberCoroutineScope()
+    var height by remember { mutableIntStateOf(1) }
+    val drag by rememberUpdatedState(onDrag)
+    LaunchedEffect(dismissY) {
+        snapshotFlow { abs(dismissY.value) / (height * DISMISS_FRACTION * 2) }.collect { drag(it.coerceIn(0f, 1f)) }
+    }
     Box(
         modifier = Modifier
             .fillMaxSize()
+            .onSizeChanged { height = it.height.coerceAtLeast(1) }
             .graphicsLayer { translationY = dismissY.value }
             .pointerInput(Unit) {
                 detectVerticalDragGestures(

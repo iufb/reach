@@ -283,6 +283,11 @@
     <string name="gallery_music">Музыка</string>
     <string name="gallery_gifs">GIF</string>
     <string name="gallery_empty">Здесь пока пусто</string>
+    <string name="viewer_share">Поделиться</string>
+    <string name="viewer_save">Сохранить в галерею</string>
+    <string name="viewer_saved">Сохранено в галерею</string>
+    <string name="viewer_save_failed">Не удалось сохранить</string>
+    <string name="viewer_counter">%1$d из %2$d</string>
     <string name="gallery_show_in_chat">Показать в чате</string>
     <string name="player_close">Закрыть плеер</string>
     <string name="media_download">Скачать</string>

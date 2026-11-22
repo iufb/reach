@@ -2,6 +2,17 @@ package io.github.iufb.reach.photoedit
 
 import android.graphics.Bitmap
 import android.graphics.RectF
+import androidx.annotation.DrawableRes
+import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.layout.RowScope
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.material3.SliderDefaults
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.selected
+import androidx.compose.ui.semantics.semantics
+import io.github.iufb.reach.ui.components.PillHeight
+import io.github.iufb.reach.ui.theme.ReachTheme
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -28,9 +39,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
@@ -153,25 +162,17 @@ fun PhotoEditorDialog(
         var selectedText by remember { mutableStateOf<Int?>(null) }
         var textDialog by remember { mutableStateOf<TextDialog?>(null) }
         Column(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) {
-            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), verticalAlignment = Alignment.CenterVertically) {
-                TextButton(onClick = onCancel) { Text(stringResource(R.string.cancel), color = Color.White) }
+            // Сверху — история правок; «Отмена» и «Готово» внизу, по краям панели инструментов, как в iOS
+            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                EditorIcon(R.drawable.ic_undo, stringResource(R.string.photo_edit_undo), enabled = state.canUndo, onClick = state::undo)
+                EditorIcon(R.drawable.ic_redo, stringResource(R.string.photo_edit_redo), enabled = state.canRedo, onClick = state::redo)
                 Spacer(Modifier.weight(1f))
-                IconButton(onClick = state::undo, enabled = state.canUndo) {
-                    Icon(painterResource(R.drawable.ic_undo), stringResource(R.string.photo_edit_undo), tint = enabledTint(state.canUndo))
-                }
-                IconButton(onClick = state::redo, enabled = state.canRedo) {
-                    Icon(painterResource(R.drawable.ic_redo), stringResource(R.string.photo_edit_redo), tint = enabledTint(state.canRedo))
-                }
-                TextButton(onClick = { state.commit(PhotoEdit.None) }, enabled = !edit.isEmpty) {
-                    Text(stringResource(R.string.photo_edit_reset), color = enabledTint(!edit.isEmpty))
-                }
-                TextButton(onClick = { onDone(edit) }, enabled = source != null) {
-                    Text(stringResource(R.string.photo_edit_done), color = Color.White)
-                }
+                EditorPill(stringResource(R.string.photo_edit_reset), selected = false, enabled = !edit.isEmpty) { state.commit(PhotoEdit.None) }
             }
             val bitmap = source
             if (bitmap == null) {
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = EDITOR_CONTENT) }
+                EditorBottomBar(tool, onSelect = {}, onCancel = onCancel, onDone = {}, doneEnabled = false)
                 return@Column
             }
             val orientedBitmap = remember(bitmap, edit.rotation, edit.flipped) { PhotoEditRenderer.orient(bitmap, edit) }
@@ -182,10 +183,6 @@ fun PhotoEditorDialog(
                 onSelectText = { selectedText = it },
                 modifier = Modifier.weight(1f).fillMaxWidth(),
             )
-            ToolTabs(tool) {
-                tool = it
-                selectedText = null
-            }
             when (tool) {
                 Tool.Crop -> CropTools(oriented, edit, onChange = state::commit)
                 Tool.Draw -> DrawTools(brush)
@@ -207,6 +204,16 @@ fun PhotoEditorDialog(
                     color = brush.textColor,
                 )
             }
+            EditorBottomBar(
+                tool = tool,
+                onSelect = {
+                    tool = it
+                    selectedText = null
+                },
+                onCancel = onCancel,
+                onDone = { onDone(edit) },
+                doneEnabled = true,
+            )
         }
         textDialog?.let { dialog ->
             TextInputDialog(
@@ -244,22 +251,102 @@ private class BrushSettings {
     var textColor by mutableIntStateOf(PALETTE.first().toArgb())
 }
 
-private fun enabledTint(enabled: Boolean) = if (enabled) Color.White else Color.Gray
-
+/**
+ * Низ редактора как в Telegram iOS: слева «Отмена» (крестик), по центру инструменты значками
+ * (выбранный — акцентом), справа «Готово» — акцентный круг с галочкой.
+ */
 @Composable
-private fun ToolTabs(tool: Tool, onSelect: (Tool) -> Unit) {
-    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-        for (t in Tool.entries) {
-            val label = when (t) {
-                Tool.Crop -> R.string.photo_edit_tab_crop
-                Tool.Draw -> R.string.photo_edit_tab_draw
-                Tool.Text -> R.string.photo_edit_tab_text
-                Tool.Filter -> R.string.photo_edit_tab_filters
+private fun EditorBottomBar(tool: Tool, onSelect: (Tool) -> Unit, onCancel: () -> Unit, onDone: () -> Unit, doneEnabled: Boolean) {
+    val accent = ReachTheme.colors.accent
+    Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+        EditorIcon(R.drawable.ic_close, stringResource(R.string.cancel), onClick = onCancel)
+        Row(Modifier.weight(1f), horizontalArrangement = Arrangement.SpaceEvenly) {
+            for (t in Tool.entries) {
+                val (icon, label) = when (t) {
+                    Tool.Crop -> R.drawable.ic_crop to R.string.photo_edit_tab_crop
+                    Tool.Draw -> R.drawable.ic_brush to R.string.photo_edit_tab_draw
+                    Tool.Text -> R.drawable.ic_text to R.string.photo_edit_tab_text
+                    Tool.Filter -> R.drawable.ic_tune to R.string.photo_edit_tab_filters
+                }
+                EditorIcon(icon, stringResource(label), tint = if (t == tool) accent else EDITOR_CONTENT, selected = t == tool) { onSelect(t) }
             }
-            FilterChip(selected = t == tool, onClick = { onSelect(t) }, label = { Text(stringResource(label), color = Color.White) })
+        }
+        val doneDescription = stringResource(R.string.photo_edit_done)
+        Box(
+            Modifier
+                .size(PillHeight)
+                .clip(CircleShape)
+                .background(if (doneEnabled) accent else EDITOR_DISABLED)
+                .clickable(enabled = doneEnabled, role = Role.Button, onClick = onDone)
+                .semantics { contentDescription = doneDescription },
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(R.drawable.ic_check), contentDescription = null, Modifier.size(24.dp), tint = ReachTheme.colors.onAccent)
         }
     }
 }
+
+/** Значок-кнопка редактора: белый, недоступный — приглушён; [selected] — для переключателей инструментов. */
+@Composable
+private fun EditorIcon(
+    @DrawableRes icon: Int,
+    description: String,
+    enabled: Boolean = true,
+    tint: Color = EDITOR_CONTENT,
+    selected: Boolean? = null,
+    onClick: () -> Unit,
+) {
+    Box(
+        Modifier
+            .size(PillHeight)
+            .clip(CircleShape)
+            .clickable(enabled = enabled, role = if (selected != null) Role.Tab else Role.Button, onClick = onClick)
+            .semantics {
+                contentDescription = description
+                if (selected != null) this.selected = selected
+            },
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(painterResource(icon), contentDescription = null, Modifier.size(24.dp), tint = if (enabled) tint else EDITOR_DISABLED)
+    }
+}
+
+/** Пилюля-вариант (пропорции, кисть / ластик, действия с надписью): выбранная — на светлой подложке. */
+@Composable
+private fun EditorPill(text: String, selected: Boolean, enabled: Boolean = true, onClick: () -> Unit) {
+    Text(
+        text,
+        modifier = Modifier
+            .clip(RoundedCornerShape(percent = 50))
+            .background(if (selected) EDITOR_PILL_SELECTED else EDITOR_PILL)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+        color = when {
+            !enabled -> EDITOR_DISABLED
+            selected -> EDITOR_BACKGROUND
+            else -> EDITOR_CONTENT
+        },
+        style = MaterialTheme.typography.bodyMedium,
+        maxLines = 1,
+    )
+}
+
+/** Ряд пилюль с прокруткой и отступами по краям: крайняя не упирается в край экрана. */
+@Composable
+private fun PillRow(content: @Composable RowScope.() -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()).padding(horizontal = 16.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        content = content,
+    )
+}
+
+private val EDITOR_BACKGROUND = Color.Black
+private val EDITOR_CONTENT = Color.White
+private val EDITOR_DISABLED = Color.White.copy(alpha = 0.35f)
+private val EDITOR_PILL = Color.White.copy(alpha = 0.14f)
+private val EDITOR_PILL_SELECTED = Color.White
 
 /**
  * Фото, вписанное в место, и слои поверх: рисунок, надписи, затемнение вне рамки.
@@ -435,59 +522,44 @@ private val ASPECTS = listOf(
 @Composable
 private fun CropTools(image: ImageBitmap, edit: PhotoEdit, onChange: (PhotoEdit) -> Unit) {
     val imageAspect = image.width.toFloat() / image.height
-    Column(Modifier.fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            items(ASPECTS) { option ->
+    Column(Modifier.fillMaxWidth().padding(vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        PillRow {
+            for (option in ASPECTS) {
                 val value = option.value?.let { if (it.isNaN()) imageAspect else it }
                 val selected = if (value == null) edit.aspect == null else edit.aspect != null && abs(edit.aspect - value) < 0.01f
                 val label = option.label ?: stringResource(
                     if (option.value == null) R.string.photo_edit_aspect_free else R.string.photo_edit_aspect_original,
                 )
-                FilterChip(
-                    selected = selected,
-                    onClick = {
-                        onChange(
-                            if (value == null) {
-                                edit.copy(aspect = null)
-                            } else {
-                                edit.copy(aspect = value, crop = NormRect.centered(value, image.width, image.height))
-                            },
-                        )
-                    },
-                    label = { Text(label, color = Color.White) },
-                )
+                EditorPill(label, selected) {
+                    onChange(
+                        if (value == null) {
+                            edit.copy(aspect = null)
+                        } else {
+                            edit.copy(aspect = value, crop = NormRect.centered(value, image.width, image.height))
+                        },
+                    )
+                }
             }
         }
         Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.Center) {
-            IconButton(onClick = { onChange(edit.rotatedClockwise()) }) {
-                Icon(painterResource(R.drawable.ic_rotate), stringResource(R.string.photo_edit_rotate), tint = Color.White)
-            }
-            IconButton(onClick = { onChange(edit.flippedHorizontally()) }) {
-                Icon(painterResource(R.drawable.ic_flip), stringResource(R.string.photo_edit_flip), tint = Color.White)
-            }
+            EditorIcon(R.drawable.ic_rotate, stringResource(R.string.photo_edit_rotate)) { onChange(edit.rotatedClockwise()) }
+            EditorIcon(R.drawable.ic_flip, stringResource(R.string.photo_edit_flip)) { onChange(edit.flippedHorizontally()) }
         }
     }
 }
 
 @Composable
 private fun DrawTools(brush: BrushSettings) {
-    Column(Modifier.fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            FilterChip(
-                selected = !brush.eraser,
-                onClick = { brush.eraser = false },
-                label = { Text(stringResource(R.string.photo_edit_brush), color = Color.White) },
-            )
-            FilterChip(
-                selected = brush.eraser,
-                onClick = { brush.eraser = true },
-                label = { Text(stringResource(R.string.photo_edit_eraser), color = Color.White) },
-            )
+            EditorPill(stringResource(R.string.photo_edit_brush), selected = !brush.eraser) { brush.eraser = false }
+            EditorPill(stringResource(R.string.photo_edit_eraser), selected = brush.eraser) { brush.eraser = true }
             Slider(
                 value = brush.width,
                 onValueChange = { brush.width = it },
                 valueRange = MIN_BRUSH_WIDTH..MAX_BRUSH_WIDTH,
                 modifier = Modifier.weight(1f),
+                colors = editorSliderColors(),
             )
         }
         ColorRow(brush.color) {
@@ -506,12 +578,12 @@ private fun TextTools(
     onColor: (Int) -> Unit,
     color: Int,
 ) {
-    Column(Modifier.fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
         Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            TextButton(onClick = onAdd) { Text(stringResource(R.string.photo_edit_text_add), color = Color.White) }
+            EditorPill(stringResource(R.string.photo_edit_text_add), selected = false, onClick = onAdd)
             if (selected != null) {
-                TextButton(onClick = onEdit) { Text(stringResource(R.string.photo_edit_text_edit), color = Color.White) }
-                TextButton(onClick = onDelete) { Text(stringResource(R.string.photo_edit_text_delete), color = Color.White) }
+                EditorPill(stringResource(R.string.photo_edit_text_edit), selected = false, onClick = onEdit)
+                EditorPill(stringResource(R.string.photo_edit_text_delete), selected = false, onClick = onDelete)
             }
         }
         ColorRow(selected?.color ?: color, onColor)
@@ -546,7 +618,7 @@ private fun FilterTools(image: Bitmap, state: EditorState) {
             .asImageBitmap()
     }
     val edit = state.edit
-    Column(Modifier.fillMaxWidth().padding(8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             items(FilterPreset.entries) { preset ->
                 val filter = remember(preset) { composeColorFilter(preset, Adjustments()) }
@@ -589,11 +661,20 @@ private fun FilterTools(image: Bitmap, state: EditorState) {
                     onValueChangeFinished = { adjusting = false },
                     valueRange = -1f..1f,
                     modifier = Modifier.weight(1f),
+                    colors = editorSliderColors(),
                 )
             }
         }
     }
 }
+
+/** Ползунок на чёрном: белая ручка, акцентная заполненная часть. */
+@Composable
+private fun editorSliderColors() = SliderDefaults.colors(
+    thumbColor = EDITOR_CONTENT,
+    activeTrackColor = ReachTheme.colors.accent,
+    inactiveTrackColor = EDITOR_PILL,
+)
 
 private fun FilterPreset.label(): Int = when (this) {
     FilterPreset.None -> R.string.photo_filter_none
