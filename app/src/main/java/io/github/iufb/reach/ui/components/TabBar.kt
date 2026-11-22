@@ -3,12 +3,15 @@ package io.github.iufb.reach.ui.components
 import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
 import androidx.compose.animation.core.Animatable
-import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.awaitHorizontalTouchSlopOrCancellation
+import androidx.compose.foundation.gestures.horizontalDrag
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -34,6 +37,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -53,6 +58,7 @@ import androidx.compose.ui.graphics.drawscope.clipPath
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.painter.Painter
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
 import androidx.compose.ui.semantics.Role
@@ -64,7 +70,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import kotlin.math.abs
 
 /**
  * Вкладка нижней панели; [badge] — счётчик в красном кружке (0 — нет). [image] рисуется вместо [icon]
@@ -96,6 +104,10 @@ fun ReachTabBar(
     modifier: Modifier = Modifier,
     /** С какой вкладки линза приезжает при появлении панели (вкладки — разные экраны со своей панелью). */
     previous: Int? = null,
+    /** Вкладку выбрали, перетащив линзу пальцем (по умолчанию — как обычный выбор). */
+    onDragSelect: (Int) -> Unit = onSelect,
+    /** Панель появляется с линзой-пузырём, который гаснет: продолжение перетаскивания с прошлого экрана. */
+    enterAsGlass: Boolean = false,
 ) {
     val colors = ReachTheme.colors
     // Положение и ширина каждой вкладки в ряду: по ним ездит линза
@@ -104,8 +116,29 @@ fun ReachTabBar(
     val lensX = remember { Animatable(0f) }
     val lensW = remember { Animatable(0f) }
     // 0 — линза-заливка на месте, 1 — стеклянный пузырь в движении
-    val moving = remember { Animatable(0f) }
+    val moving = remember { Animatable(if (enterAsGlass) 1f else 0f) }
     var placed by remember { mutableStateOf(false) }
+    // Палец, который тащит линзу: x в координатах ряда вкладок; null — не тащат
+    var dragX by remember { mutableStateOf<Float?>(null) }
+    val scope = rememberCoroutineScope()
+    val currentSelected by rememberUpdatedState(selected)
+    val currentDragSelect by rememberUpdatedState(onDragSelect)
+
+    /**
+     * Линза едет к вкладке [target]. Пузырь поднимается сразу и гаснет, пока линза ещё доезжает, —
+     * весь переход укладывается в ~0,4 с, как в Telegram iOS.
+     */
+    suspend fun settle(target: Pair<Float, Float>) = coroutineScope {
+        if (lensX.value != target.first || lensW.value != target.second) {
+            val spec = spring<Float>(dampingRatio = LENS_DAMPING, stiffness = LENS_STIFFNESS)
+            launch { lensX.animateTo(target.first, spec) }
+            launch { lensW.animateTo(target.second, spec) }
+            moving.animateTo(1f, tween(LENS_LIFT_MS))
+            delay(LENS_HOLD_MS)
+        }
+        moving.animateTo(0f, tween(LENS_SETTLE_MS))
+    }
+
     LaunchedEffect(selected, bounds.toList()) {
         val target = bounds.getOrNull(selected)?.takeIf { it.second > 0f } ?: return@LaunchedEffect
         if (!placed) {
@@ -115,15 +148,7 @@ fun ReachTabBar(
             lensW.snapTo(from.second)
             placed = true
         }
-        if (lensX.value != target.first || lensW.value != target.second) {
-            val spec = spring<Float>(dampingRatio = LENS_DAMPING, stiffness = Spring.StiffnessMediumLow)
-            coroutineScope {
-                launch { moving.animateTo(1f, tween(LENS_LIFT_MS)) }
-                launch { lensX.animateTo(target.first, spec) }
-                launch { lensW.animateTo(target.second, spec) }
-            }
-        }
-        moving.animateTo(0f, spring(dampingRatio = 1f, stiffness = Spring.StiffnessLow))
+        settle(target)
     }
     val anyPressed = pressed.map { it.collectIsPressedAsState().value }.any { it }
     val held by animateFloatAsState(if (anyPressed) 1f else 0f, spring(dampingRatio = 0.7f), label = "lensHeld")
@@ -137,9 +162,20 @@ fun ReachTabBar(
      * Положение и ширина линзы. До первой анимации — прямо из замера вкладок: замер приходит в том же
      * кадре, что и отрисовка, и на новом экране-вкладке линза видна с первого кадра.
      */
-    fun lensSpan(): Pair<Float, Float> =
-        if (placed) lensX.value to lensW.value
+    fun lensSpan(): Pair<Float, Float> {
+        val finger = dragX
+        if (finger != null && bounds.isNotEmpty()) {
+            // Под пальцем: линза центрирована на нём и не выходит за край капсулы
+            val w = lensW.value
+            val rowWidth = bounds.last().let { it.first + it.second }
+            return (finger - w / 2).coerceIn(0f, (rowWidth - w).coerceAtLeast(0f)) to w
+        }
+        return if (placed) lensX.value to lensW.value
         else previous?.let { bounds.getOrNull(it) }?.takeIf { it.second > 0f } ?: bounds.getOrNull(selected) ?: (0f to 0f)
+    }
+
+    /** Насколько линза сейчас «стекло»: едет, держат палец или тащат. */
+    fun glassness(): Float = if (dragX != null) 1f else maxOf(moving.value, held)
 
     /** Линза в координатах ряда вкладок высотой [rowHeight]; [g] — насколько она «стекло». */
     fun lensRect(g: Float, rowHeight: Float, growX: Float, growY: Float): Rect {
@@ -154,7 +190,7 @@ fun ReachTabBar(
             .padding(horizontal = 16.dp, vertical = 8.dp)
             .height(TabBarHeight)
             .graphicsLayer {
-                val s = 1f + CAPSULE_SWELL * maxOf(moving.value, held)
+                val s = 1f + CAPSULE_SWELL * glassness()
                 scaleX = s
                 scaleY = s
             },
@@ -164,7 +200,7 @@ fun ReachTabBar(
         Box(
             Modifier.matchParentSize().drawBehind {
                 if (lensSpan().second <= 0f) return@drawBehind
-                val g = maxOf(moving.value, held)
+                val g = glassness()
                 val pad = INNER_PAD.toPx()
                 val r = lensRect(g, size.height - pad * 2, LENS_GROW_X.toPx(), LENS_GROW_Y.toPx()).translate(Offset(pad, pad))
                 val corner = CornerRadius(r.height / 2)
@@ -189,8 +225,31 @@ fun ReachTabBar(
             Modifier
                 .matchParentSize()
                 .padding(INNER_PAD)
+                // Линзу можно тащить пальцем вдоль капсулы; отпустили — встаёт на ближайшую вкладку
+                .pointerInput(items.size) {
+                    awaitEachGesture {
+                        val down = awaitFirstDown(requireUnconsumed = false)
+                        val start = awaitHorizontalTouchSlopOrCancellation(down.id) { change, _ -> change.consume() }
+                            ?: return@awaitEachGesture
+                        dragX = start.position.x
+                        horizontalDrag(start.id) { change ->
+                            dragX = change.position.x
+                            change.consume()
+                        }
+                        val x = dragX ?: return@awaitEachGesture
+                        val index = bounds.indices.minByOrNull { abs(bounds[it].first + bounds[it].second / 2 - x) }
+                            ?: return@awaitEachGesture
+                        val left = lensSpan().first
+                        scope.launch {
+                            moving.snapTo(1f)
+                            lensX.snapTo(left)
+                            dragX = null
+                            if (index != currentSelected) currentDragSelect(index) else settle(bounds[index])
+                        }
+                    }
+                }
                 .graphicsLayer {
-                    val g = maxOf(moving.value, held)
+                    val g = glassness()
                     renderEffect = if (g > 0f && lensSpan().second > 0f) {
                         val r = lensRect(g, size.height, LENS_GROW_X.toPx(), LENS_GROW_Y.toPx())
                         shader.setFloatUniform("lens", r.left, r.top, r.right, r.bottom)
@@ -217,7 +276,7 @@ fun ReachTabBar(
                     .clearAndSetSemantics {}
                     .drawWithContent {
                         if (lensSpan().second <= 0f) return@drawWithContent
-                        val r = lensRect(maxOf(moving.value, held), size.height, LENS_GROW_X.toPx(), LENS_GROW_Y.toPx())
+                        val r = lensRect(glassness(), size.height, LENS_GROW_X.toPx(), LENS_GROW_Y.toPx())
                         val path = Path().apply { addRoundRect(RoundRect(r, CornerRadius(r.height / 2))) }
                         clipPath(path) { this@drawWithContent.drawContent() }
                     },
@@ -309,7 +368,10 @@ half4 main(float2 p) {
 private val INNER_PAD = 4.dp
 private val LENS_GROW_X = 8.dp
 private val LENS_GROW_Y = 8.dp
-private const val LENS_DAMPING = 0.72f
-private const val LENS_LIFT_MS = 120
+private const val LENS_DAMPING = 0.78f
+private const val LENS_STIFFNESS = 700f
+private const val LENS_LIFT_MS = 90
+private const val LENS_HOLD_MS = 120L
+private const val LENS_SETTLE_MS = 220
 private const val CAPSULE_SWELL = 0.025f
 private const val GLASS_FILL_ALPHA = 0.3f
