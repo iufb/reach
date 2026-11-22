@@ -81,6 +81,8 @@ fun MembersScreen(
         title = stringResource(if (viewModel.isChannel) R.string.members_subscribers else R.string.members_title),
         onBack = onBack,
         snackbar = snackbar,
+        // Полный список — простой, как контакты: на белом видны сегмент и поиск
+        background = colors.background,
         actions = {
             if (rights.canAdd && filter == MembersFilter.All) {
                 PillIconButton(painterResource(R.drawable.ic_add), stringResource(R.string.members_add), onClick = { adding = true })
