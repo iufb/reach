@@ -280,7 +280,7 @@
     <string name="player_close">Закрыть плеер</string>
     <string name="media_download">Скачать</string>
     <string name="autodownload_title">Автозагрузка медиа</string>
-    <string name="autodownload_mobile">Мобильная сеть</string>
+    <string name="autodownload_mobile">Мобильная</string>
     <string name="autodownload_wifi">Wi-Fi</string>
     <string name="autodownload_roaming">Роуминг</string>
     <string name="autodownload_enabled">Автозагрузка</string>
