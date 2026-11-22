@@ -55,15 +55,17 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.UsernameStatus
 import io.github.iufb.reach.contacts.ContactNameDialog
+import io.github.iufb.reach.navigation.MainTab
+import io.github.iufb.reach.navigation.MainTabBar
 import io.github.iufb.reach.ui.components.ActionSheet
 import io.github.iufb.reach.ui.components.Avatar
-import io.github.iufb.reach.ui.components.BackPill
 import io.github.iufb.reach.ui.components.CellIcon
 import io.github.iufb.reach.ui.components.GlassScope
 import io.github.iufb.reach.ui.components.GroupedCell
 import io.github.iufb.reach.ui.components.GroupedSection
 import io.github.iufb.reach.ui.components.ReachTopBar
 import io.github.iufb.reach.ui.components.SheetAction
+import io.github.iufb.reach.ui.components.TabBarHeight
 import io.github.iufb.reach.ui.components.TopBarHeight
 import io.github.iufb.reach.ui.components.glassSource
 import io.github.iufb.reach.ui.theme.CellIconColors
@@ -78,7 +80,7 @@ private enum class Editing { Name, Bio, Username }
  */
 @Composable
 fun SettingsScreen(
-    onBack: () -> Unit,
+    onSelectTab: (MainTab) -> Unit,
     onOpenAutoDownload: () -> Unit,
     onOpenBlocked: (() -> Unit)? = null,
     onOpenContactSync: (() -> Unit)? = null,
@@ -126,7 +128,7 @@ fun SettingsScreen(
                         .verticalScroll(scroll)
                         .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + HEADER_TOP)
                         .navigationBarsPadding()
-                        .padding(bottom = 16.dp),
+                        .padding(bottom = TabBarHeight + 32.dp),
                 ) {
                     ProfileHeader(
                         me,
@@ -179,12 +181,12 @@ fun SettingsScreen(
             }
             ReachTopBar(
                 title = me?.user?.fullName,
-                navigation = { BackPill(onBack) },
                 background = colors.groupedBackground,
                 titleAlpha = { titleAlpha },
                 scrimAlpha = { titleAlpha },
             )
-            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding())
+            MainTabBar(MainTab.Settings, onSelectTab, Modifier.align(Alignment.BottomCenter))
+            SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = TabBarHeight + 16.dp))
             if (me != null) {
                 when (editing) {
                     Editing.Name -> ContactNameDialog(

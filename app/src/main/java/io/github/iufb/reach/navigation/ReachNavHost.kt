@@ -40,6 +40,7 @@ import io.github.iufb.reach.chat.ChatScreen
 import io.github.iufb.reach.chat.ScheduledScreen
 import io.github.iufb.reach.topics.TopicsScreen
 import io.github.iufb.reach.contacts.ContactsScreen
+import io.github.iufb.reach.contacts.NewMessageScreen
 import io.github.iufb.reach.newchat.NewChatScreen
 import io.github.iufb.reach.members.MembersScreen
 import io.github.iufb.reach.rights.AdminRightsScreen
@@ -80,6 +81,7 @@ import kotlinx.serialization.Serializable
 @Serializable data class ScheduledRoute(val chatId: Long)
 @Serializable data class TopicsRoute(val chatId: Long)
 @Serializable data object ContactsRoute
+@Serializable data object NewMessageRoute
 @Serializable data object SettingsRoute
 @Serializable data object ContactSyncRoute
 @Serializable data object BlockedRoute
@@ -160,10 +162,9 @@ fun ReachNavHost(
                         onOpenArchive = { navController.navigate(ChatsRoute(archive = true)) },
                         onOpenSearch = { navController.navigate(SearchRoute()) },
                         onBack = { navController.popBackStack() },
-                        onOpenSettings = { navController.navigate(SettingsRoute) },
                         onOpenTopics = { navController.navigate(TopicsRoute(it)) },
-                        onOpenContacts = { navController.navigate(ContactsRoute) },
-                        onNewChat = { channel -> navController.navigate(NewChatRoute(channel)) },
+                        onSelectTab = navController::selectTab,
+                        onNewMessage = { navController.navigate(NewMessageRoute) },
                     )
                 }
                 composable<NewChatRoute> {
@@ -175,8 +176,16 @@ fun ReachNavHost(
                 }
                 composable<ContactsRoute> {
                     ContactsScreen(
-                        onBack = { navController.popBackStack() },
+                        onSelectTab = navController::selectTab,
                         onOpenChat = { navController.navigate(ChatRoute(it)) },
+                    )
+                }
+                composable<NewMessageRoute> {
+                    NewMessageScreen(
+                        onBack = { navController.popBackStack() },
+                        // Чат открывается вместо «Нового сообщения»: «назад» из него — в список
+                        onOpenChat = { navController.navigate(ChatRoute(it)) { popUpTo(ChatsRoute()) } },
+                        onNewChat = { channel -> navController.navigate(NewChatRoute(channel)) },
                     )
                 }
                 composable<TopicsRoute> {
@@ -243,7 +252,7 @@ fun ReachNavHost(
                 }
                 composable<SettingsRoute> {
                     SettingsScreen(
-                        onBack = { navController.popBackStack() },
+                        onSelectTab = navController::selectTab,
                         onOpenAutoDownload = { navController.navigate(AutoDownloadRoute) },
                         onOpenContactSync = { navController.navigate(ContactSyncRoute) },
                         onOpenBlocked = { navController.navigate(BlockedRoute) },
