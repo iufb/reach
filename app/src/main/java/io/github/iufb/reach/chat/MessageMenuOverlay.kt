@@ -53,6 +53,7 @@ import androidx.compose.ui.geometry.Rect
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.TransformOrigin
 import androidx.compose.ui.graphics.layer.GraphicsLayer
+import androidx.compose.ui.graphics.drawscope.clipRect
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.layout.Layout
@@ -108,6 +109,9 @@ internal fun Modifier.menuAnchor(message: Message): Modifier {
         .onGloballyPositioned { overlay.bounds = it.boundsInRoot() }
         .drawWithContent {
             layer.record { this@drawWithContent.drawContent() }
+            // Слой остаётся в дереве отрисовки на своём месте, но под пустой обрезкой — здесь он не виден.
+            // Без этого вложенные слои пузыря (фото, видео со скруглением) теряют содержимое, и в меню пусто
+            clipRect(0f, 0f, 0f, 0f) { drawLayer(layer) }
             overlay.layer = layer
         }
 }

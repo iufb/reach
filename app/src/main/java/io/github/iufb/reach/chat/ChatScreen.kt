@@ -191,6 +191,8 @@ fun ChatScreen(
         }
     }
     BackHandler(enabled = selection.isNotEmpty(), onBack = viewModel::clearSelection)
+    // «Назад» при открытом меню закрывает только меню, а не чат
+    BackHandler(enabled = menu != null, onBack = viewModel::closeMenu)
     val replied by viewModel.replied.collectAsStateWithLifecycle()
     val scrollTarget by viewModel.scrollTarget.collectAsStateWithLifecycle()
     LifecycleResumeEffect(viewModel) {
