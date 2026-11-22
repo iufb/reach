@@ -50,6 +50,8 @@ fun ListScreen(
     snackbar: SnackbarHostState? = null,
     loading: Boolean = false,
     state: LazyListState = rememberLazyListState(),
+    /** Тап по заголовку (профиль чата). */
+    onTitleClick: (() -> Unit)? = null,
     content: LazyListScope.() -> Unit,
 ) {
     val colors = ReachTheme.colors
@@ -68,7 +70,7 @@ fun ListScreen(
                     content = content,
                 )
             }
-            ReachTopBar(title = title, navigation = { BackPill(onBack) }, actions = actions, background = background)
+            ReachTopBar(title = title, navigation = { BackPill(onBack) }, actions = actions, background = background, onTitleClick = onTitleClick)
             snackbar?.let { SnackbarHost(it, Modifier.align(Alignment.BottomCenter).navigationBarsPadding()) }
         }
     }

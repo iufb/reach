@@ -268,7 +268,12 @@ async def dispatch(client: TelegramClient, a) -> None:
         r = await client(functions.messages.ExportChatInviteRequest(peer=await peer(client, a.chat), title=a.title))
         print(r.link)
     elif c == "topic":
-        r = await client(functions.channels.CreateForumTopicRequest(channel=await peer(client, a.chat), title=a.title))
+        # В свежих слоях запрос переехал из channels в messages
+        create = getattr(functions.messages, "CreateForumTopicRequest", None)
+        if create is not None:
+            r = await client(create(peer=await peer(client, a.chat), title=a.title))
+        else:
+            r = await client(functions.channels.CreateForumTopicRequest(channel=await peer(client, a.chat), title=a.title))
         print("ok")
     else:
         fail(f"неизвестная команда {c}")

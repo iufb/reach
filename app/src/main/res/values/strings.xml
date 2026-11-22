@@ -227,6 +227,13 @@
     <string name="schedule_next">Далее</string>
     <string name="schedule_time_title">Время отправки</string>
     <string name="schedule_confirm">Запланировать</string>
+    <string name="schedule_title">Отправить позже</string>
+    <string name="schedule_today">Сегодня</string>
+    <string name="schedule_tomorrow">Завтра</string>
+    <string name="schedule_send_at">Отправить %1$s в %2$s</string>
+    <string name="schedule_send_today">сегодня</string>
+    <string name="schedule_send_tomorrow">завтра</string>
+    <string name="schedule_in_past">Это время уже прошло</string>
     <string name="scheduled_title">Отложенные сообщения</string>
     <string name="scheduled_empty">Отложенных сообщений нет</string>
     <string name="scheduled_at">Отправится %1$s</string>

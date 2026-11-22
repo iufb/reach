@@ -34,8 +34,6 @@ import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -71,6 +69,8 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import io.github.iufb.reach.R
+import io.github.iufb.reach.ui.components.ActionSheet
+import io.github.iufb.reach.ui.components.SheetAction
 import io.github.iufb.reach.chats.LinkPreview
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
@@ -385,37 +385,19 @@ private fun SendButton(enabled: Boolean, onClick: () -> Unit, menu: SendMenu?) {
                 tint = if (enabled) colors.onAccent else colors.tertiaryLabel,
             )
         }
-        if (menu != null) {
-            DropdownMenu(expanded = open, onDismissRequest = { open = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.send_silent)) },
-                    leadingIcon = { Icon(painterResource(R.drawable.ic_muted), contentDescription = null) },
-                    onClick = {
-                        open = false
-                        menu.onSilent()
-                    },
-                )
+    }
+    if (menu != null && open) {
+        // Как в Telegram iOS: долгий тап по «Отправить» — лист вариантов отправки
+        ActionSheet(
+            actions = buildList {
+                add(SheetAction(stringResource(R.string.send_silent), onClick = menu.onSilent))
                 menu.onSchedule?.let { schedule ->
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.send_scheduled)) },
-                        leadingIcon = { Icon(painterResource(R.drawable.ic_schedule), contentDescription = null) },
-                        onClick = {
-                            open = false
-                            picking = true
-                        },
-                    )
-                    if (menu.whenOnline) {
-                        DropdownMenuItem(
-                            text = { Text(stringResource(R.string.send_when_online)) },
-                            onClick = {
-                                open = false
-                                schedule(Schedule.WhenOnline)
-                            },
-                        )
-                    }
+                    add(SheetAction(stringResource(R.string.send_scheduled)) { picking = true })
+                    if (menu.whenOnline) add(SheetAction(stringResource(R.string.send_when_online)) { schedule(Schedule.WhenOnline) })
                 }
-            }
-        }
+            },
+            onDismiss = { open = false },
+        )
     }
     val schedule = menu?.onSchedule
     if (picking && schedule != null) {

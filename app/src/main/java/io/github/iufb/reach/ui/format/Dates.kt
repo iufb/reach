@@ -25,6 +25,7 @@ object Dates {
     private val NUMERIC = DateTimeFormatter.ofPattern("dd.MM.yy", AppLocale)
     private val DAY_MONTH = DateTimeFormatter.ofPattern("d MMM", AppLocale)
     private val DAY = DateTimeFormatter.ofPattern("d MMMM", AppLocale)
+    private val WHEEL_DAY = DateTimeFormatter.ofPattern("EE, d MMM", AppLocale)
     private val DAY_YEAR = DateTimeFormatter.ofPattern("d MMMM yyyy", AppLocale)
 
     fun at(unixSeconds: Long, zone: ZoneId = ZoneId.systemDefault()): ZonedDateTime =
@@ -45,6 +46,9 @@ object Dates {
     fun time(moment: ZonedDateTime): String = moment.format(TIME)
 
     /** «21 ноября» / «21 ноября 2025» — плашка дня в ленте. */
+    /** Строка барабана дат: «пн, 24 нояб.». */
+    fun wheelDay(day: LocalDate): String = day.format(WHEEL_DAY)
+
     fun day(day: LocalDate, withYear: Boolean): String = day.format(if (withYear) DAY_YEAR else DAY)
 
     /** «21 нояб.» — подписи оси графиков, [millis] — миллисекунды. */
