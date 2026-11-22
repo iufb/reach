@@ -80,6 +80,8 @@ data class Profile(
     val canEditPermissions: Boolean = false,
     /** Владелец или админ с правом приглашать: экран ссылок. */
     val canManageInvites: Boolean = false,
+    /** Группа или канал, где можно менять название, описание и фото: в шапке «Изменить». */
+    val canEditChat: Boolean = false,
     /** Статистика доступна (`supergroupFullInfo.can_get_statistics`). */
     val canGetStatistics: Boolean = false,
 )
@@ -169,6 +171,7 @@ class ProfileViewModel @Inject constructor(
                 autoDeleteTime = chat.autoDeleteTime,
                 canChangeAutoDelete = canChangeInfo,
                 canOpenMembers = info.canGetMembers,
+                canEditChat = chat.group != null && canChangeInfo,
                 isMember = chat.group?.let(statuses::get).let { it != null && it != MemberStatus.Left && !(it is MemberStatus.Creator && !it.isMember) },
                 isOwner = chat.group?.let(statuses::get) is MemberStatus.Creator,
                 canGetStatistics = info.canGetStatistics && chat.kind == ChatKind.Channel,
