@@ -226,8 +226,6 @@ fun BlockedScreen(onBack: () -> Unit, viewModel: BlockedViewModel = hiltViewMode
                 viewModel.query.value = ""
             },
         )
-    },
-        )
     }
 }
 
