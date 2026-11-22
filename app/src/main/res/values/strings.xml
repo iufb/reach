@@ -534,6 +534,9 @@
     <string name="block_confirm">Заблокировать %1$s? Этот пользователь не сможет писать вам и звонить.</string>
     <string name="unblock_confirm">Разблокировать %1$s?</string>
     <string name="block_pick">Кого заблокировать</string>
+    <string name="block_search_hint">Имя или @username</string>
+    <string name="block_pick_empty">Контактов нет. Найдите пользователя по имени пользователя — например, @username.</string>
+    <string name="block_search_empty">Никого не нашлось</string>
     <string name="blocked_empty">Список пуст</string>
     <string name="new_group">Новая группа</string>
     <string name="new_channel">Новый канал</string>

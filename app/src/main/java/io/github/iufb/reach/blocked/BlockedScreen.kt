@@ -1,6 +1,23 @@
 package io.github.iufb.reach.blocked
 
 import android.util.Log
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
+import io.github.iufb.reach.ui.components.SearchField
+import io.github.iufb.reach.ui.components.SheetHeader
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.mapLatest
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -25,7 +42,6 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.iufb.reach.R
-import io.github.iufb.reach.contacts.ContactPickerSheet
 import io.github.iufb.reach.contacts.ContactsRepository
 import io.github.iufb.reach.contacts.UserRow
 import io.github.iufb.reach.contacts.UserRowTextInset
@@ -68,9 +84,32 @@ class BlockedViewModel @Inject constructor(
     val blocked: StateFlow<List<User>?> = combine(ids, users.users) { list, known -> list?.mapNotNull(known::get) }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
-    /** Кого можно добавить в список: контакты. */
-    val candidates: StateFlow<List<User>> = combine(contacts.contacts, ids) { all, blocked ->
-        all.orEmpty().filter { it.id !in blocked.orEmpty() }
+    /** Поиск в шторке «Кого заблокировать». */
+    val query = MutableStateFlow("")
+
+    /** Пользователи из `searchPublicChats` по запросу: можно заблокировать и не из контактов. */
+    @OptIn(FlowPreview::class, ExperimentalCoroutinesApi::class)
+    private val found: StateFlow<List<Long>> = query
+        .debounce(SEARCH_DEBOUNCE_MS)
+        .distinctUntilChanged()
+        .mapLatest { q ->
+            if (q.isBlank()) emptyList()
+            else runCatching { td.send(TdApi.SearchPublicChats(q.trim().removePrefix("@"), null)).chatIds.toList() }
+                .onFailure { Log.w(TAG, "searchPublicChats failed", it) }
+                .getOrDefault(emptyList())
+        }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
+
+    /**
+     * Кого можно добавить в список: контакты (с поиском по имени и username) и найденные пользователи.
+     * Найденные — по id личного чата, он совпадает с id пользователя; группы и каналы отпадают сами.
+     */
+    val candidates: StateFlow<List<User>> = combine(contacts.contacts, ids, query, found, users.users) { all, blocked, q, foundIds, known ->
+        val needle = q.trim().removePrefix("@").lowercase()
+        val local = all.orEmpty().filter {
+            needle.isEmpty() || it.fullName.lowercase().contains(needle) || it.username.lowercase().contains(needle)
+        }
+        (local + foundIds.mapNotNull(known::get)).distinctBy { it.id }.filter { it.id !in blocked.orEmpty() }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptyList())
 
     private val _errors = MutableSharedFlow<String>(extraBufferCapacity = 1)
@@ -124,6 +163,7 @@ class BlockedViewModel @Inject constructor(
     private companion object {
         const val TAG = "BlockedViewModel"
         const val PAGE = 50
+        const val SEARCH_DEBOUNCE_MS = 300L
         const val STOP_TIMEOUT_MS = 5_000L
     }
 }
@@ -171,15 +211,62 @@ fun BlockedScreen(onBack: () -> Unit, viewModel: BlockedViewModel = hiltViewMode
         )
     }
     if (picking) {
-        ContactPickerSheet(
-            title = stringResource(R.string.block_pick),
-            contacts = candidates,
-            selected = emptySet(),
-            onToggle = { user ->
+        val query by viewModel.query.collectAsStateWithLifecycle()
+        BlockPickerSheet(
+            query = query,
+            onQueryChange = { viewModel.query.value = it },
+            users = candidates,
+            onPick = { user ->
                 picking = false
+                viewModel.query.value = ""
                 viewModel.setBlocked(user.id, true)
             },
-            onDismiss = { picking = false },
+            onDismiss = {
+                picking = false
+                viewModel.query.value = ""
+            },
         )
+    }
+}
+
+/** «Кого заблокировать»: поиск по контактам и username, тап — заблокировать; пустой список — пояснение. */
+@Composable
+private fun BlockPickerSheet(
+    query: String,
+    onQueryChange: (String) -> Unit,
+    users: List<User>,
+    onPick: (User) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val colors = ReachTheme.colors
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Column(Modifier.fillMaxSize().background(colors.background).statusBarsPadding().navigationBarsPadding().imePadding()) {
+            SheetHeader(title = stringResource(R.string.block_pick), cancel = stringResource(R.string.cancel), onCancel = onDismiss)
+            SearchField(
+                query,
+                onQueryChange = onQueryChange,
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+                placeholder = stringResource(R.string.block_search_hint),
+            )
+            if (users.isEmpty()) {
+                Text(
+                    stringResource(if (query.isBlank()) R.string.block_pick_empty else R.string.block_search_empty),
+                    modifier = Modifier.fillMaxWidth().padding(32.dp),
+                    color = colors.secondaryLabel,
+                    textAlign = TextAlign.Center,
+                )
+            } else {
+                LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
+                    items(users, key = { it.id }) { user ->
+                        UserRow(
+                            user,
+                            onClick = { onPick(user) },
+                            subtitle = user.username.takeIf { it.isNotBlank() }?.let { "@$it" },
+                            divider = user != users.last(),
+                        )
+                    }
+                }
+            }
+        }
     }
 }

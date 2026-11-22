@@ -22,6 +22,10 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.window.DialogWindowProvider
+import androidx.core.view.WindowCompat
+import androidx.compose.runtime.SideEffect
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
@@ -101,6 +105,7 @@ fun SheetHeader(
     actionEnabled: Boolean = true,
     onAction: () -> Unit = {},
 ) {
+    DialogSystemBars()
     Row(
         modifier.fillMaxWidth().heightIn(min = TopBarHeight).padding(horizontal = 12.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -117,6 +122,23 @@ fun SheetHeader(
         )
         if (action != null) PillTextButton(action, onClick = onAction, bold = true, enabled = actionEnabled)
         else Spacer(Modifier.width(PillHeight))
+    }
+}
+
+/**
+ * Цвет значков статус-бара у окна диалога-шторки: у диалога своё окно, и без этого значки
+ * остаются светлыми на светлом фоне. Вне диалога ничего не делает.
+ */
+@Composable
+fun DialogSystemBars() {
+    val view = LocalView.current
+    val dark = ReachTheme.colors.isDark
+    val window = (view.parent as? DialogWindowProvider)?.window ?: return
+    SideEffect {
+        WindowCompat.getInsetsController(window, view).apply {
+            isAppearanceLightStatusBars = !dark
+            isAppearanceLightNavigationBars = !dark
+        }
     }
 }
 
