@@ -440,7 +440,8 @@ private fun CodeCells(code: String, length: Int, onCodeChange: (String) -> Unit,
         modifier = Modifier.focusRequester(focus),
         enabled = enabled,
         singleLine = true,
-        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.NumberPassword, imeAction = ImeAction.Done),
+        // Цифры и так видны в ячейках: обычная цифровая клавиатура, а не «парольная»
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { onDone() }),
         decorationBox = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
