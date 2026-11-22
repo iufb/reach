@@ -1,0 +1,35 @@
+# Converter recipe for Reach (Android CBDT/CBLC), based on the converter's
+# configs/linux.yaml. One bitmap strike: __STRIKE__ is replaced by
+# entrypoint.sh with the ppem passed to `docker run reach-fonts <strike>`.
+# GSUB is generated (like configs/web.yaml) because Android shapes ZWJ
+# sequences, flags and skin tones with GSUB, not with Apple's morx.
+version: 1
+names:
+  family: Apple Color Emoji
+bitmap:
+  format: cbdt_cblc
+  strikes:
+    - __STRIKE__
+  backfill_missing:
+    source: 160
+tables:
+  head:
+    units_per_em: 2048
+    mac_style: 0
+  drop:
+    source_tables: true
+    outlines: true
+  cmap:
+    bmp: true
+    ucs4: true
+shaping:
+  gsub:
+    enabled: true
+    sequence_files:
+      - /opt/apple-emoji-ttf/sequences/emoji-sequences.txt
+      - /opt/apple-emoji-ttf/sequences/emoji-zwj-sequences.txt
+      - /opt/apple-emoji-ttf/sequences/emoji-test.txt
+      - /opt/apple-emoji-ttf/sequences/emoji-variation-sequences.txt
+    project_sequence_files:
+      - /opt/apple-emoji-ttf/sequences/project-sequences.txt
+    replace_morx: true
