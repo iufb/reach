@@ -24,6 +24,9 @@ import java.util.UUID
 import javax.inject.Inject
 import javax.inject.Singleton
 
+/** Имя файла похоже на шрифт, который можно импортировать: `.ttf` или `.otf` без учёта регистра. */
+fun isFontFileName(name: String): Boolean = name.endsWith(".ttf", ignoreCase = true) || name.endsWith(".otf", ignoreCase = true)
+
 /** Шрифт, импортированный в приложение. [id] — начало SHA-256 файла, он же имя файла `<id>.ttf`. */
 data class LocalFont(val id: String, val name: String, val kind: FontKind, val sizeBytes: Long)
 

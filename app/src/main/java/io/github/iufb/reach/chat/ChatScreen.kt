@@ -14,6 +14,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.key
 import io.github.iufb.reach.media.RecorderState
 import kotlinx.coroutines.delay
+import io.github.iufb.reach.fonts.FontKind
 import android.os.SystemClock
 import io.github.iufb.reach.media.VideoNoteCamera
 import io.github.iufb.reach.photoedit.PhotoEditorDialog
@@ -148,12 +149,21 @@ fun ChatScreen(
     /** Только что переслали из этого чата: название получателя для тоста; `null` — тоста нет. */
     forwardedTo: String? = null,
     onForwardedShown: () -> Unit = {},
+    /** Настройки → Шрифт: действие «Открыть» в тосте о добавленном шрифте; `null` — без действия. */
+    onOpenFontSettings: (() -> Unit)? = null,
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
     LaunchedEffect(forwardedTo) {
         if (forwardedTo != null) {
             delay(TOAST_MS)
             onForwardedShown()
+        }
+    }
+    val fontNotice by viewModel.fontNotice.collectAsStateWithLifecycle()
+    LaunchedEffect(fontNotice) {
+        fontNotice?.let {
+            delay(FONT_TOAST_MS)
+            viewModel.dismissFontNotice(it)
         }
     }
     val scopeInfo by viewModel.scopeInfo.collectAsStateWithLifecycle()
@@ -286,7 +296,8 @@ fun ChatScreen(
     CompositionLocalProvider(LocalMentionHandler provides mentionHandler) {
         ChatContent(
             chat, state, senders, onBack,
-            toast = forwardedTo?.let { stringResource(R.string.forward_done, it) },
+            toast = fontNotice?.let { notice -> fontToast(notice, onOpenFontSettings?.let { open -> { viewModel.dismissFontNotice(notice); open() } }) }
+                ?: forwardedTo?.let { ChatToastData(stringResource(R.string.forward_done, it)) },
             header = header,
             onOpenProfile = { chat?.let { onOpenProfile(it.id) } },
             onOpenScheduled = { chat?.let { onOpenScheduled(it.id) } },
@@ -407,6 +418,7 @@ fun ChatScreen(
                 onShowVoters = viewModel::showPollVoters,
                 onRetractVote = viewModel::retractVote,
                 onStopPoll = viewModel::stopPoll,
+                onInstallFont = viewModel::installFont,
                 onOpenComments = if (scoped) null else viewModel::openComments,
                 senders = senders,
             ),
@@ -445,7 +457,7 @@ private fun ChatContent(
     pinned: PinnedBanner? = null,
     onPinnedClick: () -> Unit = {},
     /** Короткое уведомление под шапкой («Переслано в …»); `null` — нет. */
-    toast: String? = null,
+    toast: ChatToastData? = null,
 ) {
     val colors = ReachTheme.colors
     val density = LocalDensity.current
@@ -514,31 +526,75 @@ private fun ChatContent(
     }
 }
 
+/** Тост под шапкой: текст, значок и необязательное действие справа («Открыть»). */
+internal data class ChatToastData(
+    val text: String,
+    val icon: Int = R.drawable.ic_forward,
+    val actionLabel: String? = null,
+    val onAction: (() -> Unit)? = null,
+)
+
+/** Тост о шрифте: «Шрифт добавлен: …» с «Открыть» или текст ошибки импорта. */
+@Composable
+private fun fontToast(notice: FontNotice, onOpen: (() -> Unit)?): ChatToastData = when (notice) {
+    is FontNotice.Added -> ChatToastData(
+        text = stringResource(
+            R.string.font_toast_added,
+            notice.font.name,
+            stringResource(if (notice.font.kind == FontKind.Emoji) R.string.font_toast_kind_emoji else R.string.font_toast_kind_text),
+        ),
+        icon = R.drawable.ic_text,
+        actionLabel = onOpen?.let { stringResource(R.string.font_toast_open) },
+        onAction = onOpen,
+    )
+    is FontNotice.Failed -> ChatToastData(notice.message ?: stringResource(R.string.font_toast_failed), icon = R.drawable.ic_text)
+}
+
 /** Тост Telegram iOS под шапкой: стеклянная пилюля со значком; появляется и уходит плавно. */
 @Composable
-private fun ChatToast(text: String?) {
-    // Последний текст держим, пока тост уезжает
-    var last by remember { mutableStateOf(text) }
-    if (text != null) last = text
+private fun ChatToast(toast: ChatToastData?) {
+    // Последний тост держим, пока он уезжает
+    var last by remember { mutableStateOf(toast) }
+    if (toast != null) last = toast
     AnimatedVisibility(
-        visible = text != null,
+        visible = toast != null,
         enter = fadeIn() + expandVertically(),
         exit = fadeOut() + shrinkVertically(),
     ) {
+        val shown = last ?: return@AnimatedVisibility
         Box(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), contentAlignment = Alignment.Center) {
             Row(
                 Modifier.glass(RoundedCornerShape(percent = 50)).padding(horizontal = 16.dp, vertical = 10.dp),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.spacedBy(10.dp),
             ) {
-                Icon(painterResource(R.drawable.ic_forward), contentDescription = null, Modifier.size(20.dp), tint = ReachTheme.colors.accent)
-                Text(last.orEmpty(), style = MaterialTheme.typography.bodyMedium, color = ReachTheme.colors.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                Icon(painterResource(shown.icon), contentDescription = null, Modifier.size(20.dp), tint = ReachTheme.colors.accent)
+                Text(
+                    shown.text,
+                    modifier = Modifier.weight(1f, fill = false),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = ReachTheme.colors.label,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (shown.actionLabel != null && shown.onAction != null) {
+                    Text(
+                        shown.actionLabel,
+                        modifier = Modifier.clickable(onClick = shown.onAction),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = ReachTheme.colors.accent,
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }
 }
 
 private const val TOAST_MS = 2_500L
+/** Тост о шрифте дольше: в нём есть действие. */
+private const val FONT_TOAST_MS = 4_000L
 
 /** Насколько размыт чат под меню сообщения. */
 private val MENU_BLUR = 18.dp
@@ -667,6 +723,8 @@ internal class MessageInteractions(
     val onShowVoters: (Message, io.github.iufb.reach.chats.PollOptionInfo) -> Unit = { _, _ -> },
     val onRetractVote: (Message) -> Unit = {},
     val onStopPoll: (Message) -> Unit = {},
+    /** «Установить как шрифт» у документа .ttf/.otf. */
+    val onInstallFont: (Message) -> Unit = {},
     /** Плашка комментариев под постом канала; `null` — уже в треде. */
     val onOpenComments: ((Message) -> Unit)? = null,
     /** Аватарки комментаторов. */

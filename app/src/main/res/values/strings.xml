@@ -255,6 +255,12 @@
     <string name="message_action_delete">Удалить</string>
     <string name="message_action_forward">Переслать</string>
     <string name="message_action_select">Выбрать</string>
+    <string name="message_action_install_font">Установить как шрифт</string>
+    <string name="font_toast_added">Шрифт добавлен: %1$s (%2$s)</string>
+    <string name="font_toast_kind_text">текст</string>
+    <string name="font_toast_kind_emoji">эмодзи</string>
+    <string name="font_toast_open">Открыть</string>
+    <string name="font_toast_failed">Не удалось скачать или добавить шрифт</string>
     <string name="selection_close">Отменить выделение</string>
 
     <!-- Форматирование при вводе -->

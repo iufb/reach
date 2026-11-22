@@ -41,15 +41,28 @@ class DocumentDownloads(private val files: FilesRepository, private val scope: C
                 _states.update { it - id }
                 scope.launch { runCatching { files.cancelDownload(id) } }
             }
-            else -> jobs[id] = scope.launch {
-                runCatching {
-                    files.download(id, FilesRepository.PRIORITY_DOCUMENT).collect { s -> _states.update { it + (id to s) } }
-                }.onFailure {
-                    if (it is CancellationException) throw it
-                    Log.e("DocumentDownloads", "download $id failed", it)
-                    _states.update { map -> map - id }
-                }
-            }
+            else -> start(id)
         }
     }
+
+    /**
+     * Путь к скачанному документу: качает, если нужно, с тем же прогрессом в ячейке, что и при тапе.
+     * `null` — скачать не удалось или загрузку отменили тапом.
+     */
+    suspend fun awaitPath(document: DocumentInfo): String? {
+        val id = document.file.id
+        _states.value[id]?.takeIf { it.isDownloaded }?.let { return it.path }
+        (jobs[id]?.takeIf { it.isActive } ?: start(id)).join()
+        return _states.value[id]?.takeIf { it.isDownloaded }?.path
+    }
+
+    private fun start(id: Int): Job = scope.launch {
+        runCatching {
+            files.download(id, FilesRepository.PRIORITY_DOCUMENT).collect { s -> _states.update { it + (id to s) } }
+        }.onFailure {
+            if (it is CancellationException) throw it
+            Log.e("DocumentDownloads", "download $id failed", it)
+            _states.update { map -> map - id }
+        }
+    }.also { jobs[id] = it }
 }

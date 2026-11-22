@@ -294,7 +294,7 @@ private fun ActionCardSpace(menu: MessageMenu) {
 
 private fun menuRowCount(actions: MessageActions): Int = listOf(
     actions.canReply, actions.canEdit, actions.copyText != null, actions.canPin, actions.canForward,
-    actions.canRetractVote, actions.canStopPoll, true, actions.canDelete,
+    actions.canRetractVote, actions.canStopPoll, actions.canInstallFont, true, actions.canDelete,
 ).count { it }
 
 /** Карточка действий: строки «название — значок справа», разделители, «Удалить» красным последним. */
@@ -327,6 +327,7 @@ private fun ActionCard(menu: MessageMenu, interactions: MessageInteractions) {
             val quiz = (message.content as? MessageBody.Poll)?.poll?.quiz != null
             add(MenuRow(if (quiz) R.string.quiz_stop else R.string.poll_stop, R.drawable.ic_stop) { interactions.onStopPoll(message) })
         }
+        if (actions.canInstallFont) add(MenuRow(R.string.message_action_install_font, R.drawable.ic_text) { interactions.onInstallFont(message) })
         // Выбрать можно любое сообщение, у которого открылось меню
         add(MenuRow(R.string.message_action_select, R.drawable.ic_select) { interactions.onStartSelection(menu) })
         if (actions.canDelete) add(MenuRow(R.string.message_action_delete, R.drawable.ic_delete, destructive = true) { interactions.onDelete(menu) })
