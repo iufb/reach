@@ -536,6 +536,10 @@
     <string name="new_channel_public">Публичный канал</string>
     <string name="new_channel_public_hint">Канал можно найти в поиске, вступить может любой</string>
     <string name="invite_link_title">Ссылка-приглашение</string>
+    <string name="new_channel_type">Тип канала</string>
+    <string name="new_channel_link_hint">ссылка</string>
+    <string name="new_channel_description_hint">Можно добавить описание канала — его увидят в профиле.</string>
+    <string name="new_message_title">Новое сообщение</string>
     <string name="picker_already_member">Уже участник</string>
     <string name="members_title">Участники</string>
     <string name="members_subscribers">Подписчики</string>

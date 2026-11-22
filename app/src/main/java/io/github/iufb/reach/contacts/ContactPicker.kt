@@ -1,13 +1,11 @@
 package io.github.iufb.reach.contacts
 
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -17,6 +15,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import io.github.iufb.reach.R
+import io.github.iufb.reach.ui.components.RoundCheck
+import io.github.iufb.reach.ui.components.SearchField
 import io.github.iufb.reach.users.User
 
 /**
@@ -30,6 +30,7 @@ fun ContactPicker(
     onToggle: (User) -> Unit,
     modifier: Modifier = Modifier,
     disabled: Set<Long> = emptySet(),
+    contentPadding: PaddingValues = PaddingValues(),
 ) {
     var query by rememberSaveable { mutableStateOf("") }
     val shown = if (query.isBlank()) {
@@ -39,21 +40,21 @@ fun ContactPicker(
         contacts.filter { it.fullName.lowercase().contains(q) || it.username.lowercase().contains(q.removePrefix("@")) }
     }
     Column(modifier) {
-        OutlinedTextField(
-            value = query,
-            onValueChange = { query = it },
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp),
-            placeholder = { Text(stringResource(R.string.contacts_search)) },
-            singleLine = true,
+        SearchField(
+            query,
+            onQueryChange = { query = it },
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+            placeholder = stringResource(R.string.contacts_search),
         )
-        LazyColumn(Modifier.fillMaxWidth().weight(1f)) {
+        LazyColumn(Modifier.fillMaxWidth().weight(1f), contentPadding = contentPadding) {
             items(shown, key = { it.id }) { user ->
                 val locked = user.id in disabled
                 UserRow(
                     user,
                     onClick = if (locked) null else ({ onToggle(user) }),
                     subtitle = if (locked) stringResource(R.string.picker_already_member) else null,
-                    trailing = { Checkbox(checked = locked || user.id in selected, onCheckedChange = null, enabled = !locked) },
+                    leading = { RoundCheck(selected = locked || user.id in selected, enabled = !locked) },
+                    divider = user != shown.last(),
                 )
             }
         }

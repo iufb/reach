@@ -13,6 +13,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -22,6 +24,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.painter.Painter
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -148,6 +151,48 @@ fun GroupedCell(
             val inset: Dp = if (icon != null) 16.dp + CELL_ICON + ICON_GAP else 16.dp
             HorizontalDivider(Modifier.padding(start = inset), thickness = 0.5.dp, color = colors.separator)
         }
+    }
+}
+
+/**
+ * Поле ввода в карточке сгруппированного списка (название группы, описание): без рамки, плейсхолдер серым,
+ * [prefix] — неизменяемое начало («t.me/»). [divider] — как у [GroupedCell].
+ */
+@Composable
+fun GroupedTextField(
+    value: String,
+    onValueChange: (String) -> Unit,
+    placeholder: String,
+    modifier: Modifier = Modifier,
+    prefix: String? = null,
+    singleLine: Boolean = true,
+    maxLines: Int = if (singleLine) 1 else 6,
+    keyboardOptions: KeyboardOptions = KeyboardOptions.Default,
+    divider: Boolean = true,
+) {
+    val colors = ReachTheme.colors
+    val style = MaterialTheme.typography.bodyLarge.copy(color = colors.label)
+    Column(modifier.fillMaxWidth()) {
+        BasicTextField(
+            value = value,
+            onValueChange = onValueChange,
+            modifier = Modifier.fillMaxWidth().heightIn(min = CELL_HEIGHT).padding(horizontal = 16.dp, vertical = 14.dp),
+            textStyle = style,
+            singleLine = singleLine,
+            maxLines = maxLines,
+            keyboardOptions = keyboardOptions,
+            cursorBrush = SolidColor(colors.accent),
+            decorationBox = { inner ->
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (prefix != null) Text(prefix, style = style.copy(color = colors.secondaryLabel))
+                    Box(Modifier.weight(1f)) {
+                        if (value.isEmpty()) Text(placeholder, style = style.copy(color = colors.tertiaryLabel))
+                        inner()
+                    }
+                }
+            },
+        )
+        if (divider) HorizontalDivider(Modifier.padding(start = 16.dp), thickness = 0.5.dp, color = colors.separator)
     }
 }
 

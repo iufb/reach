@@ -31,8 +31,6 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.DropdownMenu
-import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
@@ -72,6 +70,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
+import io.github.iufb.reach.navigation.MainTab
+import io.github.iufb.reach.navigation.MainTabBar
 import io.github.iufb.reach.chat.Sender
 import io.github.iufb.reach.presence.ActivityKind
 import io.github.iufb.reach.presence.activityText
@@ -79,11 +79,9 @@ import io.github.iufb.reach.ui.components.BackPill
 import io.github.iufb.reach.ui.components.GlassScope
 import io.github.iufb.reach.ui.components.PillGroup
 import io.github.iufb.reach.ui.components.PillGroupIcon
-import io.github.iufb.reach.ui.components.ReachTabBar
 import io.github.iufb.reach.ui.components.ReachTopBar
 import io.github.iufb.reach.ui.components.SearchButton
 import io.github.iufb.reach.ui.components.TabBarHeight
-import io.github.iufb.reach.ui.components.TabItem
 import io.github.iufb.reach.ui.components.glassSource
 import io.github.iufb.reach.ui.format.Dates
 import io.github.iufb.reach.ui.theme.ReachTheme
@@ -96,10 +94,9 @@ fun ChatsScreen(
     onOpenArchive: () -> Unit,
     onOpenSearch: () -> Unit,
     onBack: () -> Unit,
-    onOpenSettings: () -> Unit = {},
-    onOpenContacts: () -> Unit = {},
+    onSelectTab: (MainTab) -> Unit = {},
     /** «Новая группа» (`false`) / «Новый канал» (`true`). */
-    onNewChat: (channel: Boolean) -> Unit = {},
+    onNewMessage: () -> Unit = {},
     /** Форум открывается списком топиков. */
     onOpenTopics: (Long) -> Unit = onChatClick,
     viewModel: ChatsViewModel = hiltViewModel(),
@@ -129,9 +126,8 @@ fun ChatsScreen(
         onBack = onBack,
         onOpenSearch = onOpenSearch,
         onOpenSaved = viewModel::openSavedMessages,
-        onOpenSettings = onOpenSettings,
-        onOpenContacts = onOpenContacts,
-        onNewChat = onNewChat,
+        onSelectTab = onSelectTab,
+        onNewMessage = onNewMessage,
         tabs = tabs,
         onSelectList = viewModel::selectList,
     )
@@ -162,9 +158,8 @@ private fun ChatsContent(
     onBack: () -> Unit = {},
     onOpenSearch: () -> Unit = {},
     onOpenSaved: () -> Unit = {},
-    onOpenSettings: () -> Unit = {},
-    onOpenContacts: () -> Unit = {},
-    onNewChat: (channel: Boolean) -> Unit = {},
+    onSelectTab: (MainTab) -> Unit = {},
+    onNewMessage: () -> Unit = {},
     tabs: List<FolderTab> = emptyList(),
     onSelectList: (ChatListType) -> Unit = {},
 ) {
@@ -193,31 +188,12 @@ private fun ChatsContent(
                 ReachTopBar(
                     title = stringResource(if (isArchive) R.string.archive_title else R.string.chats_title),
                     navigation = if (isArchive) ({ BackPill(onBack) }) else null,
-                    actions = { if (!isArchive) ChatsActions(loggingOut, onOpenSaved, onNewChat) },
+                    actions = { if (!isArchive) ChatsActions(loggingOut, onOpenSaved, onNewMessage) },
                 )
                 io.github.iufb.reach.chat.NowPlayingBar()
             }
             if (!isArchive) {
-                // Контакты и настройки пока открываются поверх списка; вкладки-экраны — с их переносом
-                ReachTabBar(
-                    items = listOf(
-                        TabItem(painterResource(R.drawable.ic_tab_contacts), stringResource(R.string.contacts_title)),
-                        TabItem(
-                            painterResource(R.drawable.ic_tab_chats),
-                            stringResource(R.string.chats_title),
-                            badge = chats.orEmpty().count { it.unreadCount > 0 && !it.isMuted },
-                        ),
-                        TabItem(painterResource(R.drawable.ic_tab_settings), stringResource(R.string.settings_title)),
-                    ),
-                    selected = 1,
-                    onSelect = { tab ->
-                        when (tab) {
-                            0 -> onOpenContacts()
-                            2 -> onOpenSettings()
-                        }
-                    },
-                    modifier = Modifier.align(Alignment.BottomCenter),
-                )
+                MainTabBar(MainTab.Chats, onSelect = onSelectTab, modifier = Modifier.align(Alignment.BottomCenter))
             }
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = bottomInset))
         }
@@ -233,35 +209,16 @@ private fun ChatsContent(
     }
 }
 
-/** Справа в шапке: «Избранное» и «создать» (группа или канал). */
+/** Справа в шапке: «Избранное» и «новое сообщение» (контакт, группа, канал). */
 @Composable
-private fun ChatsActions(loggingOut: Boolean, onOpenSaved: () -> Unit, onNewChat: (channel: Boolean) -> Unit) {
-    var menuOpen by rememberSaveable { mutableStateOf(false) }
+private fun ChatsActions(loggingOut: Boolean, onOpenSaved: () -> Unit, onNewMessage: () -> Unit) {
     PillGroup {
         PillGroupIcon(painterResource(R.drawable.ic_bookmark), stringResource(R.string.saved_messages), onOpenSaved)
-        Box {
-            PillGroupIcon(
-                painterResource(R.drawable.ic_edit),
-                stringResource(R.string.chats_create),
-                onClick = { if (!loggingOut) menuOpen = true },
-            )
-            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.new_group)) },
-                    onClick = {
-                        menuOpen = false
-                        onNewChat(false)
-                    },
-                )
-                DropdownMenuItem(
-                    text = { Text(stringResource(R.string.new_channel)) },
-                    onClick = {
-                        menuOpen = false
-                        onNewChat(true)
-                    },
-                )
-            }
-        }
+        PillGroupIcon(
+            painterResource(R.drawable.ic_edit),
+            stringResource(R.string.chats_create),
+            onClick = { if (!loggingOut) onNewMessage() },
+        )
     }
 }
 
