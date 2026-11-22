@@ -37,7 +37,7 @@ jobs:
             echo "::warning::DEBUG_KEYSTORE_BASE64 не задан — APK подписан случайным ключом и не встанет поверх установленного"
           fi
 
-      - run: ./gradlew assembleDebug assembleDctest
+      - run: ./gradlew assembleDebug assembleDctest testDebugUnitTest
         env:
           APP_ID: ${{ secrets.APP_ID }}
           APP_HASH: ${{ secrets.APP_HASH }}

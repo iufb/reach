@@ -18,6 +18,7 @@ import io.github.iufb.reach.core.td.TdClient
 import io.github.iufb.reach.core.td.TdLibInfo
 import io.github.iufb.reach.files.FilesRepository
 import io.github.iufb.reach.files.TdFileFetcher
+import io.github.iufb.reach.fonts.DeviceFonts
 import io.github.iufb.reach.media.AutoDownload
 import io.github.iufb.reach.notifications.Notifier
 import io.github.iufb.reach.push.PushRegistrar
@@ -49,6 +50,10 @@ class ReachApp : Application(), SingletonImageLoader.Factory {
     @Inject lateinit var autoDownload: AutoDownload
 
     @Inject lateinit var contactSync: ContactSync
+
+    // Свои шрифты (#252) собираются синхронно при инъекции в super.onCreate(), до первого кадра;
+    // время загрузки — в логе «Reach»
+    @Inject lateinit var deviceFonts: DeviceFonts
 
     override fun onCreate() {
         super.onCreate()
