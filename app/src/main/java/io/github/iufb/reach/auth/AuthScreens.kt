@@ -1,66 +1,82 @@
 package io.github.iufb.reach.auth
 
-import io.github.iufb.reach.chat.RichTextView
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.ui.semantics.Role
-import androidx.compose.material3.Checkbox
-import androidx.compose.material3.AlertDialog
-import androidx.compose.foundation.selection.toggleable
-import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.background
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.layout.heightIn
-import androidx.compose.foundation.layout.wrapContentWidth
-import androidx.compose.foundation.layout.widthIn
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Icon
-import androidx.compose.ui.draw.rotate
-import androidx.compose.ui.res.painterResource
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.selection.toggleable
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material3.Button
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.HorizontalDivider
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.Role
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
+import io.github.iufb.reach.chat.RichTextView
+import io.github.iufb.reach.ui.components.DialogSystemBars
+import io.github.iufb.reach.ui.components.PillHeight
+import io.github.iufb.reach.ui.components.RoundCheck
+import io.github.iufb.reach.ui.components.SheetHeader
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.delay
+
+/*
+ * Вход в стиле Telegram iOS (#209), но со своим брендингом: знак Reach вместо логотипа Telegram.
+ * Раскладка: знак, крупный заголовок, подзаголовок, поле между тонкими линиями, акцентная пилюля
+ * «Продолжить» над клавиатурой. Содержимое каждого шага отделено от ViewModel ([PhoneContent] и др.),
+ * чтобы его можно было показать в каталоге компонентов без выхода из аккаунта.
+ */
 
 @Composable
 fun PhoneScreen(onSubmitted: () -> Unit, viewModel: PhoneViewModel = hiltViewModel()) {
@@ -74,22 +90,23 @@ fun PhoneScreen(onSubmitted: () -> Unit, viewModel: PhoneViewModel = hiltViewMod
     PhoneContent(state, viewModel::onPhoneNumberChange, viewModel::submit)
 }
 
+/** Номер телефона: одно поле с кодом страны. */
 @Composable
-private fun PhoneContent(state: PhoneUiState, onPhoneNumberChange: (String) -> Unit, onSubmit: () -> Unit) {
+internal fun PhoneContent(state: PhoneUiState, onPhoneNumberChange: (String) -> Unit, onSubmit: () -> Unit) {
     AuthLayout(
         title = stringResource(R.string.auth_phone_title),
         subtitle = stringResource(R.string.auth_phone_subtitle),
+        button = { AuthButton(enabled = state.canSubmit, submitting = state.submitting, onClick = onSubmit) },
     ) {
-        AuthField(
+        AuthLineField(
             value = state.phoneNumber,
             onValueChange = onPhoneNumberChange,
-            label = stringResource(R.string.auth_phone_label),
+            placeholder = stringResource(R.string.auth_phone_label),
             keyboardType = KeyboardType.Phone,
             enabled = !state.submitting,
-            error = state.error,
             onDone = onSubmit,
         )
-        SubmitButton(enabled = state.canSubmit, submitting = state.submitting, onClick = onSubmit)
+        state.error?.let { AuthErrorText(it) }
     }
 }
 
@@ -100,8 +117,9 @@ fun CodeScreen(onChangePhoneNumber: () -> Unit, viewModel: CodeViewModel = hiltV
     CodeContent(info, state, viewModel::onCodeChange, viewModel::submit, viewModel::resend, onChangePhoneNumber)
 }
 
+/** Код подтверждения: ячейки по длине кода, переотправка с таймером, «Изменить номер». */
 @Composable
-private fun CodeContent(
+internal fun CodeContent(
     info: AuthState.WaitCode?,
     state: CodeUiState,
     onCodeChange: (String) -> Unit,
@@ -109,27 +127,28 @@ private fun CodeContent(
     onResend: () -> Unit,
     onChangePhoneNumber: () -> Unit,
 ) {
+    val length = info?.delivery?.length?.takeIf { it in 1..MAX_CODE } ?: DEFAULT_CODE
     AuthLayout(
         title = info?.phoneNumber?.let { "+" + it.removePrefix("+") } ?: stringResource(R.string.auth_code_title),
         subtitle = info?.delivery?.let { deliveryText(it) }.orEmpty(),
+        button = { AuthButton(enabled = !state.submitting && state.code.isNotEmpty(), submitting = state.submitting, onClick = onSubmit) },
     ) {
-        AuthField(
-            value = state.code,
-            onValueChange = onCodeChange,
-            label = stringResource(R.string.auth_code_label),
-            keyboardType = KeyboardType.NumberPassword,
+        CodeCells(
+            code = state.code,
+            length = length,
+            onCodeChange = onCodeChange,
             enabled = !state.submitting,
-            error = state.error,
+            error = state.error != null,
             onDone = onSubmit,
         )
-        SubmitButton(enabled = !state.submitting && state.code.isNotEmpty(), submitting = state.submitting, onClick = onSubmit)
-        if (info?.nextDelivery != null) ResendButton(info, onResend)
-        TextButton(onClick = onChangePhoneNumber) { Text(stringResource(R.string.auth_change_phone)) }
+        state.error?.let { AuthErrorText(it) }
+        if (info?.nextDelivery != null) ResendLink(info, onResend)
+        AuthLink(stringResource(R.string.auth_change_phone), onClick = onChangePhoneNumber)
     }
 }
 
 @Composable
-private fun ResendButton(info: AuthState.WaitCode, onResend: () -> Unit) {
+private fun ResendLink(info: AuthState.WaitCode, onResend: () -> Unit) {
     // Новый WaitCode (после переотправки) перезапускает таймер
     var secondsLeft by remember(info) { mutableIntStateOf(info.resendTimeoutSeconds) }
     LaunchedEffect(info) {
@@ -139,12 +158,11 @@ private fun ResendButton(info: AuthState.WaitCode, onResend: () -> Unit) {
         }
     }
     val next = info.nextDelivery ?: return
-    TextButton(onClick = onResend, enabled = secondsLeft == 0) {
-        Text(
-            if (secondsLeft > 0) stringResource(R.string.auth_resend_in, secondsLeft / 60, secondsLeft % 60)
-            else resendText(next),
-        )
-    }
+    AuthLink(
+        if (secondsLeft > 0) stringResource(R.string.auth_resend_in, secondsLeft / 60, secondsLeft % 60) else resendText(next),
+        enabled = secondsLeft == 0,
+        onClick = onResend,
+    )
 }
 
 @Composable
@@ -156,8 +174,9 @@ fun PasswordScreen(onChangePhoneNumber: () -> Unit, viewModel: PasswordViewModel
     )
 }
 
+/** Облачный пароль: подсказка — плейсхолдером, как в iOS; «Показать / Скрыть» справа. */
 @Composable
-private fun PasswordContent(
+internal fun PasswordContent(
     hint: String,
     state: PasswordUiState,
     onPasswordChange: (String) -> Unit,
@@ -168,26 +187,25 @@ private fun PasswordContent(
     AuthLayout(
         title = stringResource(R.string.auth_password_title),
         subtitle = stringResource(R.string.auth_password_subtitle),
+        button = { AuthButton(enabled = state.canSubmit, submitting = state.submitting, onClick = onSubmit) },
     ) {
-        AuthField(
+        AuthLineField(
             value = state.password,
             onValueChange = onPasswordChange,
-            label = stringResource(R.string.auth_password_label),
+            placeholder = hint.ifBlank { stringResource(R.string.auth_password_label) },
             keyboardType = KeyboardType.Password,
             enabled = !state.submitting,
-            error = state.error,
             onDone = onSubmit,
             visualTransformation = if (state.passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             trailing = {
-                TextButton(onClick = onTogglePasswordVisible) {
-                    Text(stringResource(if (state.passwordVisible) R.string.auth_password_hide else R.string.auth_password_show))
-                }
+                AuthLink(
+                    stringResource(if (state.passwordVisible) R.string.auth_password_hide else R.string.auth_password_show),
+                    onClick = onTogglePasswordVisible,
+                )
             },
-            // Подсказка видна, пока нет ошибки: ошибка занимает ту же строку под полем
-            supporting = hint.takeIf { it.isNotBlank() }?.let { stringResource(R.string.auth_password_hint, it) },
         )
-        SubmitButton(enabled = state.canSubmit, submitting = state.submitting, onClick = onSubmit)
-        TextButton(onClick = onChangePhoneNumber) { Text(stringResource(R.string.auth_change_phone)) }
+        state.error?.let { AuthErrorText(it) }
+        AuthLink(stringResource(R.string.auth_change_phone), onClick = onChangePhoneNumber)
     }
 }
 
@@ -196,58 +214,105 @@ private fun PasswordContent(
 fun RegistrationScreen(onChangePhoneNumber: () -> Unit, viewModel: RegistrationViewModel = hiltViewModel()) {
     val terms by viewModel.terms.collectAsStateWithLifecycle()
     val state by viewModel.state.collectAsStateWithLifecycle()
+    RegistrationContent(
+        state, terms,
+        viewModel::onFirstNameChange, viewModel::onLastNameChange, viewModel::onAcceptTerms, viewModel::submit, onChangePhoneNumber,
+    )
+}
+
+@Composable
+internal fun RegistrationContent(
+    state: RegistrationUiState,
+    terms: AuthState.WaitRegistration?,
+    onFirstNameChange: (String) -> Unit,
+    onLastNameChange: (String) -> Unit,
+    onAcceptTerms: (Boolean) -> Unit,
+    onSubmit: () -> Unit,
+    onChangePhoneNumber: () -> Unit,
+) {
     var showTerms by remember { mutableStateOf(false) }
+    val colors = ReachTheme.colors
     AuthLayout(
         title = stringResource(R.string.auth_register_title),
         subtitle = stringResource(R.string.auth_register_subtitle),
+        button = { AuthButton(enabled = state.canSubmit, submitting = state.submitting, onClick = onSubmit) },
     ) {
-        AuthField(
+        AuthLineField(
             value = state.firstName,
-            onValueChange = viewModel::onFirstNameChange,
-            label = stringResource(R.string.contacts_first_name),
+            onValueChange = onFirstNameChange,
+            placeholder = stringResource(R.string.contacts_first_name),
             keyboardType = KeyboardType.Text,
             enabled = !state.submitting,
-            error = state.error,
-            onDone = viewModel::submit,
+            onDone = onSubmit,
+            bottomLine = false,
         )
-        OutlinedTextField(
+        AuthLineField(
             value = state.lastName,
-            onValueChange = viewModel::onLastNameChange,
-            modifier = Modifier.fillMaxWidth(),
-            label = { Text(stringResource(R.string.auth_register_last_name)) },
-            singleLine = true,
+            onValueChange = onLastNameChange,
+            placeholder = stringResource(R.string.auth_register_last_name),
+            keyboardType = KeyboardType.Text,
             enabled = !state.submitting,
+            onDone = onSubmit,
+            focusOnStart = false,
         )
+        state.error?.let { AuthErrorText(it) }
         Row(
-            Modifier.fillMaxWidth().toggleable(state.acceptedTerms, role = Role.Checkbox, onValueChange = viewModel::onAcceptTerms),
+            Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(12.dp))
+                .toggleable(state.acceptedTerms, role = Role.Checkbox, onValueChange = onAcceptTerms)
+                .padding(vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            Checkbox(checked = state.acceptedTerms, onCheckedChange = null)
-            Text(stringResource(R.string.auth_register_accept), Modifier.weight(1f).padding(start = 8.dp))
+            RoundCheck(selected = state.acceptedTerms)
+            Text(
+                stringResource(R.string.auth_register_accept),
+                modifier = Modifier.weight(1f).padding(start = 12.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = colors.label,
+            )
         }
-        TextButton(onClick = { showTerms = true }) { Text(stringResource(R.string.auth_register_terms)) }
-        SubmitButton(enabled = state.canSubmit, submitting = state.submitting, onClick = viewModel::submit)
-        TextButton(onClick = onChangePhoneNumber) { Text(stringResource(R.string.auth_change_phone)) }
+        if (terms != null) AuthLink(stringResource(R.string.auth_register_terms), onClick = { showTerms = true })
+        AuthLink(stringResource(R.string.auth_change_phone), onClick = onChangePhoneNumber)
     }
-    val current = terms
-    if (showTerms && current != null) {
-        AlertDialog(
-            onDismissRequest = { showTerms = false },
-            title = { Text(stringResource(R.string.auth_register_terms)) },
-            text = {
-                Column(Modifier.verticalScroll(rememberScrollState())) {
-                    if (current.minAge > 0) Text(stringResource(R.string.auth_register_min_age, current.minAge))
-                    RichTextView(current.terms, style = MaterialTheme.typography.bodyMedium)
-                }
+    if (showTerms && terms != null) {
+        TermsSheet(
+            terms,
+            onAccept = {
+                showTerms = false
+                onAcceptTerms(true)
             },
-            confirmButton = {
-                TextButton(onClick = {
-                    showTerms = false
-                    viewModel.onAcceptTerms(true)
-                }) { Text(stringResource(R.string.auth_register_accept_short)) }
-            },
-            dismissButton = { TextButton(onClick = { showTerms = false }) { Text(stringResource(R.string.close)) } },
+            onDismiss = { showTerms = false },
         )
+    }
+}
+
+/** Условия Telegram во весь экран: «Закрыть» / заголовок / «Принимаю», текст прокручивается. */
+@Composable
+private fun TermsSheet(terms: AuthState.WaitRegistration, onAccept: () -> Unit, onDismiss: () -> Unit) {
+    val colors = ReachTheme.colors
+    Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
+        Column(Modifier.fillMaxSize().background(colors.background).statusBarsPadding().navigationBarsPadding()) {
+            SheetHeader(
+                title = stringResource(R.string.auth_register_terms),
+                cancel = stringResource(R.string.close),
+                onCancel = onDismiss,
+                action = stringResource(R.string.auth_register_accept_short),
+                onAction = onAccept,
+            )
+            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(horizontal = 20.dp, vertical = 8.dp)) {
+                if (terms.minAge > 0) {
+                    Text(
+                        stringResource(R.string.auth_register_min_age, terms.minAge),
+                        modifier = Modifier.padding(bottom = 12.dp),
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        color = colors.label,
+                    )
+                }
+                RichTextView(terms.terms, style = MaterialTheme.typography.bodyMedium)
+            }
+        }
     }
 }
 
@@ -259,99 +324,208 @@ fun UnsupportedAuthScreen(step: String) {
     ) {}
 }
 
+/**
+ * Каркас шага входа: сверху знак Reach, заголовок и подзаголовок, ниже [content];
+ * [button] прижата к низу и поднимается вместе с клавиатурой.
+ */
 @Composable
-private fun AuthLayout(title: String, subtitle: String, content: @Composable ColumnScope.() -> Unit) {
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Column(
-            modifier = Modifier
-                .safeDrawingPadding()
-                .imePadding()
-                .wrapContentWidth(Alignment.CenterHorizontally)
-                .widthIn(max = 420.dp)
-                .verticalScroll(rememberScrollState())
-                .padding(24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp, Alignment.CenterVertically),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
-            Box(
-                Modifier.size(68.dp).background(MaterialTheme.colorScheme.primary, CircleShape),
-                contentAlignment = Alignment.Center,
+private fun AuthLayout(
+    title: String,
+    subtitle: String,
+    button: (@Composable () -> Unit)? = null,
+    content: @Composable ColumnScope.() -> Unit,
+) {
+    val colors = ReachTheme.colors
+    DialogSystemBars()
+    Box(Modifier.fillMaxSize().background(colors.background).safeDrawingPadding().imePadding(), contentAlignment = Alignment.TopCenter) {
+        Column(Modifier.widthIn(max = MAX_WIDTH).fillMaxSize()) {
+            Column(
+                Modifier.weight(1f).fillMaxWidth().verticalScroll(rememberScrollState()).padding(horizontal = 24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
-                Icon(
-                    painterResource(R.drawable.ic_send), contentDescription = null,
-                    modifier = Modifier.size(34.dp).rotate(-25f),
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                )
-            }
-            Text(title, style = MaterialTheme.typography.headlineSmall, textAlign = TextAlign.Center)
-            if (subtitle.isNotEmpty()) {
+                Spacer(Modifier.height(32.dp))
+                BrandMark()
                 Text(
-                    subtitle,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    title,
+                    modifier = Modifier.padding(top = 8.dp),
+                    style = MaterialTheme.typography.headlineMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = colors.label,
                     textAlign = TextAlign.Center,
                 )
+                if (subtitle.isNotEmpty()) {
+                    Text(
+                        subtitle,
+                        style = MaterialTheme.typography.bodyLarge,
+                        color = colors.secondaryLabel,
+                        textAlign = TextAlign.Center,
+                    )
+                }
+                Spacer(Modifier.height(12.dp))
+                content()
             }
-            content()
+            if (button != null) Box(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp)) { button() }
         }
     }
 }
 
+/** Знак Reach: буква «R» из иконки приложения на акцентном квадрате со скруглением, как значок приложения. */
 @Composable
-private fun AuthField(
+private fun BrandMark() {
+    val colors = ReachTheme.colors
+    Box(Modifier.size(BRAND_SIZE).clip(RoundedCornerShape(BRAND_CORNER)).background(colors.accent), contentAlignment = Alignment.Center) {
+        // У адаптивной иконки знак занимает центр холста 108dp — показываем холст крупнее, чтобы буква заполнила квадрат
+        Icon(painterResource(R.drawable.ic_launcher_foreground), contentDescription = null, Modifier.size(BRAND_SIZE * 1.5f), tint = colors.onAccent)
+    }
+}
+
+/**
+ * Поле шага входа как в iOS: без рамки, между тонкими линиями во всю ширину, плейсхолдер серым.
+ * [focusOnStart] — фокус и клавиатура сразу при открытии шага.
+ */
+@Composable
+private fun AuthLineField(
     value: String,
     onValueChange: (String) -> Unit,
-    label: String,
+    placeholder: String,
     keyboardType: KeyboardType,
     enabled: Boolean,
-    error: AuthError?,
     onDone: () -> Unit,
     visualTransformation: VisualTransformation = VisualTransformation.None,
     trailing: (@Composable () -> Unit)? = null,
-    supporting: String? = null,
+    focusOnStart: Boolean = true,
+    bottomLine: Boolean = true,
 ) {
+    val colors = ReachTheme.colors
+    val focus = remember { FocusRequester() }
+    if (focusOnStart) LaunchedEffect(Unit) { focus.requestFocus() }
+    val style = MaterialTheme.typography.bodyLarge.copy(color = colors.label)
+    Column(Modifier.fillMaxWidth()) {
+        HorizontalDivider(thickness = 0.5.dp, color = colors.separator)
+        Row(Modifier.fillMaxWidth().heightIn(min = FIELD_HEIGHT), verticalAlignment = Alignment.CenterVertically) {
+            BasicTextField(
+                value = value,
+                onValueChange = onValueChange,
+                modifier = Modifier.weight(1f).focusRequester(focus),
+                enabled = enabled,
+                singleLine = true,
+                textStyle = style,
+                cursorBrush = SolidColor(colors.accent),
+                visualTransformation = visualTransformation,
+                keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Done),
+                keyboardActions = KeyboardActions(onDone = { onDone() }),
+                decorationBox = { inner ->
+                    Box {
+                        if (value.isEmpty()) Text(placeholder, style = style.copy(color = colors.tertiaryLabel), maxLines = 1)
+                        inner()
+                    }
+                },
+            )
+            trailing?.invoke()
+        }
+        if (bottomLine) HorizontalDivider(thickness = 0.5.dp, color = colors.separator)
+    }
+}
+
+/** Код по ячейкам: скрытое поле ввода, ячейки рисуют цифры; текущая — с акцентной рамкой, ошибка — красной. */
+@Composable
+private fun CodeCells(code: String, length: Int, onCodeChange: (String) -> Unit, enabled: Boolean, error: Boolean, onDone: () -> Unit) {
+    val colors = ReachTheme.colors
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { focus.requestFocus() }
-    OutlinedTextField(
-        value = value,
-        onValueChange = onValueChange,
-        modifier = Modifier.fillMaxWidth().focusRequester(focus),
-        label = { Text(label) },
-        singleLine = true,
+    BasicTextField(
+        value = code,
+        onValueChange = { onCodeChange(it.filter(Char::isDigit).take(length)) },
+        modifier = Modifier.focusRequester(focus),
         enabled = enabled,
-        isError = error != null,
-        supportingText = when {
-            error != null -> { { Text(errorText(error)) } }
-            supporting != null -> { { Text(supporting) } }
-            else -> null
-        },
-        visualTransformation = visualTransformation,
-        trailingIcon = trailing,
-        keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = ImeAction.Done),
+        singleLine = true,
+        // Цифры и так видны в ячейках: обычная цифровая клавиатура, а не «парольная»
+        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number, imeAction = ImeAction.Done),
         keyboardActions = KeyboardActions(onDone = { onDone() }),
+        decorationBox = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                for (i in 0 until length) {
+                    val current = i == code.length.coerceAtMost(length - 1)
+                    val border = when {
+                        error -> colors.destructive
+                        current -> colors.accent
+                        else -> colors.separator
+                    }
+                    Box(
+                        Modifier
+                            .width(CODE_CELL_WIDTH)
+                            .height(CODE_CELL_HEIGHT)
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(colors.fill)
+                            .border(if (current || error) 1.5.dp else 0.5.dp, border, RoundedCornerShape(10.dp)),
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        Text(code.getOrNull(i)?.toString().orEmpty(), style = MaterialTheme.typography.headlineSmall, color = colors.label)
+                    }
+                }
+            }
+        },
+    )
+}
+
+/** Акцентная пилюля «Продолжить» во всю ширину; во время запроса — индикатор вместо текста. */
+@Composable
+private fun AuthButton(enabled: Boolean, submitting: Boolean, onClick: () -> Unit) {
+    val colors = ReachTheme.colors
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .height(AUTH_BUTTON_HEIGHT)
+            .clip(RoundedCornerShape(percent = 50))
+            .background(if (enabled || submitting) colors.accent else colors.fill)
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        if (submitting) {
+            CircularProgressIndicator(Modifier.size(22.dp), color = colors.onAccent, strokeWidth = 2.dp)
+        } else {
+            Text(
+                stringResource(R.string.auth_next),
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = if (enabled) colors.onAccent else colors.tertiaryLabel,
+            )
+        }
+    }
+}
+
+/** Ссылка-действие акцентом: «Изменить номер», «Отправить ещё раз», «Показать». */
+@Composable
+private fun AuthLink(text: String, onClick: () -> Unit, enabled: Boolean = true) {
+    val colors = ReachTheme.colors
+    Text(
+        text,
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .clickable(enabled = enabled, role = Role.Button, onClick = onClick)
+            .padding(horizontal = 8.dp, vertical = 8.dp),
+        style = MaterialTheme.typography.bodyLarge,
+        color = if (enabled) colors.accent else colors.secondaryLabel,
+        textAlign = TextAlign.Center,
     )
 }
 
 @Composable
-private fun SubmitButton(enabled: Boolean, submitting: Boolean, onClick: () -> Unit) {
-    Button(
-        onClick = onClick,
-        enabled = enabled,
-        modifier = Modifier.fillMaxWidth().heightIn(min = 48.dp),
-        shape = RoundedCornerShape(10.dp),
-    ) {
-        if (submitting) {
-            CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-        } else {
-            Text(stringResource(R.string.auth_next))
-        }
-    }
+private fun AuthErrorText(error: AuthError) {
+    Text(
+        errorText(error),
+        modifier = Modifier.fillMaxWidth(),
+        style = MaterialTheme.typography.bodyMedium,
+        color = ReachTheme.colors.destructive,
+        textAlign = TextAlign.Center,
+    )
 }
 
 @Composable
 fun LoadingScreen() {
-    Surface(modifier = Modifier.fillMaxSize()) {
-        Box(contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+    Box(Modifier.fillMaxSize().background(ReachTheme.colors.background), contentAlignment = Alignment.Center) {
+        CircularProgressIndicator(color = ReachTheme.colors.accent)
     }
 }
 
@@ -395,32 +569,12 @@ private fun resendText(next: CodeDelivery): String = when (next) {
     else -> stringResource(R.string.auth_resend)
 }
 
-@Preview
-@Composable
-private fun PhonePreview() {
-    ReachTheme { PhoneContent(PhoneUiState(phoneNumber = "+1 555"), {}, {}) }
-}
-
-@Preview
-@Composable
-private fun CodePreview() {
-    ReachTheme {
-        CodeContent(
-            info = AuthState.WaitCode("15550001234", CodeDelivery.TelegramMessage(5), CodeDelivery.Sms(5), 42),
-            state = CodeUiState(code = "12", error = AuthError.InvalidCode),
-            onCodeChange = {}, onSubmit = {}, onResend = {}, onChangePhoneNumber = {},
-        )
-    }
-}
-
-@Preview
-@Composable
-private fun PasswordPreview() {
-    ReachTheme {
-        PasswordContent(
-            hint = "кличка кота",
-            state = PasswordUiState(password = "secret"),
-            onPasswordChange = {}, onTogglePasswordVisible = {}, onSubmit = {}, onChangePhoneNumber = {},
-        )
-    }
-}
+private val MAX_WIDTH = 480.dp
+private val BRAND_SIZE = 88.dp
+private val BRAND_CORNER = 22.dp
+private val FIELD_HEIGHT = 52.dp
+private val CODE_CELL_WIDTH = 44.dp
+private val CODE_CELL_HEIGHT = 56.dp
+private val AUTH_BUTTON_HEIGHT = PillHeight + 6.dp
+private const val DEFAULT_CODE = 5
+private const val MAX_CODE = 8
