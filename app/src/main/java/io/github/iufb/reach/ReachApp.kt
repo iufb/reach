@@ -60,7 +60,10 @@ class ReachApp : Application(), SingletonImageLoader.Factory {
         useInterfaceLanguage()
         // Единые эмодзи (PRODUCT.md §4.5): шрифт Noto из APK вместо системного, на любом устройстве.
         // Compose-текст подхватывает EmojiCompat сам, как только шрифт загружен.
-        EmojiCompat.init(BundledEmojiCompatConfig(this).setReplaceAll(true))
+        // Со своим emoji-шрифтом (#254) EmojiCompat не включаем: setReplaceAll заменил бы его эмодзи
+        // на Noto. Эмодзи тогда рисует fallback шрифтов темы (DeviceFontFamilies), без EmojiCompat
+        // Compose emojiSupportMatch ни на что не влияет.
+        if (deviceFonts.emojiFile == null) EmojiCompat.init(BundledEmojiCompatConfig(this).setReplaceAll(true))
         Log.i("Reach", "TDLib ${TdLibInfo.version()}")
         notifier.start()
         pushRegistrar.start()

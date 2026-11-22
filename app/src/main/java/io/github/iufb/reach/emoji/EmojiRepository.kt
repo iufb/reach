@@ -1,9 +1,12 @@
 package io.github.iufb.reach.emoji
 
 import android.content.Context
+import android.os.SystemClock
 import android.util.Log
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.iufb.reach.core.td.TdClient
+import io.github.iufb.reach.fonts.DeviceFonts
+import io.github.iufb.reach.fonts.EmojiCoverage
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +30,11 @@ data class EmojiCategory(val key: String, val emojis: List<String>)
 class EmojiRepository @Inject constructor(
     @ApplicationContext private val context: Context,
     private val td: TdClient,
+    fonts: DeviceFonts,
 ) {
+    // Свой emoji-шрифт (#254): показываем только то, что он рисует сам
+    private val coverage = fonts.emojiFile?.let { file -> fonts.text?.let { EmojiCoverage(it, file) } }
+
     private var categories: List<EmojiCategory>? = null
 
     private val prefs by lazy { context.getSharedPreferences(PREFS, Context.MODE_PRIVATE) }
@@ -43,8 +50,22 @@ class EmojiRepository @Inject constructor(
                 val (key, emojis) = line.split('\t', limit = 2)
                 EmojiCategory(key, emojis.split(' ').filter { it.isNotEmpty() })
             }.toList()
-        }
+        }.let(::covered)
     }.also { categories = it }
+
+    private fun covered(all: List<EmojiCategory>): List<EmojiCategory> {
+        val coverage = coverage ?: return all
+        val start = SystemClock.elapsedRealtime()
+        val covered = all.map { category -> category.copy(emojis = category.emojis.filter(coverage::covers)) }
+        val unique = all.flatMap { it.emojis }.distinct()
+        val total = unique.size
+        val missing = unique - covered.flatMap { it.emojis }.toSet()
+        val took = SystemClock.elapsedRealtime() - start
+        Log.i(TAG, "emoji font covers ${total - missing.size}/$total, $took ms; missing: ${missing.take(LOG_MISSING).joinToString(" ")}")
+        // Проверка не сработала (например, Android не отдал путь шрифта) — лучше Noto-порядок целиком, чем пустой пикер
+        if (missing.size > total / 2) return all
+        return covered.filter { it.emojis.isNotEmpty() }
+    }
 
     /** Поиск по ключевым словам на языке системы и английском. */
     suspend fun search(query: String): List<String> {
@@ -53,6 +74,7 @@ class EmojiRepository @Inject constructor(
         return runCatching { td.send(TdApi.SearchEmojis(query.trim(), languages)) }
             .onFailure { Log.w(TAG, "searchEmojis failed", it) }
             .getOrNull()?.emojiKeywords.orEmpty().map { it.emoji }.distinct()
+            .filter { emoji -> coverage?.covers(emoji) ?: true }
     }
 
     /** Выбранный эмодзи — в начало недавних. */
@@ -67,5 +89,6 @@ class EmojiRepository @Inject constructor(
         const val PREFS = "emoji"
         const val KEY_RECENT = "recent"
         const val MAX_RECENT = 32
+        const val LOG_MISSING = 40
     }
 }

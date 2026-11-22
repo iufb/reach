@@ -33,6 +33,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import dagger.hilt.android.AndroidEntryPoint
+import io.github.iufb.reach.fonts.DeviceFonts
 import io.github.iufb.reach.fonts.InterfaceFonts
 import io.github.iufb.reach.navigation.ReachNavHost
 import io.github.iufb.reach.photoedit.OverlayPainter
@@ -41,6 +42,8 @@ import javax.inject.Inject
 
 @AndroidEntryPoint
 class MainActivity : ComponentActivity() {
+
+    @Inject lateinit var deviceFonts: DeviceFonts
 
     /** Чат, который просили открыть из уведомления; `null` — запроса нет или он уже выполнен. */
     private val openChatRequest = MutableStateFlow<Long?>(null)
@@ -60,7 +63,7 @@ class MainActivity : ComponentActivity() {
         }
         enableEdgeToEdge()
         setContent {
-            ReachTheme(textFont = interfaceFonts.text) {
+            ReachTheme(textFont = interfaceFonts.text, fonts = deviceFonts) {
                 if (hasApiCredentials()) {
                     val openChatId by openChatRequest.collectAsStateWithLifecycle()
                     val openLink by openLinkRequest.collectAsStateWithLifecycle()

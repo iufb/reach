@@ -18,7 +18,7 @@ RUN apt-get update \
 
 RUN pip install --no-cache-dir -r /opt/apple-emoji-ttf/requirements.txt
 
-COPY emoji.yaml verify.py derive_strike.py entrypoint.sh /opt/reach/
+COPY emoji.yaml verify.py derive_strike.py android_fixups.py entrypoint.sh /opt/reach/
 RUN chmod +x /opt/reach/entrypoint.sh \
     && useradd --create-home builder
 USER builder

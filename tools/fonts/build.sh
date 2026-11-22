@@ -2,14 +2,14 @@
 # Builds SF-Pro.ttf and AppleColorEmoji-<strike>.ttf into fonts-local/out/
 # from this Mac's system fonts. Run on macOS with Docker (OrbStack) running.
 #
-#   tools/fonts/build.sh                 # default strike (96)
+#   tools/fonts/build.sh                 # default strike (127, chosen on the phone in #254)
 #   tools/fonts/build.sh 96 127          # one font per strike (CBDT max is 127)
 #   tools/fonts/build.sh --sbix-sample   # also write the raw sbix font (negative test case)
 #
 # The fonts are Apple's: never commit, upload or share them (ADR-0011).
 set -euo pipefail
 
-DEFAULT_STRIKE=96
+DEFAULT_STRIKE=127
 IMAGE=reach-fonts
 
 here="$(cd "$(dirname "$0")" && pwd)"
