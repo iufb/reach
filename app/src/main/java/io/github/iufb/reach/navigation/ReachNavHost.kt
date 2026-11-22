@@ -214,6 +214,7 @@ fun ReachNavHost(
                 composable<ScheduledRoute> { ScheduledScreen(onBack = { navController.popBackStack() }) }
                 composable<SearchRoute> {
                     SearchScreen(
+                        entering = { transition.isRunning },
                         onBack = { navController.popBackStack() },
                         onOpenChat = { navController.navigate(ChatRoute(it)) },
                         onOpenMessage = { chatId, messageId -> navController.navigate(ChatRoute(chatId, messageId)) },
