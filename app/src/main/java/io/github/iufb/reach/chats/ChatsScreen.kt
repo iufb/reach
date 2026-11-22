@@ -194,7 +194,7 @@ private fun ChatsContent(
                 io.github.iufb.reach.chat.NowPlayingBar()
             }
             if (!isArchive) {
-                MainTabBar(MainTab.Chats, onSelect = onSelectTab, modifier = Modifier.align(Alignment.BottomCenter))
+                MainTabBar(MainTab.Chats, onSelect = onSelectTab, onSearch = onOpenSearch, modifier = Modifier.align(Alignment.BottomCenter))
             }
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).padding(bottom = bottomInset))
         }

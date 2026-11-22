@@ -72,14 +72,20 @@ import io.github.iufb.reach.ui.theme.ReachTheme
 
 /** Вкладка «Контакты»: поиск, список, «+» — добавить по номеру. */
 @Composable
-fun ContactsScreen(onSelectTab: (MainTab) -> Unit, onOpenChat: (Long) -> Unit, viewModel: ContactsViewModel = hiltViewModel()) {
+fun ContactsScreen(
+    onSelectTab: (MainTab) -> Unit,
+    onOpenChat: (Long) -> Unit,
+    /** Кнопка поиска справа от tab bar. */
+    onOpenSearch: () -> Unit,
+    viewModel: ContactsViewModel = hiltViewModel(),
+) {
     var adding by rememberSaveable { mutableStateOf(false) }
     ContactsList(
         title = stringResource(R.string.contacts_title),
         viewModel = viewModel,
         onOpenChat = onOpenChat,
         actions = { PillIconButton(painterResource(R.drawable.ic_add), stringResource(R.string.contacts_add), onClick = { adding = true }) },
-        tabBar = { modifier -> MainTabBar(MainTab.Contacts, onSelectTab, modifier) },
+        tabBar = { modifier -> MainTabBar(MainTab.Contacts, onSelectTab, onOpenSearch, modifier) },
     )
     if (adding) AddContact(viewModel) { adding = false }
 }

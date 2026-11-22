@@ -74,6 +74,8 @@ import io.github.iufb.reach.ui.theme.ReachTheme
 @Composable
 fun SettingsScreen(
     onSelectTab: (MainTab) -> Unit,
+    /** Кнопка поиска справа от tab bar. */
+    onOpenSearch: () -> Unit,
     /** «Изменить профиль»: имя, о себе, имя пользователя. */
     onEditProfile: () -> Unit,
     onOpenAutoDownload: () -> Unit,
@@ -175,7 +177,7 @@ fun SettingsScreen(
                 titleAlpha = { titleAlpha },
                 scrimAlpha = { titleAlpha },
             )
-            MainTabBar(MainTab.Settings, onSelectTab, Modifier.align(Alignment.BottomCenter))
+            MainTabBar(MainTab.Settings, onSelectTab, onOpenSearch, Modifier.align(Alignment.BottomCenter))
             SnackbarHost(snackbar, Modifier.align(Alignment.BottomCenter).navigationBarsPadding().padding(bottom = TabBarHeight + 16.dp))
             if (me != null) {
                 if (photoSheet) {

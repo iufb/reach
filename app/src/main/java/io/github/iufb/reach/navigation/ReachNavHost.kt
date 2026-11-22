@@ -181,6 +181,7 @@ fun ReachNavHost(
                 composable<ContactsRoute> {
                     ContactsScreen(
                         onSelectTab = navController::selectTab,
+                        onOpenSearch = { navController.navigate(SearchRoute()) },
                         onOpenChat = { navController.navigate(ChatRoute(it)) },
                     )
                 }
@@ -260,6 +261,7 @@ fun ReachNavHost(
                 composable<SettingsRoute> {
                     SettingsScreen(
                         onSelectTab = navController::selectTab,
+                        onOpenSearch = { navController.navigate(SearchRoute()) },
                         onEditProfile = { navController.navigate(EditProfileRoute) },
                         onOpenAutoDownload = { navController.navigate(AutoDownloadRoute) },
                         onOpenContactSync = { navController.navigate(ContactSyncRoute) },

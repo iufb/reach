@@ -341,6 +341,8 @@ private fun AttachTabs(actions: AttachActions, onFile: () -> Unit, onPoll: (() -
                 2 -> actions.onPoll?.let(onPoll)
             }
         },
+        // В шторке вложений капсула во всю ширину, как в Telegram iOS
+        fill = true,
     )
 }
 
