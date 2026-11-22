@@ -56,7 +56,7 @@ class HistoryPrefetch @Inject constructor(private val td: TdClient) {
 
     private suspend fun requestPinned(chatId: Long) {
         runCatching {
-            td.send(TdApi.SearchChatMessages(chatId, TdApi.MessageSourceChatHistory(), "", null, 0, 0, PINNED_LIMIT, TdApi.SearchMessagesFilterPinned()))
+            td.send(TdApi.SearchChatMessages(chatId, ChatScope.Whole.toTd(), "", null, 0, 0, PINNED_LIMIT, TdApi.SearchMessagesFilterPinned()))
         }
             .onFailure { Log.w(TAG, "prefetch pinned $chatId failed", it) }
             .getOrNull()
