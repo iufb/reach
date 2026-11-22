@@ -125,7 +125,7 @@ class ChatViewModel @Inject constructor(
     private val recorder: VoiceRecorder,
     private val photoEditor: PhotoEditRenderer,
     private val visibleChats: VisibleChats,
-    prefetch: HistoryPrefetch,
+    private val prefetch: HistoryPrefetch,
 ) : ViewModel() {
 
     private val route = savedStateHandle.toRoute<ChatRoute>()
@@ -973,13 +973,18 @@ class ChatViewModel @Inject constructor(
         }
     }
 
-    private val pinnedMessages = MutableStateFlow<List<Message>>(emptyList())
+    // Закреплённые, загруженные списком чатов до перехода, — сразу: плашка есть с первого кадра и не сдвигает ленту
+    private val pinnedMessages = MutableStateFlow(
+        prefetch.takePinned(chatId)?.takeIf { scope == ChatScope.Whole }?.messages?.map { it.toModel() }.orEmpty(),
+    )
     private val pinnedIndex = MutableStateFlow(0)
 
     /** Плашка закреплённого под шапкой; `null` — закреплённых нет. */
-    val pinned: StateFlow<PinnedBanner?> = combine(pinnedMessages, pinnedIndex) { list, index ->
+    val pinned: StateFlow<PinnedBanner?> = combine(pinnedMessages, pinnedIndex, ::pinnedBanner)
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), pinnedBanner(pinnedMessages.value, 0))
+
+    private fun pinnedBanner(list: List<Message>, index: Int): PinnedBanner? =
         if (list.isEmpty()) null else PinnedBanner(list[index.coerceIn(list.indices)], index.coerceIn(list.indices), list.size)
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
     /** Закреплённые сообщения чата, новые первыми. */
     private suspend fun loadPinned() {
@@ -1197,7 +1202,7 @@ class ChatViewModel @Inject constructor(
         const val TAG = "ChatViewModel"
         const val MAX_EMOJI_EFFECTS = 4
         const val EMOJI_EFFECT_TIMEOUT_MS = 6_000L
-        const val PINNED_LIMIT = 100
+        const val PINNED_LIMIT = HistoryPrefetch.PINNED_LIMIT
         const val STOP_TIMEOUT_MS = 5_000L
         const val VIEW_DEBOUNCE_MS = 300L
         const val MENTION_DEBOUNCE_MS = 200L
