@@ -34,25 +34,41 @@ sealed interface MemberStatus {
     data object Left : MemberStatus
 }
 
-/** Статусы в группах из `UpdateBasicGroup` / `UpdateSupergroup`. */
+/** Публичное о группе или канале: username (пусто — частный) и число участников (0 — неизвестно). */
+data class GroupInfo(val username: String = "", val memberCount: Int = 0)
+
+/** Статусы в группах и их публичные данные из `UpdateBasicGroup` / `UpdateSupergroup`. */
 @Singleton
 class GroupsRepository @Inject constructor(td: TdClient, @ApplicationScope scope: CoroutineScope) {
 
     private val _statuses = MutableStateFlow<Map<GroupRef, MemberStatus>>(emptyMap())
     val statuses: StateFlow<Map<GroupRef, MemberStatus>> = _statuses.asStateFlow()
 
+    private val _info = MutableStateFlow<Map<GroupRef, GroupInfo>>(emptyMap())
+    /** Username и число участников; подписи в поиске. */
+    val info: StateFlow<Map<GroupRef, GroupInfo>> = _info.asStateFlow()
+
     init {
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             td.updates.collect { update ->
                 when (update) {
-                    is TdApi.UpdateBasicGroup -> _statuses.update {
-                        it + (GroupRef.Basic(update.basicGroup.id) to update.basicGroup.status.toModel())
+                    is TdApi.UpdateBasicGroup -> {
+                        val ref = GroupRef.Basic(update.basicGroup.id)
+                        _statuses.update { it + (ref to update.basicGroup.status.toModel()) }
+                        _info.update { it + (ref to GroupInfo(memberCount = update.basicGroup.memberCount)) }
                     }
-                    is TdApi.UpdateSupergroup -> _statuses.update {
-                        it + (GroupRef.Super(update.supergroup.id) to update.supergroup.status.toModel())
+                    is TdApi.UpdateSupergroup -> {
+                        val group = update.supergroup
+                        val ref = GroupRef.Super(group.id)
+                        _statuses.update { it + (ref to group.status.toModel()) }
+                        val username = group.usernames?.activeUsernames?.firstOrNull().orEmpty()
+                        _info.update { it + (ref to GroupInfo(username, group.memberCount)) }
                     }
                     is TdApi.UpdateAuthorizationState ->
-                        if (update.authorizationState is TdApi.AuthorizationStateClosed) _statuses.value = emptyMap()
+                        if (update.authorizationState is TdApi.AuthorizationStateClosed) {
+                            _statuses.value = emptyMap()
+                            _info.value = emptyMap()
+                        }
                 }
             }
         }

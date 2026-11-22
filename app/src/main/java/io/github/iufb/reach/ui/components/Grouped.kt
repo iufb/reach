@@ -72,6 +72,18 @@ fun GroupedSection(
     }
 }
 
+/** Подзаголовок секции простого списка («КОНТАКТЫ», «СООБЩЕНИЯ»): серая полоса во всю ширину. */
+@Composable
+fun ListSectionHeader(text: String, modifier: Modifier = Modifier) {
+    val colors = ReachTheme.colors
+    Text(
+        text.uppercase(),
+        modifier = modifier.fillMaxWidth().background(colors.groupedBackground).padding(horizontal = 16.dp, vertical = 6.dp),
+        style = MaterialTheme.typography.bodySmall,
+        color = colors.secondaryLabel,
+    )
+}
+
 /** Цветной квадрат со значком слева в ячейке, как в настройках iOS. */
 @Composable
 fun CellIcon(icon: Painter, background: Color, modifier: Modifier = Modifier) {

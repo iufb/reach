@@ -8,11 +8,13 @@ import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.iufb.reach.chats.Chat
 import io.github.iufb.reach.chats.ChatsRepository
+import io.github.iufb.reach.chats.GroupsRepository
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.toBody
 import io.github.iufb.reach.core.td.TdClient
 import io.github.iufb.reach.core.td.TdException
 import io.github.iufb.reach.navigation.SearchRoute
+import io.github.iufb.reach.users.UsersRepository
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.delay
@@ -36,6 +38,9 @@ data class FoundMessage(
     val body: MessageBody,
 )
 
+/** Подпись результата: почему он найден — username и число участников / подписчиков. */
+data class ChatDetails(val username: String = "", val memberCount: Int = 0)
+
 /**
  * Что показывает поиск. [isRecent] — запрос пустой: [chats] — недавно найденные.
  * [publicChats] — публичные чаты и каналы, которых нет среди своих.
@@ -48,6 +53,8 @@ data class SearchResults(
     val isRecent: Boolean = true,
     val loading: Boolean = false,
     val canLoadMoreMessages: Boolean = false,
+    /** Подписи найденных чатов по id; нет записи — подписи нет. */
+    val details: Map<Long, ChatDetails> = emptyMap(),
 ) {
     val isEmpty: Boolean get() = chats.isEmpty() && publicChats.isEmpty() && messages.isEmpty()
 }
@@ -62,6 +69,8 @@ class SearchViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val td: TdClient,
     chats: ChatsRepository,
+    users: UsersRepository,
+    groups: GroupsRepository,
 ) : ViewModel() {
 
     private val _query = MutableStateFlow("")
@@ -73,13 +82,20 @@ class SearchViewModel @Inject constructor(
     private var lastQuery: String? = null
 
     /** Чаты берутся свежими из репозитория: TDLib присылает их апдейтами раньше ответа поиска. */
-    val results: StateFlow<SearchResults> = combine(found, chats.chats) { f, all ->
+    val results: StateFlow<SearchResults> = combine(found, chats.chats, users.users, groups.info) { f, all, userMap, groupMap ->
         val own = f.chatIds.mapNotNull(all::get)
         val ownIds = own.mapTo(HashSet()) { it.id }
+        val public = f.publicChatIds.filter { it !in ownIds }.mapNotNull(all::get)
         SearchResults(
             query = f.query,
             chats = own,
-            publicChats = f.publicChatIds.filter { it !in ownIds }.mapNotNull(all::get),
+            publicChats = public,
+            details = (own + public).associate { chat ->
+                chat.id to when {
+                    chat.group != null -> groupMap[chat.group]?.let { ChatDetails(it.username, it.memberCount) } ?: ChatDetails()
+                    else -> ChatDetails(username = chat.userId?.let(userMap::get)?.username.orEmpty())
+                }
+            },
             messages = f.messages.mapNotNull { m -> all[m.chatId]?.let { FoundMessage(it, m.id, m.date, m.body) } },
             isRecent = f.query.isEmpty(),
             loading = f.loading,

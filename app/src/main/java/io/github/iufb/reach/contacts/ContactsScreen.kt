@@ -55,6 +55,7 @@ import io.github.iufb.reach.navigation.MainTab
 import io.github.iufb.reach.navigation.MainTabBar
 import io.github.iufb.reach.ui.components.BackPill
 import io.github.iufb.reach.ui.components.GlassScope
+import io.github.iufb.reach.ui.components.ListSectionHeader
 import io.github.iufb.reach.ui.components.PillIconButton
 import io.github.iufb.reach.ui.components.ReachTopBar
 import io.github.iufb.reach.ui.components.SearchField
@@ -98,7 +99,7 @@ fun NewMessageScreen(
             item(key = "new-group") { CreateRow(R.drawable.ic_group, R.string.new_group) { onNewChat(false) } }
             item(key = "new-contact") { CreateRow(R.drawable.ic_person_add, R.string.contacts_add) { adding = true } }
             item(key = "new-channel") { CreateRow(R.drawable.ic_channel, R.string.new_channel, divider = false) { onNewChat(true) } }
-            item(key = "contacts-header") { ListHeader(stringResource(R.string.contacts_title)) }
+            item(key = "contacts-header") { ListSectionHeader(stringResource(R.string.contacts_title)) }
         },
     )
     if (adding) AddContact(viewModel) { adding = false }
@@ -193,18 +194,6 @@ private fun CreateRow(@DrawableRes icon: Int, @StringRes title: Int, divider: Bo
         }
         if (divider) HorizontalDivider(Modifier.padding(start = UserRowTextInset), thickness = 0.5.dp, color = colors.separator)
     }
-}
-
-/** Подзаголовок секции списка на сером фоне («КОНТАКТЫ»). */
-@Composable
-private fun ListHeader(text: String) {
-    val colors = ReachTheme.colors
-    Text(
-        text.uppercase(),
-        modifier = Modifier.fillMaxWidth().background(colors.groupedBackground).padding(horizontal = 16.dp, vertical = 6.dp),
-        style = MaterialTheme.typography.bodySmall,
-        color = colors.secondaryLabel,
-    )
 }
 
 @Composable
