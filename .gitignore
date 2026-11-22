@@ -8,3 +8,10 @@ local.properties
 captures/
 .externalNativeBuild/
 .cxx/
+
+# Apple fonts live only on the device (ADR-0011) — never commit them
+*.ttc
+/fonts-local/
+AppleColorEmoji*.ttf
+SF-Pro*.ttf
+SFNS*.ttf
