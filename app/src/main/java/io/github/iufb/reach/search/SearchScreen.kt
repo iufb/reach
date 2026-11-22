@@ -112,6 +112,8 @@ fun SearchScreen(
                 textAlign = TextAlign.Center,
             )
             else -> {
+                val chatsTitle = stringResource(R.string.search_chats)
+                val publicTitle = stringResource(R.string.search_global)
                 val listState = rememberLazyListState()
                 LoadMoreMessagesEffect(listState, results.canLoadMoreMessages, viewModel::loadMoreMessages)
                 LazyColumn(Modifier.fillMaxSize().imePadding(), state = listState, contentPadding = PaddingValues(bottom = 16.dp)) {
@@ -119,9 +121,9 @@ fun SearchScreen(
                         item(key = "header:recent") { ListSectionHeader(stringResource(R.string.search_recent)) }
                         item(key = "recent") { RecentRow(results.chats, open) }
                     } else {
-                        if (results.chats.isNotEmpty()) section(stringResource(R.string.search_chats), results.chats, results.details, open)
+                        if (results.chats.isNotEmpty()) section(chatsTitle, results.chats, results.details, open)
                         if (results.publicChats.isNotEmpty()) {
-                            section(stringResource(R.string.search_global), results.publicChats, results.details, open)
+                            section(publicTitle, results.publicChats, results.details, open)
                         }
                     }
                     if (results.messages.isNotEmpty()) {
