@@ -77,6 +77,8 @@ fun SettingsScreen(
     /** «Изменить профиль»: имя, о себе, имя пользователя. */
     onEditProfile: () -> Unit,
     onOpenAutoDownload: () -> Unit,
+    /** Настройки → Шрифт. */
+    onOpenFont: (() -> Unit)? = null,
     onOpenBlocked: (() -> Unit)? = null,
     onOpenContactSync: (() -> Unit)? = null,
     /** Каталог компонентов дизайна; только в debug-сборках. */
@@ -85,6 +87,7 @@ fun SettingsScreen(
 ) {
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val loggingOut by viewModel.loggingOut.collectAsStateWithLifecycle()
+    val textFont by viewModel.textFont.collectAsStateWithLifecycle()
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
     var photoSheet by rememberSaveable { mutableStateOf(false) }
@@ -155,6 +158,7 @@ fun SettingsScreen(
                     GroupedSection {
                         val rows = buildList {
                             add(SettingsLink(R.string.autodownload_title, R.drawable.ic_download, CellIconColors.Green, onOpenAutoDownload))
+                            onOpenFont?.let { add(SettingsLink(R.string.font_title, R.drawable.ic_text, CellIconColors.Blue, it, textFont ?: INTER)) }
                             onOpenBlocked?.let { add(SettingsLink(R.string.blocked_title, R.drawable.ic_lock, CellIconColors.Gray, it)) }
                             onOpenContactSync?.let { add(SettingsLink(R.string.contact_sync_title, R.drawable.ic_tab_contacts, CellIconColors.Orange, it)) }
                         }
@@ -234,7 +238,14 @@ private fun ProfileHeader(me: MyProfile, onPhoto: () -> Unit, modifier: Modifier
 }
 
 /** Переход в раздел настроек: цветной значок, название, шеврон. */
-private class SettingsLink(@StringRes val title: Int, @DrawableRes val icon: Int, val color: Color, val onClick: () -> Unit)
+private class SettingsLink(
+    @StringRes val title: Int,
+    @DrawableRes val icon: Int,
+    val color: Color,
+    val onClick: () -> Unit,
+    /** Текущее значение справа, перед шевроном. */
+    val value: String? = null,
+)
 
 @Composable
 private fun LinkCell(link: SettingsLink, divider: Boolean) {
@@ -242,10 +253,13 @@ private fun LinkCell(link: SettingsLink, divider: Boolean) {
         stringResource(link.title),
         onClick = link.onClick,
         icon = { CellIcon(painterResource(link.icon), link.color) },
+        value = link.value,
         divider = divider,
     )
 }
 
 private val HEADER_TOP = 8.dp
+/** Стандартный текстовый шрифт, когда свой не выбран. */
+private const val INTER = "Inter"
 private val AVATAR = 100.dp
 private const val TITLE_FADE_MS = 180

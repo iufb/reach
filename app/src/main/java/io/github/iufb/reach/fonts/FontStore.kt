@@ -30,6 +30,9 @@ fun isFontFileName(name: String): Boolean = name.endsWith(".ttf", ignoreCase = t
 /** Шрифт, импортированный в приложение. [id] — начало SHA-256 файла, он же имя файла `<id>.ttf`. */
 data class LocalFont(val id: String, val name: String, val kind: FontKind, val sizeBytes: Long)
 
+/** Выбранные шрифты: id для текста и для эмодзи, `null` — стандартный. */
+data class FontSelection(val text: String?, val emoji: String?)
+
 /**
  * Шрифты, собранные при старте процесса. Выбор применяется только после перезапуска.
  * Все поля `null` — стандартные Inter и Noto (через EmojiCompat).
@@ -41,7 +44,11 @@ data class DeviceFonts(
     val textFile: File?,
     /** Файл выбранного emoji-шрифта, `null` — Noto + EmojiCompat. */
     val emojiFile: File?,
-)
+) {
+    /** Id применённых шрифтов (имя файла без `.ttf`), `null` — стандартный. */
+    val textId: String? get() = textFile?.nameWithoutExtension
+    val emojiId: String? get() = emojiFile?.nameWithoutExtension
+}
 
 /**
  * Свои шрифты пользователя (эпик #249): файлы в `filesDir/fonts/` (внутренняя память, без разрешений)
@@ -60,15 +67,27 @@ class FontStore @Inject constructor(
 
     fun fonts(): StateFlow<List<LocalFont>> = _fonts.asStateFlow()
 
+    // Запись синхронная (commit): сразу после выбора процесс могут перезапустить через Runtime.exit
     /** Id выбранного текстового шрифта, `null` — Inter. */
     var selectedText: String?
         get() = prefs.getString(KEY_TEXT, null)
-        set(value) = prefs.edit().putString(KEY_TEXT, value).apply()
+        set(value) {
+            prefs.edit().putString(KEY_TEXT, value).commit()
+            _selection.value = FontSelection(value, selectedEmoji)
+        }
 
     /** Id выбранного emoji-шрифта, `null` — Noto. */
     var selectedEmoji: String?
         get() = prefs.getString(KEY_EMOJI, null)
-        set(value) = prefs.edit().putString(KEY_EMOJI, value).apply()
+        set(value) {
+            prefs.edit().putString(KEY_EMOJI, value).commit()
+            _selection.value = FontSelection(selectedText, value)
+        }
+
+    private val _selection by lazy { MutableStateFlow(FontSelection(selectedText, selectedEmoji)) }
+
+    /** Текущий выбор (ещё не обязательно применённый — применяется после перезапуска). */
+    fun selection(): StateFlow<FontSelection> = _selection.asStateFlow()
 
     /** Импорт из системного выбора файла. */
     suspend fun import(uri: Uri): Result<LocalFont> = importFrom {
@@ -138,20 +157,7 @@ class FontStore @Inject constructor(
         val text = selected(selectedText, FontKind.Text) { selectedText = null }
         val emoji = selected(selectedEmoji, FontKind.Emoji) { selectedEmoji = null }
 
-        val typeface = if (text == null && emoji == null) {
-            null
-        } else {
-            try {
-                val main = text?.font ?: Font.Builder(context.resources, R.font.inter_variable).build()
-                Typeface.CustomFallbackBuilder(FontFamily.Builder(main).build())
-                    .apply { emoji?.let { addCustomFallback(FontFamily.Builder(it.font).build()) } }
-                    .setSystemFallback("sans-serif")
-                    .build()
-            } catch (e: Exception) {
-                Log.w(TAG, "fonts: typeface build failed", e)
-                null
-            }
-        }
+        val typeface = typeface(text?.font, emoji?.font)
         val took = SystemClock.elapsedRealtime() - start
         val summary = if (text == null && emoji == null) {
             "стандартные: Inter + Noto"
@@ -160,6 +166,30 @@ class FontStore @Inject constructor(
         }
         Log.i(TAG, "fonts: $summary, $took ms")
         return DeviceFonts(typeface, text?.file, emoji?.file)
+    }
+
+    /**
+     * Превью на экране выбора: [Typeface] из файлов кандидатов, собранный так же, как в [load].
+     * `null` — оба стандартные (или файл не загрузился).
+     */
+    suspend fun preview(textId: String?, emojiId: String?): Typeface? = withContext(Dispatchers.IO) {
+        fun font(id: String?) = id?.let { runCatching { Font.Builder(fileOf(it)).build() }.getOrNull() }
+        typeface(font(textId), font(emojiId))
+    }
+
+    /** Текстовый шрифт (или Inter) основной, emoji-шрифт — первый fallback, дальше системные. */
+    private fun typeface(text: Font?, emoji: Font?): Typeface? {
+        if (text == null && emoji == null) return null
+        return try {
+            val main = text ?: Font.Builder(context.resources, R.font.inter_variable).build()
+            Typeface.CustomFallbackBuilder(FontFamily.Builder(main).build())
+                .apply { emoji?.let { addCustomFallback(FontFamily.Builder(it).build()) } }
+                .setSystemFallback("sans-serif")
+                .build()
+        } catch (e: Exception) {
+            Log.w(TAG, "fonts: typeface build failed", e)
+            null
+        }
     }
 
     private class Loaded(val file: File, val name: String, val font: Font)

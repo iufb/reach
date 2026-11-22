@@ -12,6 +12,7 @@ import io.github.iufb.reach.chats.checkUsername
 import io.github.iufb.reach.core.td.TdClient
 import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.files.MediaImporter
+import io.github.iufb.reach.fonts.FontStore
 import io.github.iufb.reach.push.PushRegistrar
 import io.github.iufb.reach.users.User
 import io.github.iufb.reach.users.UsersRepository
@@ -47,7 +48,13 @@ class SettingsViewModel @Inject constructor(
     private val importer: MediaImporter,
     private val auth: AuthRepository,
     private val pushRegistrar: PushRegistrar,
+    fontStore: FontStore,
 ) : ViewModel() {
+
+    /** Имя выбранного текстового шрифта для ячейки «Шрифт»; `null` — стандартный Inter. */
+    val textFont: StateFlow<String?> = combine(fontStore.fonts(), fontStore.selection()) { fonts, selection ->
+        fonts.find { it.id == selection.text }?.name
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
 
     private val myId = MutableStateFlow(0L)
     private val full = MutableStateFlow<TdApi.UserFullInfo?>(null)

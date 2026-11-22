@@ -59,6 +59,7 @@ import io.github.iufb.reach.forward.ForwardScreen
 import io.github.iufb.reach.profile.ProfileScreen
 import io.github.iufb.reach.search.SearchScreen
 import io.github.iufb.reach.settings.AutoDownloadScreen
+import io.github.iufb.reach.settings.FontScreen
 import kotlinx.serialization.Serializable
 
 @Serializable data object AuthGraph
@@ -80,6 +81,8 @@ import kotlinx.serialization.Serializable
 /** Профиль чата ([chatId]) или пользователя ([userId]); второй — 0. */
 @Serializable data class ProfileRoute(val chatId: Long = 0, val userId: Long = 0)
 @Serializable data object AutoDownloadRoute
+/** Настройки → Шрифт (#274); сюда же ведёт «Установить как шрифт» из чата. */
+@Serializable data object FontRoute
 @Serializable data class ScheduledRoute(val chatId: Long)
 @Serializable data class TopicsRoute(val chatId: Long)
 @Serializable data object ContactsRoute
@@ -262,6 +265,7 @@ fun ReachNavHost(
                         onSelectTab = navController::selectTab,
                         onEditProfile = { navController.navigate(EditProfileRoute) },
                         onOpenAutoDownload = { navController.navigate(AutoDownloadRoute) },
+                        onOpenFont = { navController.navigate(FontRoute) },
                         onOpenContactSync = { navController.navigate(ContactSyncRoute) },
                         onOpenBlocked = { navController.navigate(BlockedRoute) },
                         // Каталог компонентов — только для проверки дизайна в debug-сборках
@@ -273,6 +277,7 @@ fun ReachNavHost(
                 composable<BlockedRoute> { BlockedScreen(onBack = { navController.popBackStack() }) }
                 composable<ContactSyncRoute> { ContactSyncScreen(onBack = { navController.popBackStack() }) }
                 composable<AutoDownloadRoute> { AutoDownloadScreen(onBack = { navController.popBackStack() }) }
+                composable<FontRoute> { FontScreen(onBack = { navController.popBackStack() }) }
                 // Шторка поверх чата (Telegram iOS): после пересылки остаёмся в чате, он показывает тост
                 dialog<ForwardRoute>(dialogProperties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
                     ForwardScreen(
