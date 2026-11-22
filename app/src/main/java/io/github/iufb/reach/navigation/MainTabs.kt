@@ -71,6 +71,9 @@ class MainTabsViewModel @Inject constructor(chats: ChatsRepository, users: Users
 /** Последняя показанная вкладка: с неё линза приезжает на новый экран-вкладку. */
 private object LastMainTab {
     var value: MainTab? = null
+
+    /** Вкладку выбрали перетаскиванием: новый экран показывает линзу-пузырь уже на месте, и он гаснет. */
+    var dragged = false
 }
 
 /**
@@ -84,6 +87,7 @@ fun MainTabBar(selected: MainTab, onSelect: (MainTab) -> Unit, modifier: Modifie
     val unread by viewModel.unreadChats.collectAsStateWithLifecycle()
     val me by viewModel.me.collectAsStateWithLifecycle()
     val previous = remember { LastMainTab.value }
+    val enterAsGlass = remember { LastMainTab.dragged.also { LastMainTab.dragged = false } }
     SideEffect { LastMainTab.value = selected }
     ReachTabBar(
         items = listOf(
@@ -99,6 +103,13 @@ fun MainTabBar(selected: MainTab, onSelect: (MainTab) -> Unit, modifier: Modifie
         onSelect = { index -> MainTab.entries[index].takeIf { it != selected }?.let(onSelect) },
         modifier = modifier,
         previous = previous?.ordinal,
+        onDragSelect = { index ->
+            val tab = MainTab.entries[index]
+            LastMainTab.value = tab
+            LastMainTab.dragged = true
+            onSelect(tab)
+        },
+        enterAsGlass = enterAsGlass,
     )
 }
 
