@@ -27,6 +27,7 @@ import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import io.github.iufb.reach.chats.StickerInfo
 import io.github.iufb.reach.media.VideoStickerImage
 import io.github.iufb.reach.media.rememberTgsComposition
+import io.github.iufb.reach.ui.PerfFlags
 import kotlin.math.floor
 
 /**
@@ -64,22 +65,25 @@ fun StickerImage(
         }
         if (loadStatic) Image(main, sticker.emoji, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
         if (animation != null) {
+            // Замеры #304: tgs=static — первый кадр, tgs=hw — аппаратный рендер, tgsfps — шаг кадров
+            val playing = animate && PerfFlags["tgs"] != "static"
             val progress by animateLottieCompositionAsState(
                 animation,
-                isPlaying = animate,
+                isPlaying = playing,
                 iterations = LottieConstants.IterateForever,
             )
             // Кадры — с шагом 30 fps: ячеек много, а глазу в мелком стикере разницы нет; перерисовка
             // идёт только при смене шага
-            val steps = (animation.duration / 1000f * STICKER_FPS).coerceAtLeast(1f)
+            val fps = PerfFlags["tgsfps"]?.toIntOrNull() ?: STICKER_FPS
+            val steps = (animation.duration / 1000f * fps).coerceAtLeast(1f)
             val stepped by remember(animation) { derivedStateOf { floor(progress * steps) / steps } }
             LottieAnimation(
                 animation,
-                progress = { if (animate) stepped else 0f },
+                progress = { if (playing) stepped else 0f },
                 modifier = Modifier.fillMaxSize(),
                 // Растр в битмап по размеру ячейки: аппаратный рендер путей стикера грузит RenderThread
                 // в разы сильнее (замеры #289)
-                renderMode = RenderMode.SOFTWARE,
+                renderMode = if (PerfFlags["tgs"] == "hw") RenderMode.HARDWARE else RenderMode.SOFTWARE,
             )
         }
     }

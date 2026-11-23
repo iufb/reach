@@ -12,12 +12,14 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeInput
+import dev.chrisbanes.haze.HazePerformanceMode
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.HazeBlurStyle
 import dev.chrisbanes.haze.blur.HazeColorEffect
 import dev.chrisbanes.haze.blur.hazeBlur
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
+import io.github.iufb.reach.ui.PerfFlags
 import io.github.iufb.reach.ui.theme.ReachTheme
 
 /**
@@ -31,7 +33,8 @@ private val LocalGlass = staticCompositionLocalOf<HazeState?> { null }
 
 @Composable
 fun GlassScope(content: @Composable () -> Unit) {
-    val state = rememberHazeState()
+    // Замеры #304: glass=solid — подложка без размытия
+    val state = if (PerfFlags["glass"] == "solid") null else rememberHazeState()
     CompositionLocalProvider(LocalGlass provides state, content = content)
 }
 
@@ -60,7 +63,12 @@ fun Modifier.glass(shape: Shape, elevated: Boolean = true, tint: Color = ReachTh
             fallbackColorEffect(HazeColorEffect.tint(tint))
         }
     }
-    return base.clip(shape).hazeBlur(HazeInput.Sources(state), style)
+    val mode = when (PerfFlags["glass"]) {
+        "perf" -> HazePerformanceMode.Performance
+        "quality" -> HazePerformanceMode.Quality
+        else -> null
+    }
+    return base.clip(shape).hazeBlur(HazeInput.Sources(state), style, performanceMode = mode)
 }
 
 private val GLASS_ELEVATION = 10.dp
