@@ -30,7 +30,8 @@ sealed interface MemberStatus {
         val canPromoteMembers: Boolean = false,
     ) : MemberStatus
     data object Member : MemberStatus
-    data class Restricted(val isMember: Boolean, val canSendText: Boolean) : MemberStatus
+    /** Ограниченный участник: [canSendText] — текст, [canSendOther] — стикеры, GIF и прочее (`canSendOtherMessages`). */
+    data class Restricted(val isMember: Boolean, val canSendText: Boolean, val canSendOther: Boolean = true) : MemberStatus
     data object Left : MemberStatus
 }
 
@@ -85,7 +86,7 @@ private fun TdApi.ChatMemberStatus.toModel(): MemberStatus = when (this) {
         rights.canPromoteMembers,
     )
     is TdApi.ChatMemberStatusMember -> MemberStatus.Member
-    is TdApi.ChatMemberStatusRestricted -> MemberStatus.Restricted(isMember, permissions.canSendBasicMessages)
+    is TdApi.ChatMemberStatusRestricted -> MemberStatus.Restricted(isMember, permissions.canSendBasicMessages, permissions.canSendOtherMessages)
     else -> MemberStatus.Left
 }
 

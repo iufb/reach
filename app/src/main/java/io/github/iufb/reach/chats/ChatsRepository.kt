@@ -179,6 +179,7 @@ class ChatsRepository @Inject constructor(
                 copy(
                     canSendBasicMessages = update.permissions.canSendBasicMessages,
                     canSendVideoNotes = update.permissions.canSendVideoNotes,
+                    canSendOtherMessages = update.permissions.canSendOtherMessages,
                     canChangeInfoByDefault = update.permissions.canChangeInfo,
                     canInviteByDefault = update.permissions.canInviteUsers,
                 )
