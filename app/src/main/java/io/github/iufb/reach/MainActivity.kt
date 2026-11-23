@@ -1,6 +1,7 @@
 package io.github.iufb.reach
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -53,6 +54,10 @@ class MainActivity : ComponentActivity() {
     private val openLinkRequest = MutableStateFlow<String?>(null)
 
     @Inject lateinit var interfaceFonts: InterfaceFonts
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase.withInterfaceLanguage())
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
