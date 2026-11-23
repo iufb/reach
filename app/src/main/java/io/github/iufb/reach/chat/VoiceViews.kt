@@ -20,6 +20,7 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
@@ -109,9 +110,14 @@ internal fun VoiceNoteView(
 
 /** Столбики 0..31; до [progress] — основным цветом. [onSeek] `null` — не перематывается. */
 @Composable
-internal fun Waveform(levels: List<Int>, progress: Float, onSeek: ((Float) -> Unit)?, modifier: Modifier = Modifier) {
-    val played = bubbleStyle().accent
-    val rest = bubbleStyle().secondary.copy(alpha = 0.4f)
+internal fun Waveform(
+    levels: List<Int>,
+    progress: Float,
+    onSeek: ((Float) -> Unit)?,
+    modifier: Modifier = Modifier,
+    played: Color = bubbleStyle().accent,
+    rest: Color = bubbleStyle().secondary.copy(alpha = 0.4f),
+) {
     val seekModifier = if (onSeek == null) {
         Modifier
     } else {

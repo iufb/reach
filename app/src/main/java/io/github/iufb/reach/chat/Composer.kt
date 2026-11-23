@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.size
@@ -31,6 +32,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
 import androidx.compose.material3.AlertDialog
@@ -145,6 +149,9 @@ private val EXTRAS_CORNER = 20.dp
 /** Значки внутри поля (колокольчик, эмодзи). */
 private val FIELD_ICON = 36.dp
 private val SEND_ICON = 20.dp
+private val BAR_SLIDE = 24.dp
+private const val BAR_IN_MS = 180
+private const val BAR_OUT_MS = 220
 
 /** Сколько последних отданных модели текстов помнит поле, см. [Composer]. */
 private const val MAX_SENT_TEXTS = 64
@@ -221,10 +228,18 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, em
     val transformation = remember(state.draft, richColors) { RichVisualTransformation(state.draft, richColors) }
     val canSend = state.draft.text.isNotBlank()
     val voice = state.voice?.takeIf { state.editing == null }
-    val recording = voice != null && voice.state !is RecorderState.Idle
-    // Микрофон вместо «отправить», пока поле пустое и запись не зафиксирована
-    val showMic = voice != null && !canSend &&
-        (voice.state is RecorderState.Idle || (voice.state as? RecorderState.Recording)?.locked == false)
+    // Микрофон вместо «отправить», пока поле пустое; во время записи и предпрослушивания кнопка
+    // записи сама становится «отправить» (большой круг сжимается до обычной кнопки)
+    val showMic = voice != null && (voice.state !is RecorderState.Idle || !canSend)
+    val recordingUi = rememberRecordingUi()
+    // Пилюля записи ложится поверх поля (поле прозрачнеет, но держит место): высота поля ввода,
+    // а значит и отступ ленты, при переходах не меняется
+    val barTarget = voice != null && (voice.state !is RecorderState.Idle || recordingUi.cancelling)
+    val barReveal = remember { Animatable(0f) }
+    LaunchedEffect(barTarget) {
+        barReveal.animateTo(if (barTarget) 1f else 0f, tween(if (barTarget) BAR_IN_MS else BAR_OUT_MS, easing = FastOutSlowInEasing))
+    }
+    val barShown = barTarget || barReveal.isRunning || barReveal.targetValue > 0f
 
     // Telegram iOS: под полем нет панели — стеклянные кнопки и поле-пилюля плавают над лентой.
     // Ответ, правка и превью ссылки — внутри поля, подсказки и оформление — стеклянной карточкой над ним.
@@ -247,88 +262,101 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, em
                 }
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
-                if (recording) {
-                    RecordingBar(
-                        voice!!,
-                        Modifier.weight(1f).padding(end = 6.dp).glass(RoundedCornerShape(FIELD_CORNER)),
-                    )
-                } else {
-                    if (state.editing == null && state.onAttach != null) {
-                        GlassCircle { AttachButton(state.onAttach) }
-                    }
-                    Column(Modifier.weight(1f).padding(horizontal = 6.dp).glass(RoundedCornerShape(FIELD_CORNER))) {
-                        when {
-                            state.editing != null -> EditBar(state.editing, state.onCancelEdit)
-                            state.replyTo != null -> ReplyBar(state.replyTo, senders, state.onCancelReply)
+                Box(Modifier.weight(1f)) {
+                    Row(
+                        Modifier.fillMaxWidth().graphicsLayer { alpha = 1f - barReveal.value },
+                        verticalAlignment = Alignment.Bottom,
+                    ) {
+                        if (state.editing == null && state.onAttach != null) {
+                            GlassCircle { AttachButton(state.onAttach) }
                         }
-                        state.linkPreview?.let { ComposerLinkPreview(it, state.onDismissLinkPreview) }
-                        Row(Modifier.fillMaxWidth().heightIn(min = PillHeight), verticalAlignment = Alignment.Bottom) {
-                            BasicTextField(
-                                value = field,
-                                onValueChange = {
-                                    if (it.text != field.text) {
-                                        sentTexts.addLast(it.text)
-                                        if (sentTexts.size > MAX_SENT_TEXTS) sentTexts.removeFirst()
-                                        state.onDraftChange(it.text)
-                                    }
-                                    field = it
-                                },
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .focusRequester(focusRequester)
-                                    .padding(start = 16.dp, end = 4.dp, top = FIELD_TEXT_PADDING, bottom = FIELD_TEXT_PADDING),
-                                textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.label),
-                                cursorBrush = SolidColor(colors.accent),
-                                maxLines = 6,
-                                keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
-                                visualTransformation = transformation,
-                                interactionSource = fieldInteraction,
-                                decorationBox = { inner ->
-                                    Box {
-                                        if (field.text.isEmpty()) {
-                                            Text(
-                                                stringResource(R.string.chat_input_placeholder),
-                                                style = MaterialTheme.typography.bodyLarge,
-                                                color = colors.tertiaryLabel,
-                                            )
+                        Column(Modifier.weight(1f).padding(horizontal = 6.dp).glass(RoundedCornerShape(FIELD_CORNER))) {
+                            when {
+                                state.editing != null -> EditBar(state.editing, state.onCancelEdit)
+                                state.replyTo != null -> ReplyBar(state.replyTo, senders, state.onCancelReply)
+                            }
+                            state.linkPreview?.let { ComposerLinkPreview(it, state.onDismissLinkPreview) }
+                            Row(Modifier.fillMaxWidth().heightIn(min = PillHeight), verticalAlignment = Alignment.Bottom) {
+                                BasicTextField(
+                                    value = field,
+                                    onValueChange = {
+                                        if (it.text != field.text) {
+                                            sentTexts.addLast(it.text)
+                                            if (sentTexts.size > MAX_SENT_TEXTS) sentTexts.removeFirst()
+                                            state.onDraftChange(it.text)
                                         }
-                                        inner()
-                                    }
-                                },
-                            )
-                            Row(Modifier.padding(end = 4.dp, bottom = (PillHeight - FIELD_ICON) / 2)) {
-                                state.silent?.let { silent -> SilentToggle(silent, state.onToggleSilent) }
-                                EmojiToggle(emoji.open, stickers = emoji.tab == PanelTab.Stickers) {
-                                    if (emoji.open) {
-                                        emoji.switchToKeyboard()
-                                        runCatching { focusRequester.requestFocus() }
-                                        keyboard?.show()
-                                    } else {
-                                        emoji.show(keyboardVisible = imeVisible)
-                                        keyboard?.hide()
+                                        field = it
+                                    },
+                                    modifier = Modifier
+                                        .weight(1f)
+                                        .focusRequester(focusRequester)
+                                        .padding(start = 16.dp, end = 4.dp, top = FIELD_TEXT_PADDING, bottom = FIELD_TEXT_PADDING),
+                                    textStyle = MaterialTheme.typography.bodyLarge.copy(color = colors.label),
+                                    cursorBrush = SolidColor(colors.accent),
+                                    maxLines = 6,
+                                    keyboardOptions = KeyboardOptions(capitalization = KeyboardCapitalization.Sentences),
+                                    visualTransformation = transformation,
+                                    interactionSource = fieldInteraction,
+                                    decorationBox = { inner ->
+                                        Box {
+                                            if (field.text.isEmpty()) {
+                                                Text(
+                                                    stringResource(R.string.chat_input_placeholder),
+                                                    style = MaterialTheme.typography.bodyLarge,
+                                                    color = colors.tertiaryLabel,
+                                                )
+                                            }
+                                            inner()
+                                        }
+                                    },
+                                )
+                                Row(Modifier.padding(end = 4.dp, bottom = (PillHeight - FIELD_ICON) / 2)) {
+                                    state.silent?.let { silent -> SilentToggle(silent, state.onToggleSilent) }
+                                    EmojiToggle(emoji.open, stickers = emoji.tab == PanelTab.Stickers) {
+                                        if (emoji.open) {
+                                            emoji.switchToKeyboard()
+                                            runCatching { focusRequester.requestFocus() }
+                                            keyboard?.show()
+                                        } else {
+                                            emoji.show(keyboardVisible = imeVisible)
+                                            keyboard?.hide()
+                                        }
                                     }
                                 }
                             }
+                            state.error?.let {
+                                Text(
+                                    stringResource(R.string.chat_send_error, it),
+                                    modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = colors.destructive,
+                                )
+                            }
                         }
-                        state.error?.let {
-                            Text(
-                                stringResource(R.string.chat_send_error, it),
-                                modifier = Modifier.padding(start = 16.dp, end = 16.dp, bottom = 8.dp),
-                                style = MaterialTheme.typography.labelSmall,
-                                color = colors.destructive,
-                            )
-                        }
+                    }
+                    if (barShown && voice != null) {
+                        RecordingBar(
+                            voice,
+                            recordingUi,
+                            Modifier
+                                .align(Alignment.BottomStart)
+                                .fillMaxWidth()
+                                .padding(end = 6.dp)
+                                .graphicsLayer {
+                                    alpha = barReveal.value
+                                    translationX = (1f - barReveal.value) * BAR_SLIDE.toPx()
+                                },
+                        )
                     }
                 }
                 if (showMic) {
-                    GlassCircle { MicButton(voice!!) }
+                    GlassCircle { MicButton(voice!!, recordingUi) }
                 } else {
-                    val sendVoice = recording
                     SendButton(
-                        enabled = canSend || sendVoice,
-                        onClick = if (sendVoice) voice!!.onSend else state.onSend,
-                        // Меню — только для набранного текста, не для правки и не для голосового
-                        menu = state.sendMenu?.takeIf { !sendVoice && state.editing == null && canSend },
+                        enabled = canSend,
+                        onClick = state.onSend,
+                        // Меню — только для набранного текста, не для правки
+                        menu = state.sendMenu?.takeIf { state.editing == null && canSend },
                     )
                 }
             }

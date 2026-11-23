@@ -631,6 +631,8 @@ class ChatViewModel @Inject constructor(
 
     fun toggleRecordingPreview() = recorder.togglePreview()
 
+    fun recordingPreviewProgress(): Float = recorder.previewProgress()
+
     /** Отправить: из идущей зафиксированной записи или из предпрослушивания. */
     fun sendRecording() {
         val recording = when (recorder.state.value) {
