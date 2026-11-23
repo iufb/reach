@@ -169,13 +169,11 @@ class ChatHistory(
                 // Отложенные живут на своём экране, в истории их нет
                 is TdApi.UpdateNewMessage -> if (update.message.chatId == chatId && update.message.schedulingState == null && scope.contains(update.message)) {
                     val message = update.message.toModel()
-                    if (update.message.sendingState != null) Log.d(TAG, "#295 new ${update.message.id} ${update.message.content.javaClass.simpleName}")
                     // До open копим всё: open решит, нужны ли они
                     _state.update { s -> if (s.reachedNewest || !s.opened) s.merge(listOf(message)) else s }
                 }
                 is TdApi.UpdateMessageContent -> if (update.chatId == chatId) {
                     val body = update.newContent.toBody()
-                    Log.d(TAG, "#295 content ${update.messageId} ${update.newContent.javaClass.simpleName}")
                     edit(update.messageId) { copy(content = body) }
                 }
                 // Голосовое прослушано или кружок просмотрен (нами или собеседником)
@@ -226,7 +224,6 @@ class ChatHistory(
                 }
                 // Отправка завершилась: временный id меняется на постоянный
                 is TdApi.UpdateMessageSendSucceeded -> if (update.message.chatId == chatId && update.message.schedulingState == null && scope.contains(update.message)) {
-                    Log.d(TAG, "#295 sent ${update.oldMessageId} -> ${update.message.id} ${update.message.content.javaClass.simpleName}")
                     replace(update.oldMessageId, update.message.toModel())
                 }
                 is TdApi.UpdateMessageSendFailed -> if (update.message.chatId == chatId && update.message.schedulingState == null && scope.contains(update.message)) {
