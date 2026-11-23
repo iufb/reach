@@ -20,12 +20,15 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -57,9 +60,7 @@ import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.StickerInfo
 import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.ui.components.AccentPillButton
-import io.github.iufb.reach.ui.components.GlassScope
 import io.github.iufb.reach.ui.components.PillHeight
-import io.github.iufb.reach.ui.components.PillIconButton
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -170,46 +171,44 @@ fun StickerSetSheet(setId: Long, onDismiss: () -> Unit, onSend: ((StickerInfo) -
         ) {
             val maxSheetHeight = maxHeight * SHEET_MAX_FRACTION
             AnimatedVisibility(shown, enter = slideInVertically { it }, exit = slideOutVertically { it }) {
-                GlassScope {
-                    Column(
-                        Modifier
-                            .fillMaxWidth()
-                            .heightIn(max = maxSheetHeight)
-                            .clip(RoundedCornerShape(topStart = SHEET_CORNER, topEnd = SHEET_CORNER))
-                            .background(colors.background)
-                            // Тап по листу не закрывает его
-                            .clickable(remember { MutableInteractionSource() }, indication = null) {},
-                    ) {
-                        val set = (state as? StickerSetState.Loaded)?.set
-                        SheetHeader(set?.title ?: stringResource(R.string.sticker_set), onClose = { close() })
-                        when (val current = state) {
-                            StickerSetState.Loading -> Placeholder {
-                                CircularProgressIndicator(color = colors.accent)
-                            }
-                            StickerSetState.Failed -> Placeholder {
-                                Text(
-                                    stringResource(R.string.sticker_set_failed),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = colors.secondaryLabel,
-                                    textAlign = TextAlign.Center,
-                                )
-                            }
-                            is StickerSetState.Loaded -> {
-                                StickerGrid(
-                                    current.set.stickers,
-                                    Modifier.weight(1f, fill = false),
-                                    onClick = onSend?.let { send ->
-                                        { sticker: StickerInfo ->
-                                            send(sticker)
-                                            close()
-                                        }
-                                    },
-                                )
-                                InstallButton(current.set, busy, viewModel::toggleInstalled)
-                            }
+                Column(
+                    Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = maxSheetHeight)
+                        .clip(RoundedCornerShape(topStart = SHEET_CORNER, topEnd = SHEET_CORNER))
+                        .background(colors.background)
+                        // Тап по листу не закрывает его
+                        .clickable(remember { MutableInteractionSource() }, indication = null) {},
+                ) {
+                    val set = (state as? StickerSetState.Loaded)?.set
+                    SheetHeader(set?.title ?: stringResource(R.string.sticker_set), onClose = { close() })
+                    when (val current = state) {
+                        StickerSetState.Loading -> Placeholder {
+                            CircularProgressIndicator(color = colors.accent)
                         }
-                        if (state !is StickerSetState.Loaded) Spacer(Modifier.navigationBarsPadding())
+                        StickerSetState.Failed -> Placeholder {
+                            Text(
+                                stringResource(R.string.sticker_set_failed),
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = colors.secondaryLabel,
+                                textAlign = TextAlign.Center,
+                            )
+                        }
+                        is StickerSetState.Loaded -> {
+                            StickerGrid(
+                                current.set.stickers,
+                                Modifier.weight(1f, fill = false),
+                                onClick = onSend?.let { send ->
+                                    { sticker: StickerInfo ->
+                                        send(sticker)
+                                        close()
+                                    }
+                                },
+                            )
+                            InstallButton(current.set, busy, viewModel::toggleInstalled)
+                        }
                     }
+                    if (state !is StickerSetState.Loaded) Spacer(Modifier.navigationBarsPadding())
                 }
             }
         }
@@ -222,7 +221,17 @@ private fun SheetHeader(title: String, onClose: () -> Unit) {
         Modifier.fillMaxWidth().padding(8.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
-        PillIconButton(painterResource(R.drawable.ic_close), stringResource(R.string.close), onClose)
+        // Серый кружок, а не стеклянная пилюля: под шапкой листа нет фона для размытия
+        Box(
+            Modifier
+                .size(PillHeight)
+                .clip(CircleShape)
+                .background(ReachTheme.colors.fill)
+                .clickable(role = Role.Button, onClick = onClose),
+            contentAlignment = Alignment.Center,
+        ) {
+            Icon(painterResource(R.drawable.ic_close), stringResource(R.string.close), Modifier.size(22.dp), tint = ReachTheme.colors.label)
+        }
         Text(
             title,
             modifier = Modifier.weight(1f).padding(horizontal = 8.dp),
