@@ -6,6 +6,7 @@ import android.content.ContentUris
 import android.content.Context
 import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.MediaStore
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -97,10 +98,25 @@ internal class AttachActions(
 /** Доступ к фото: полный, только к выбранным пользователем (Android 14+) или никакого. */
 private enum class PhotoAccess { Full, Partial, None }
 
-private fun Context.photoAccess(): PhotoAccess = when {
-    checkSelfPermission(Manifest.permission.READ_MEDIA_IMAGES) == PackageManager.PERMISSION_GRANTED -> PhotoAccess.Full
-    checkSelfPermission(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) == PackageManager.PERMISSION_GRANTED -> PhotoAccess.Partial
-    else -> PhotoAccess.None
+/**
+ * Разрешения для сетки фото: Android 14+ — все фото или только выбранные, Android 13 —
+ * READ_MEDIA_IMAGES, Android 12 — READ_EXTERNAL_STORAGE (в манифесте до maxSdkVersion 32).
+ */
+private val photoPermissions: Array<String> = when {
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE ->
+        arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED)
+    Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU -> arrayOf(Manifest.permission.READ_MEDIA_IMAGES)
+    else -> arrayOf(Manifest.permission.READ_EXTERNAL_STORAGE)
+}
+
+private fun Context.photoAccess(): PhotoAccess {
+    fun granted(permission: String) = checkSelfPermission(permission) == PackageManager.PERMISSION_GRANTED
+    return when {
+        granted(photoPermissions[0]) -> PhotoAccess.Full
+        Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE &&
+            granted(Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED) -> PhotoAccess.Partial
+        else -> PhotoAccess.None
+    }
 }
 
 /**
@@ -142,7 +158,7 @@ internal fun AttachSheet(actions: AttachActions, onDismiss: () -> Unit) {
         reloads++
     }
     val askAccess = {
-        request.launch(arrayOf(Manifest.permission.READ_MEDIA_IMAGES, Manifest.permission.READ_MEDIA_VISUAL_USER_SELECTED))
+        request.launch(photoPermissions)
     }
     val photos by produceState<List<Uri>?>(null, access, reloads) {
         value = if (access == PhotoAccess.None) emptyList() else withContext(Dispatchers.IO) { context.contentResolver.recentPhotos() }

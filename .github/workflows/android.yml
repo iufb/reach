@@ -37,7 +37,7 @@ jobs:
             echo "::warning::DEBUG_KEYSTORE_BASE64 не задан — APK подписан случайным ключом и не встанет поверх установленного"
           fi
 
-      - run: ./gradlew assembleDebug assembleDctest testDebugUnitTest
+      - run: ./gradlew assembleDebug assembleDctest testDebugUnitTest lintDebug
         env:
           APP_ID: ${{ secrets.APP_ID }}
           APP_HASH: ${{ secrets.APP_HASH }}
@@ -45,6 +45,14 @@ jobs:
           FCM_APP_ID: ${{ secrets.FCM_APP_ID }}
           FCM_API_KEY: ${{ secrets.FCM_API_KEY }}
           FCM_SENDER_ID: ${{ secrets.FCM_SENDER_ID }}
+
+      - uses: actions/upload-artifact@v7
+        if: always()
+        with:
+          name: lint-report
+          path: app/build/reports/lint-results-debug.*
+          retention-days: 14
+          if-no-files-found: ignore
 
       - uses: actions/upload-artifact@v7
         with:

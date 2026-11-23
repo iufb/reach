@@ -13,6 +13,7 @@ import android.graphics.BitmapFactory
 import android.graphics.Canvas
 import android.graphics.Paint
 import android.graphics.Path
+import android.os.Build
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.NotificationManagerCompat
@@ -262,8 +263,12 @@ class Notifier @Inject constructor(
         return PendingIntent.getBroadcast(context, groupId * 2 + if (action == NotificationActionReceiver.ACTION_REPLY) 1 else 0, intent, flags)
     }
 
+    // POST_NOTIFICATIONS есть только с Android 13; раньше хватает areNotificationsEnabled()
     private fun canNotify(): Boolean =
-        ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED &&
+        (
+            Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU ||
+                ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+            ) &&
             manager.areNotificationsEnabled()
 
     private fun createChannels() {
