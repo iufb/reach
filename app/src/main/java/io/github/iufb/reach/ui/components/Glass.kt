@@ -10,17 +10,16 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import dev.chrisbanes.haze.ExperimentalHazeApi
 import dev.chrisbanes.haze.HazeInput
-import dev.chrisbanes.haze.HazeInputSharing
-import dev.chrisbanes.haze.HazePerformanceMode
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.HazeBlurStyle
 import dev.chrisbanes.haze.blur.HazeColorEffect
 import dev.chrisbanes.haze.blur.hazeBlur
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
+import io.github.iufb.reach.ui.DevicePerformance
 import io.github.iufb.reach.ui.PerfFlags
 import io.github.iufb.reach.ui.theme.ReachTheme
 
@@ -33,23 +32,38 @@ import io.github.iufb.reach.ui.theme.ReachTheme
  */
 private val LocalGlass = staticCompositionLocalOf<HazeState?> { null }
 
+/**
+ * [liveBlur] = false — стекло без живого размытия, плотной подложкой цвета панели (как iOS
+ * с «Уменьшением прозрачности»). Живое размытие пересчитывается каждый кадр, пока под стеклом
+ * что-то меняется, и на средних устройствах удваивает цену кадра (#304).
+ */
 @Composable
-fun GlassScope(content: @Composable () -> Unit) {
-    // Замеры #304: glass=solid — подложка без размытия
-    val state = if (PerfFlags["glass"] == "solid") null else rememberHazeState()
+fun GlassScope(liveBlur: Boolean = true, content: @Composable () -> Unit) {
+    // Замеры #304 (только debug): glass=solid / glass=blur переопределяют выбор экрана
+    val blur = when (PerfFlags["glass"]) {
+        "solid" -> false
+        "blur" -> true
+        else -> liveBlur
+    }
+    val state = if (blur) rememberHazeState() else null
     CompositionLocalProvider(LocalGlass provides state, content = content)
 }
 
+/**
+ * Живое размытие там, где под стеклом всё время что-то движется (лента чата со стикерами,
+ * анимированными эмодзи, GIF): только на мощных устройствах, как в Telegram Android.
+ */
+@Composable
+fun rememberLiveBlurForAnimatedContent(): Boolean {
+    val context = LocalContext.current.applicationContext
+    return remember(context) { DevicePerformance.of(context) == DevicePerformance.High }
+}
+
 /** Содержимое, которое просвечивает сквозь стеклянные элементы. */
-@OptIn(ExperimentalHazeApi::class)
 @Composable
 fun Modifier.glassSource(): Modifier {
     val state = LocalGlass.current ?: return this
-    return when (PerfFlags["glass"]) {
-        "share" -> hazeSource(state, inputSharing = HazeInputSharing.Always)
-        "auto" -> hazeSource(state, inputSharing = HazeInputSharing.Auto)
-        else -> hazeSource(state)
-    }
+    return hazeSource(state)
 }
 
 /**
@@ -65,18 +79,12 @@ fun Modifier.glass(shape: Shape, elevated: Boolean = true, tint: Color = ReachTh
     val style = remember(colors, tint) {
         HazeBlurStyle {
             blurRadius(GLASS_BLUR)
-            if (PerfFlags["glass"] == "noblur") blurEnabled(false)
             backgroundColor(colors.background)
             colorEffects(listOf(HazeColorEffect.tint(tint.copy(alpha = GLASS_TINT_ALPHA))))
             fallbackColorEffect(HazeColorEffect.tint(tint))
         }
     }
-    val mode = when (PerfFlags["glass"]) {
-        "perf" -> HazePerformanceMode.Performance
-        "quality" -> HazePerformanceMode.Quality
-        else -> null
-    }
-    return base.clip(shape).hazeBlur(HazeInput.Sources(state), style, performanceMode = mode)
+    return base.clip(shape).hazeBlur(HazeInput.Sources(state), style)
 }
 
 private val GLASS_ELEVATION = 10.dp
