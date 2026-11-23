@@ -29,7 +29,9 @@
             <group
                 android:name="pop"
                 android:pivotX="54"
-                android:pivotY="54">
+                android:pivotY="54"
+                android:scaleX="0.85"
+                android:scaleY="0.85">
                 <group
                     android:scaleX="1.05"
                     android:scaleY="1.05"

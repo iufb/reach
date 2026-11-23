@@ -49,6 +49,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -65,6 +66,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
+import io.github.iufb.reach.SplashGate
 import io.github.iufb.reach.chat.RichTextView
 import io.github.iufb.reach.ui.components.DialogSystemBars
 import io.github.iufb.reach.ui.components.PillHeight
@@ -72,6 +74,8 @@ import io.github.iufb.reach.ui.components.RoundCheck
 import io.github.iufb.reach.ui.components.SheetHeader
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 /*
  * Вход в стиле Telegram iOS (#209), но со своим брендингом: знак Reach вместо логотипа Telegram.
@@ -383,25 +387,24 @@ private var brandAnimationPlayed = false
  */
 @Composable
 private fun BrandMark() {
-    val animate = remember { !brandAnimationPlayed }
+    val context = LocalContext.current
+    val avd = remember { if (brandAnimationPlayed) null else context.getDrawable(R.drawable.avd_splash) as AnimatedVectorDrawable }
+    LaunchedEffect(avd) {
+        if (avd == null) return@LaunchedEffect
+        // На холодном старте экран входа собирается под сплэшем: ждём, пока тот уйдёт
+        withTimeoutOrNull(SPLASH_WAIT_MS) { SplashGate.dismissed.first { it } }
+        avd.start()
+        brandAnimationPlayed = true
+    }
     Box(Modifier.size(BRAND_SIZE), contentAlignment = Alignment.Center) {
         AndroidView(
-            factory = { context ->
-                ImageView(context).apply {
-                    if (animate) {
-                        val avd = context.getDrawable(R.drawable.avd_splash) as AnimatedVectorDrawable
-                        setImageDrawable(avd)
-                        avd.start()
-                        brandAnimationPlayed = true
-                    } else {
-                        setImageResource(R.drawable.ic_reach_mark_circle)
-                    }
-                }
-            },
+            factory = { ImageView(it).apply { if (avd != null) setImageDrawable(avd) else setImageResource(R.drawable.ic_reach_mark_circle) } },
             modifier = Modifier.requiredSize(BRAND_SIZE * 1.5f),
         )
     }
 }
+
+private const val SPLASH_WAIT_MS = 3_000L
 
 /**
  * Поле шага входа как в iOS: без рамки, между тонкими линиями во всю ширину, плейсхолдер серым.

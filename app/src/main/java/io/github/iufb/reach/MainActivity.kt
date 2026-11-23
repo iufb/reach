@@ -72,6 +72,8 @@ class MainActivity : ComponentActivity() {
         holdSplashUntilAuthKnown()
         OverlayPainter.typeface = interfaceFonts.bold()
         // После пересоздания активити запрос уже выполнен
+        // Пересоздание активити идёт без сплэша
+        if (savedInstanceState != null) SplashGate.dismissed.value = true
         if (savedInstanceState == null) {
             openChatRequest.value = intent.chatIdExtra()
             openLinkRequest.value = intent.linkData()
@@ -131,7 +133,10 @@ class MainActivity : ComponentActivity() {
             .alpha(0f)
             .setStartDelay(iconLeft + SPLASH_EXIT_MS / 3)
             .setDuration(SPLASH_EXIT_MS)
-            .withEndAction { splash.remove() }
+            .withEndAction {
+                splash.remove()
+                SplashGate.dismissed.value = true
+            }
             .start()
     }
 
@@ -200,4 +205,9 @@ private fun MissingCredentialsScreen() {
             )
         }
     }
+}
+
+/** Ушёл ли системный сплэш: анимации под ним никто не видит, экран входа ждёт этого флага. */
+object SplashGate {
+    val dismissed = MutableStateFlow(false)
 }
