@@ -33,6 +33,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableStateOf
@@ -143,6 +144,13 @@ private fun OverlayContent(
     DisposableEffect(camera) { onDispose { camera.release() } }
     val colors = ReachTheme.colors
     val reviewing = camera.phase == Phase.Recorded
+    // Отправленный или удалённый из предпросмотра кружок уходит с последним кадром, а не с чёрной заглушкой камеры
+    val lastReview = remember { mutableStateOf<String?>(null) }
+    SideEffect {
+        val path = camera.recordedPath
+        if (path != null) lastReview.value = path else if (active) lastReview.value = null
+    }
+    val reviewPath = camera.recordedPath ?: lastReview.value.takeIf { !active }
     val flips = remember { Channel<Unit>(Channel.CONFLATED) }
     val screenFlash by animateFloatAsState(
         if (camera.flash && camera.front && !reviewing && active) 1f else 0f,
@@ -216,8 +224,8 @@ private fun OverlayContent(
                     alpha = a
                 },
         ) {
-            if (reviewing) {
-                camera.recordedPath?.let { ReviewCircle(camera, it) }
+            if (reviewPath != null) {
+                ReviewCircle(camera, reviewPath)
             } else {
                 CameraCircle(camera, flips)
             }
@@ -415,7 +423,7 @@ private val RING_INSET = 2.dp
 private val RING_COLOR = Color.White.copy(alpha = 0.85f)
 private val SCREEN_FLASH = Color(0xFFFFF6E5)
 private val BACKDROP_BLUR = 40.dp
-private const val BACKDROP_ALPHA = 0.94f
+private const val BACKDROP_ALPHA = 0.96f
 private const val BACKDROP_TINT_ALPHA = 0.45f
 /** Кружок в ленте: VideoNoteView, 220 dp, у правого края над полем ввода. */
 private val FEED_NOTE_SIZE = 220.dp
