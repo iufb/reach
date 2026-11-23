@@ -13,6 +13,8 @@ import androidx.compose.foundation.gestures.animateScrollBy
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.runtime.key
 import io.github.iufb.reach.media.RecorderState
+import io.github.iufb.reach.media.VoiceRecording
+import androidx.compose.ui.unit.Dp
 import kotlinx.coroutines.delay
 import io.github.iufb.reach.fonts.FontKind
 import android.os.SystemClock
@@ -340,12 +342,17 @@ fun ChatScreen(
                     linkPreview, viewModel::dismissLinkPreview,
                     onAttach = { attaching = true },
                     voice = if (videoMode && canSendVideoNotes) {
-                        // Кружок: та же кнопка и полоска записи, без предпрослушивания — «стоп» отправляет
+                        // Кружок: та же кнопка и полоска записи; «стоп» — предпросмотр в круге над лентой
                         VoiceInput(
-                            state = if (camera.phase == VideoNoteCamera.Phase.Idle) {
-                                RecorderState.Idle
-                            } else {
-                                RecorderState.Recording(camera.startedAt.takeIf { it > 0 } ?: SystemClock.elapsedRealtime(), 0f, camera.locked)
+                            state = when (camera.phase) {
+                                VideoNoteCamera.Phase.Idle -> RecorderState.Idle
+                                VideoNoteCamera.Phase.Recorded -> RecorderState.Recorded(
+                                    VoiceRecording(camera.recordedPath.orEmpty(), camera.recordedDurationSec, ByteArray(0)),
+                                    camera.reviewPlaying,
+                                )
+                                else -> RecorderState.Recording(
+                                    camera.startedAt.takeIf { it > 0 } ?: SystemClock.elapsedRealtime(), 0f, camera.locked,
+                                )
                             },
                             onStart = {
                                 viewModel.onVideoNoteRecordingStarted()
@@ -353,10 +360,10 @@ fun ChatScreen(
                             },
                             onLock = camera::lock,
                             onRelease = { camera.finish(send = true) },
-                            onStop = { camera.finish(send = true) },
+                            onStop = camera::stopForReview,
                             onSend = { camera.finish(send = true) },
                             onDiscard = { camera.finish(send = false) },
-                            onTogglePreview = {},
+                            onTogglePreview = camera::toggleReviewPlayback,
                             videoMode = true,
                             onToggleMode = { videoMode = false },
                         )
@@ -432,9 +439,9 @@ fun ChatScreen(
                 onOpenComments = if (scoped) null else viewModel::openComments,
                 senders = senders,
             ),
+            recordingOverlay = { composerHeight -> VideoNoteCameraOverlay(camera, composerHeight) },
         )
     }
-    if (camera.phase != VideoNoteCamera.Phase.Idle) VideoNoteCameraOverlay(camera)
     }
 }
 
@@ -472,6 +479,8 @@ private fun ChatContent(
     canSendStickers: Boolean = true,
     /** Тап по стикеру в панели; `null` — вкладка «Стикеры» с заглушкой (превью). */
     onSendSticker: ((StickerInfo) -> Unit)? = null,
+    /** Слой записи кружка: над лентой и шапкой, под полем ввода; [Dp] — высота поля. */
+    recordingOverlay: @Composable (composerHeight: Dp) -> Unit = {},
 ) {
     val colors = ReachTheme.colors
     val density = LocalDensity.current
@@ -521,6 +530,7 @@ private fun ChatContent(
                 NowPlayingBar()
                 ChatToast(toast)
             }
+            recordingOverlay(bottomHeight)
             Box(
                 Modifier.align(Alignment.BottomCenter).fillMaxWidth().onSizeChanged { bottomHeight = with(density) { it.height.toDp() } },
             ) {

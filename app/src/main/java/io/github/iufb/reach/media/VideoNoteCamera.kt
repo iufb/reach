@@ -15,6 +15,7 @@ import android.view.Surface
 import androidx.annotation.OptIn
 import androidx.camera.camera2.interop.Camera2Interop
 import androidx.camera.camera2.interop.ExperimentalCamera2Interop
+import androidx.camera.core.Camera
 import androidx.camera.core.CameraSelector
 import androidx.camera.core.MirrorMode
 import androidx.camera.core.Preview
@@ -73,7 +74,11 @@ class VideoNoteRecording(
  */
 @Stable
 class VideoNoteCamera(private val context: Context) {
-    enum class Phase { Idle, Starting, Recording }
+    /** [Recorded] — запись остановлена в зафиксированном режиме: кружок проигрывается, его можно отправить или удалить. */
+    enum class Phase { Idle, Starting, Recording, Recorded }
+
+    /** Чем кончилась запись: экран по нему выбирает анимацию ухода (улетает в ленту или сжимается). */
+    enum class Outcome { Send, Discard }
 
     var phase by mutableStateOf(Phase.Idle)
         private set
@@ -87,6 +92,28 @@ class VideoNoteCamera(private val context: Context) {
         private set
 
     var front by mutableStateOf(true)
+        private set
+
+    /** Вспышка: у задней камеры — фонарик, у фронтальной экран светит сам (рисует экран записи). */
+    var flash by mutableStateOf(false)
+        private set
+
+    /** У открытой камеры есть фонарик. */
+    var torchAvailable by mutableStateOf(false)
+        private set
+
+    /** `null` — запись ещё идёт; иначе — чем она кончается (финализация файла может занять ещё долю секунды). */
+    var outcome by mutableStateOf<Outcome?>(null)
+        private set
+
+    /** Записанный файл в фазе [Phase.Recorded]. */
+    var recordedPath by mutableStateOf<String?>(null)
+        private set
+    var recordedDurationSec by mutableStateOf(0)
+        private set
+
+    /** Предпросмотр играет (в фазе [Phase.Recorded]). */
+    var reviewPlaying by mutableStateOf(true)
         private set
 
     val previewView: PreviewView = PreviewView(context).apply {
@@ -122,6 +149,8 @@ class VideoNoteCamera(private val context: Context) {
     ).setMirrorMode(MirrorMode.MIRROR_MODE_ON_FRONT_ONLY).build()
 
     private var provider: ProcessCameraProvider? = null
+    private var boundCamera: Camera? = null
+    private var reviewOnFinish = false
     private var owner: LifecycleOwner? = null
     private var recording: Recording? = null
     private var file: File? = null
@@ -134,6 +163,8 @@ class VideoNoteCamera(private val context: Context) {
         this.onRecorded = onRecorded
         locked = false
         sendOnFinish = false
+        reviewOnFinish = false
+        outcome = null
         phase = Phase.Starting
     }
 
@@ -159,8 +190,33 @@ class VideoNoteCamera(private val context: Context) {
     }
 
     fun flip() {
+        if (phase == Phase.Recorded) return
         front = !front
+        // Новая камера тоже подбирает экспозицию: экран держит размытый последний кадр, пока она не сойдётся
+        exposureReady.value = false
         provider?.let { runCatching { bind(it) }.onFailure { e -> Log.w(TAG, "flip failed", e) } }
+    }
+
+    fun toggleFlash() {
+        flash = !flash
+        applyTorch()
+    }
+
+    private fun applyTorch() {
+        val camera = boundCamera ?: return
+        torchAvailable = camera.cameraInfo.hasFlashUnit()
+        if (torchAvailable) camera.cameraControl.enableTorch(flash && !front)
+    }
+
+    /** «Стоп» в зафиксированном режиме: запись — в предпросмотр ([Phase.Recorded]), а не сразу в чат. */
+    fun stopForReview() {
+        val current = recording ?: return finish(send = false)
+        reviewOnFinish = true
+        current.stop()
+    }
+
+    fun toggleReviewPlayback() {
+        reviewPlaying = !reviewPlaying
     }
 
     fun lock() {
@@ -169,15 +225,34 @@ class VideoNoteCamera(private val context: Context) {
 
     /** Остановить: [send] — отправить записанное, иначе удалить. */
     fun finish(send: Boolean) {
+        if (phase == Phase.Recorded) return finishReview(send)
+        if (outcome == null) outcome = if (send) Outcome.Send else Outcome.Discard
         sendOnFinish = send
+        reviewOnFinish = false
         val current = recording
         if (current != null) current.stop() else close()
     }
 
-    /** Экран с превью ушёл: камеру отпускаем, идущую запись отменяем. */
+    private fun finishReview(send: Boolean) {
+        val path = recordedPath ?: return close()
+        outcome = if (send) Outcome.Send else Outcome.Discard
+        val callback = onRecorded
+        close()
+        if (send) callback?.invoke(path) else File(path).delete()
+    }
+
+    /** Экран с превью ушёл: камеру отпускаем, идущую запись или предпросмотр отменяем. */
     fun release() {
-        if (recording != null) finish(send = false)
-        provider?.unbindAll()
+        when {
+            phase == Phase.Recorded -> finishReview(send = false)
+            // Остановка уже идёт (отправка): камеру отпустит close() после финализации файла
+            recording != null -> if (outcome == null) finish(send = false)
+            phase != Phase.Idle -> {
+                outcome = Outcome.Discard
+                close()
+            }
+            else -> unbind()
+        }
     }
 
     private fun bind(cameraProvider: ProcessCameraProvider) {
@@ -190,7 +265,8 @@ class VideoNoteCamera(private val context: Context) {
             .addUseCase(capture)
             .build()
         val selector = if (front) CameraSelector.DEFAULT_FRONT_CAMERA else CameraSelector.DEFAULT_BACK_CAMERA
-        cameraProvider.bindToLifecycle(lifecycleOwner, selector, group)
+        boundCamera = cameraProvider.bindToLifecycle(lifecycleOwner, selector, group)
+        applyTorch()
     }
 
     // Разрешения CAMERA и RECORD_AUDIO проверяет кнопка до start()
@@ -220,6 +296,18 @@ class VideoNoteCamera(private val context: Context) {
                 // Дошли до 60 с — отправляем, даже если палец ещё держит кнопку
                 val send = (sendOnFinish || reachedLimit) && (!event.hasError() || reachedLimit)
                 if (event.hasError() && !reachedLimit) Log.w(TAG, "recording failed: ${event.error}", event.cause)
+                if (reviewOnFinish && output != null && (!event.hasError() || reachedLimit)) {
+                    // Предпросмотр: файл остаётся, камера больше не нужна
+                    recording = null
+                    file = null
+                    recordedPath = output.path
+                    recordedDurationSec = ((event.recordingStats.recordedDurationNanos / 1_000_000 + 500) / 1000).toInt().coerceAtLeast(1)
+                    reviewPlaying = true
+                    phase = Phase.Recorded
+                    unbind()
+                    return
+                }
+                if (outcome == null) outcome = if (send) Outcome.Send else Outcome.Discard
                 val callback = onRecorded
                 close()
                 if (output != null) {
@@ -236,7 +324,17 @@ class VideoNoteCamera(private val context: Context) {
         startedAt = 0
         locked = false
         onRecorded = null
+        reviewOnFinish = false
+        recordedPath = null
+        recordedDurationSec = 0
+        unbind()
+    }
+
+    private fun unbind() {
         provider?.unbindAll()
+        boundCamera = null
+        // Фонарик гаснет вместе с камерой; следующая запись — без вспышки, как в iOS
+        flash = false
     }
 
     private companion object {

@@ -8,9 +8,11 @@ import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
@@ -85,6 +87,25 @@ fun Modifier.glass(shape: Shape, elevated: Boolean = true, tint: Color = ReachTh
         }
     }
     return base.clip(shape).hazeBlur(HazeInput.Sources(state), style)
+}
+
+/**
+ * Фон во весь экран поверх ленты (запись кружка): сильно размытая лента с подкраской [tint], если
+ * в [GlassScope] включено живое размытие; иначе — непрозрачная [fallback] (на средних и слабых
+ * устройствах живое размытие под камерой стоило бы кадров превью, #304).
+ */
+@Composable
+fun Modifier.glassBackdrop(radius: Dp, tint: Color, fallback: Brush): Modifier {
+    val state = LocalGlass.current ?: return background(fallback)
+    val style = remember(radius, tint) {
+        HazeBlurStyle {
+            blurRadius(radius)
+            backgroundColor(tint.copy(alpha = 1f))
+            colorEffects(listOf(HazeColorEffect.tint(tint)))
+            fallbackColorEffect(HazeColorEffect.tint(tint.copy(alpha = 1f)))
+        }
+    }
+    return background(fallback).hazeBlur(HazeInput.Sources(state), style)
 }
 
 private val GLASS_ELEVATION = 10.dp
