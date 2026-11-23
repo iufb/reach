@@ -1,5 +1,7 @@
 package io.github.iufb.reach.auth
 
+import android.graphics.drawable.AnimatedVectorDrawable
+import android.widget.ImageView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -31,7 +34,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,7 +49,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -58,11 +60,13 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
+import io.github.iufb.reach.SplashGate
 import io.github.iufb.reach.chat.RichTextView
 import io.github.iufb.reach.ui.components.DialogSystemBars
 import io.github.iufb.reach.ui.components.PillHeight
@@ -72,6 +76,8 @@ import io.github.iufb.reach.ui.format.PhoneMask
 import io.github.iufb.reach.ui.format.PhoneVisualTransformation
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 
 /*
  * Вход в стиле Telegram iOS (#209), но со своим брендингом: знак Reach вместо логотипа Telegram.
@@ -374,14 +380,34 @@ private fun AuthLayout(
 }
 
 /** Знак Reach: буква «R» из иконки приложения на акцентном квадрате со скруглением, как значок приложения. */
+/** Анимация знака играет один раз за запуск: не на каждом шаге входа и не при повороте экрана. */
+private var brandAnimationPlayed = false
+
+/**
+ * Знак Reach с анимацией «Прорезь» (ADR-0012). Тот же `avd_splash`, что и на системном сплэше,
+ * через платформенный AnimatedVectorDrawable: разбор AVD в Compose на нём падает.
+ * Круг в холсте занимает 72 из 108, поэтому холст в 1,5 раза больше [BRAND_SIZE].
+ */
 @Composable
 private fun BrandMark() {
-    val colors = ReachTheme.colors
-    Box(Modifier.size(BRAND_SIZE).clip(RoundedCornerShape(BRAND_CORNER)).background(colors.accent), contentAlignment = Alignment.Center) {
-        // У адаптивной иконки знак занимает центр холста 108dp — показываем холст крупнее, чтобы буква заполнила квадрат
-        Icon(painterResource(R.drawable.ic_launcher_foreground), contentDescription = null, Modifier.size(BRAND_SIZE * 1.5f), tint = colors.onAccent)
+    val context = LocalContext.current
+    val avd = remember { if (brandAnimationPlayed) null else context.getDrawable(R.drawable.avd_splash) as AnimatedVectorDrawable }
+    LaunchedEffect(avd) {
+        if (avd == null) return@LaunchedEffect
+        // На холодном старте экран входа собирается под сплэшем: ждём, пока тот уйдёт
+        withTimeoutOrNull(SPLASH_WAIT_MS) { SplashGate.dismissed.first { it } }
+        avd.start()
+        brandAnimationPlayed = true
+    }
+    Box(Modifier.size(BRAND_SIZE), contentAlignment = Alignment.Center) {
+        AndroidView(
+            factory = { ImageView(it).apply { if (avd != null) setImageDrawable(avd) else setImageResource(R.drawable.ic_reach_mark_circle) } },
+            modifier = Modifier.requiredSize(BRAND_SIZE * 1.5f),
+        )
     }
 }
+
+private const val SPLASH_WAIT_MS = 3_000L
 
 /**
  * Поле шага входа как в iOS: без рамки, между тонкими линиями во всю ширину, плейсхолдер серым.
@@ -574,7 +600,6 @@ private fun resendText(next: CodeDelivery): String = when (next) {
 
 private val MAX_WIDTH = 480.dp
 private val BRAND_SIZE = 88.dp
-private val BRAND_CORNER = 22.dp
 private val FIELD_HEIGHT = 52.dp
 private val CODE_CELL_WIDTH = 44.dp
 private val CODE_CELL_HEIGHT = 56.dp

@@ -29,7 +29,9 @@
             <group
                 android:name="pop"
                 android:pivotX="54"
-                android:pivotY="54">
+                android:pivotY="54"
+                android:scaleX="0.85"
+                android:scaleY="0.85">
                 <group
                     android:scaleX="1.05"
                     android:scaleY="1.05"
@@ -41,13 +43,15 @@
                     <path
                         android:fillColor="#FFFFFF"
                         android:pathData="M43.5,70Q40,70 42.3,68.3Q52,60.4 65,59Q67,58.9 68,60L73.9,68.4Q75.06,70 73,70Z" />
-                    <group android:name="cut">
-                        <clip-path
-                            android:name="sweep"
-                            android:pathData="M35,30h45v45h-45z" />
-                        <path
-                            android:fillColor="#FFFFFF"
-                            android:pathData="M38,56V66Q38,70 42,70L42.3,68.9Q52,61 65,59.6Q67,59.5 68,60.6L68.4,60.6Q67.6,58.6 69.6,56.9L69.4,56.4L67.5,56.6Q52.5,56.6 42.5,61.4Q38.5,63.4 38,59Z" />
+                    <!-- Клип едет вправо вместе с sweep, а sweepHold сдвигает gap обратно: gap стоит на месте.
+                         Только translateX групп, без морфинга clip-path: так работает и в Compose (#323). -->
+                    <group android:name="sweep">
+                        <clip-path android:pathData="M35,30h45v45h-45z" />
+                        <group android:name="sweepHold">
+                            <path
+                                android:fillColor="#FFFFFF"
+                                android:pathData="M38,56V66Q38,70 42,70L42.3,68.9Q52,61 65,59.6Q67,59.5 68,60.6L68.4,60.6Q67.6,58.6 69.6,56.9L69.4,56.4L67.5,56.6Q52.5,56.6 42.5,61.4Q38.5,63.4 38,59Z" />
+                        </group>
                     </group>
                 </group>
             </group>
@@ -85,11 +89,31 @@
         <aapt:attr name="android:animation">
             <objectAnimator
                 android:duration="440"
-                android:propertyName="pathData"
+                android:propertyName="translateX"
                 android:startOffset="300"
-                android:valueFrom="M35,30h45v45h-45z"
-                android:valueTo="M80,30h45v45h-45z"
-                android:valueType="pathType">
+                android:valueFrom="0"
+                android:valueTo="45"
+                android:valueType="floatType">
+                <aapt:attr name="android:interpolator">
+                    <pathInterpolator
+                        android:controlX1="0.65"
+                        android:controlY1="0"
+                        android:controlX2="0.25"
+                        android:controlY2="1" />
+                </aapt:attr>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+
+    <target android:name="sweepHold">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="440"
+                android:propertyName="translateX"
+                android:startOffset="300"
+                android:valueFrom="0"
+                android:valueTo="-45"
+                android:valueType="floatType">
                 <aapt:attr name="android:interpolator">
                     <pathInterpolator
                         android:controlX1="0.65"
