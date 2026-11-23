@@ -415,6 +415,9 @@
     <string name="stickers_open">Стикеры</string>
     <string name="stickers_coming_soon">Стикеры появятся здесь</string>
     <string name="stickers_restricted">Отправка стикеров в этом чате ограничена</string>
+    <string name="stickers_recent">Недавние</string>
+    <string name="stickers_favorites">Избранные</string>
+    <string name="stickers_empty">Здесь будут ваши стикеры: недавние, избранные и добавленные паки</string>
 
     <!-- Статус и действия -->
     <string name="status_online">в сети</string>

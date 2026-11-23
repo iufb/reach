@@ -7,8 +7,7 @@ import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 import com.airbnb.lottie.LottieComposition
-import com.airbnb.lottie.compose.LottieCompositionSpec
-import com.airbnb.lottie.compose.rememberLottieComposition
+import com.airbnb.lottie.LottieCompositionFactory
 import dagger.hilt.android.EntryPointAccessors
 import io.github.iufb.reach.files.FilesRepository
 import io.github.iufb.reach.files.TdFile
@@ -20,40 +19,53 @@ import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * TGS — это Lottie JSON в gzip (PRODUCT.md §4.5). Скачивает через TDLib, распаковывает и держит
- * готовый JSON в памяти по стабильному `uniqueId`: одни и те же эмодзи и реакции повторяются часто.
- * Рисует `lottie-compose`; на rlottie переходим, только если упрёмся в производительность.
+ * TGS — это Lottie JSON в gzip (PRODUCT.md §4.5). Скачивает через TDLib, распаковывает, разбирает
+ * в [LottieComposition] и держит готовую композицию в памяти по стабильному `uniqueId`: одни и те же
+ * эмодзи, реакции и стикеры панели повторяются часто, а повторный разбор — заметная работа и мигание
+ * (#289, #295). Рисует `lottie-compose`; на rlottie переходим, только если упрёмся в производительность.
  */
 @Singleton
 class TgsLoader @Inject constructor(private val files: FilesRepository) {
 
-    private val cache = LruCache<String, String>(CACHE_SIZE)
+    private val cache = LruCache<String, LottieComposition>(CACHE_SIZE)
 
-    /** Lottie JSON анимации; `null` — не скачалось или файл битый. */
-    suspend fun load(file: TdFile): String? {
+    /** Уже разобранная композиция — без ожидания, чтобы ячейка не мигала заменой. */
+    fun cached(file: TdFile): LottieComposition? = cache.get(file.uniqueId)
+
+    /** Композиция анимации; `null` — не скачалось или файл битый. */
+    suspend fun load(file: TdFile): LottieComposition? {
         cache.get(file.uniqueId)?.let { return it }
-        val json = runCatching {
+        val composition = runCatching {
             val path = files.awaitDownloaded(file.id, FilesRepository.PRIORITY_AVATAR)
-            withContext(Dispatchers.IO) {
-                GZIPInputStream(File(path).inputStream().buffered()).use { it.readBytes().decodeToString() }
+            withContext(Dispatchers.Default) {
+                val json = GZIPInputStream(File(path).inputStream().buffered()).use { it.readBytes().decodeToString() }
+                // Без cacheKey: у Lottie свой кеш на 20 штук, наш — больше и по uniqueId
+                LottieCompositionFactory.fromJsonStringSync(json, null).value
             }
         }.getOrNull() ?: return null
-        cache.put(file.uniqueId, json)
-        return json
+        cache.put(file.uniqueId, composition)
+        return composition
     }
 
     private companion object {
-        const val CACHE_SIZE = 64
+        /** Стикеры панели (экран — 20–30 ячеек), реакции и эмодзи ленты. */
+        const val CACHE_SIZE = 96
     }
 }
 
-/** Готовая Lottie-композиция TGS-файла; `null` — пока грузится или не вышло (показывайте замену). */
+/**
+ * Готовая Lottie-композиция TGS-файла; `null` — пока грузится или не вышло (показывайте замену).
+ * Если композиция уже в кеше [TgsLoader], она возвращается сразу, в первом же кадре.
+ */
 @Composable
 internal fun rememberTgsComposition(file: TdFile?): LottieComposition? {
     val context = LocalContext.current.applicationContext
     val loader = remember(context) { EntryPointAccessors.fromApplication(context, MediaEntryPoint::class.java).tgsLoader() }
-    val json by produceState<String?>(null, file) { value = file?.let { loader.load(it) } }
-    val ready = json ?: return null
-    val composition by rememberLottieComposition(LottieCompositionSpec.JsonString(ready), cacheKey = "tgs:${file?.uniqueId}")
-    return composition
+    val key = file?.uniqueId
+    val cached = remember(key) { file?.let(loader::cached) }
+    // Пара «файл — композиция»: после смены файла прежняя анимация не показывается ни кадра
+    val loaded by produceState<Pair<String, LottieComposition>?>(null, key) {
+        if (cached == null && file != null) loader.load(file)?.let { value = file.uniqueId to it }
+    }
+    return cached ?: loaded?.takeIf { it.first == key }?.second
 }

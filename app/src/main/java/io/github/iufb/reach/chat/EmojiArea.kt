@@ -126,7 +126,7 @@ internal fun rememberEmojiPanelState(): EmojiPanelState {
  * область ленты и поле над ней не меняют размер ни на кадр. Считается при раскладке, в том же кадре,
  * что и сдвиг клавиатуры. [panelAllowed] `false` — поля ввода нет, панель не нужна.
  * [canSendStickers] `false` — на вкладке «Стикеры» вместо [stickerContent] текст об ограничении.
- * [stickerContent] — содержимое вкладки «Стикеры» (сетка придёт в #289; пока заглушка).
+ * [stickerContent] — содержимое вкладки «Стикеры» (сетка `StickerPanel`; по умолчанию заглушка).
  */
 @Composable
 internal fun ChatBottomArea(
