@@ -417,6 +417,8 @@
     <string name="stickers_restricted">Отправка стикеров в этом чате ограничена</string>
     <string name="stickers_recent">Недавние</string>
     <string name="stickers_favorites">Избранные</string>
+    <string name="stickers_trending">Трендовые стикеры</string>
+    <string name="stickers_trending_hide">Скрыть трендовые стикеры</string>
     <string name="stickers_empty">Здесь будут ваши стикеры: недавние, избранные и добавленные паки</string>
 
     <!-- Статус и действия -->

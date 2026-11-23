@@ -12,9 +12,9 @@ class StickerSectionsTest {
         file = TdFile(n, "u$n"), thumbnail = null,
     )
 
-    private fun set(id: Long, vararg stickers: StickerInfo, size: Int = stickers.size) = StickerSetInfo(
+    private fun set(id: Long, vararg stickers: StickerInfo, size: Int = stickers.size, isViewed: Boolean = true) = StickerSetInfo(
         id = id, title = "t$id", name = "n$id", thumbnail = null, stickers = stickers.toList(), size = size,
-        isInstalled = true, isArchived = false, isOfficial = false, isViewed = true,
+        isInstalled = true, isArchived = false, isOfficial = false, isViewed = isViewed,
     )
 
     @Test fun sectionsInOrderRecentFavoritesThenPacks() {
@@ -64,5 +64,32 @@ class StickerSectionsTest {
         assertEquals(1, sectionAt(starts, 3))
         assertEquals(1, sectionAt(starts, 6))
         assertEquals(2, sectionAt(starts, 8))
+    }
+
+    @Test fun trendingComesFirstAsSingleGridItem() {
+        val sections = stickerSections(
+            recent = listOf(sticker(1)),
+            favorites = emptyList(),
+            installed = listOf(set(10, sticker(2))),
+            sets = emptyMap(),
+            trending = listOf(set(30, sticker(3)), set(31, sticker(4)), set(30, sticker(3))),
+        )
+        assertEquals(listOf("trending", "recent", "set-10"), sections.map { it.key })
+        assertEquals(listOf(30L, 31L), sections.first().trending.map { it.id })
+        assertEquals(listOf(0, 1, 3), sectionStarts(sections))
+    }
+
+    @Test fun noTrendingSectionWhenEmpty() {
+        val sections = stickerSections(listOf(sticker(1)), emptyList(), emptyList(), emptyMap(), trending = emptyList())
+        assertEquals(listOf("recent"), sections.map { it.key })
+    }
+
+    @Test fun trendingShownUnlessHiddenWithNothingNew() {
+        val viewed = listOf(set(30, isViewed = true), set(31, isViewed = true))
+        val fresh = viewed + set(32, isViewed = false)
+        assertEquals(false, trendingShown(emptyList(), hidden = false))
+        assertEquals(true, trendingShown(viewed, hidden = false))
+        assertEquals(false, trendingShown(viewed, hidden = true))
+        assertEquals(true, trendingShown(fresh, hidden = true))
     }
 }
