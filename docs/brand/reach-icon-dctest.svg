@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 108 108" width="108" height="108">
+  <!-- Reach Test (dctest) launcher icon: same mark, orange background. ADR-0012 -->
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#FFAB2E"/>
+      <stop offset="1" stop-color="#F26400"/>
+    </linearGradient>
+  </defs>
+  <rect width="108" height="108" fill="url(#bg)"/>
+  <g transform="translate(54 54) scale(1.05) translate(-56.5 -52.5)" fill="#FFFFFF">
+    <path d="M42 35H60C69 35 75 41 75 47C75 51 73.6 54 71.3 55.9Q69.8 57.2 67.5 57.2Q52.5 57.2 42.5 62Q38 64.2 38 60V39Q38 35 42 35Z"/>
+    <path d="M43.5 70Q40 70 42.3 68.3Q52 60.4 65 59Q67 58.9 68 60L73.9 68.4Q75.06 70 73 70Z"/>
+  </g>
+</svg>
