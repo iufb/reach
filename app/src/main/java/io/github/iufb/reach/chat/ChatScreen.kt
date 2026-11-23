@@ -236,7 +236,6 @@ fun ChatScreen(
     LaunchedEffect(viewModel) { viewModel.openFile.collect { openFile(context, it) } }
     viewer?.let { (items, index) -> MediaViewer(items, index) { viewer = null } }
     val openedStickerSet by viewModel.openedStickerSet.collectAsStateWithLifecycle()
-    val canSendStickers by viewModel.canSendStickers.collectAsStateWithLifecycle()
     val audio by viewModel.audio.collectAsStateWithLifecycle()
     val reactionEffect by viewModel.reactionEffect.collectAsStateWithLifecycle()
     val emojiEffects by viewModel.emojiEffects.collectAsStateWithLifecycle()
