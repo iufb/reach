@@ -56,6 +56,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -89,6 +90,8 @@ fun PhoneNumberInput(
 ) {
     val colors = ReachTheme.colors
     val style = MaterialTheme.typography.bodyLarge.copy(color = colors.label)
+    // Код и номер крупнее строки страны, цифры чуть разрежены — как в Telegram iOS
+    val numberStyle = style.copy(fontSize = NUMBER_SIZE, letterSpacing = NUMBER_SPACING)
     val countries by viewModel.countries.collectAsStateWithLifecycle()
     val current by rememberUpdatedState(value)
     val change by rememberUpdatedState(onValueChange)
@@ -170,7 +173,7 @@ fun PhoneNumberInput(
             )
         }
         // Разделитель с «хвостиком» над кодом, как в Telegram iOS
-        NotchedDivider(notchX = horizontalPadding + CODE_WIDTH / 2, color = colors.separator)
+        NotchedDivider(notchX = horizontalPadding + NOTCH_OFFSET, color = colors.separator)
         // +код | номер
         Row(
             Modifier.fillMaxWidth().heightIn(min = ROW_HEIGHT).padding(horizontal = horizontalPadding),
@@ -182,13 +185,13 @@ fun PhoneNumberInput(
                 modifier = Modifier.width(CODE_WIDTH).focusRequester(codeFocus),
                 enabled = enabled,
                 singleLine = true,
-                textStyle = style,
+                textStyle = numberStyle,
                 cursorBrush = SolidColor(colors.accent),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Next),
                 keyboardActions = KeyboardActions(onNext = { nationalFocus.requestFocus() }),
                 decorationBox = { inner ->
                     Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text("+", style = style)
+                        Text("+", style = numberStyle)
                         inner()
                     }
                 },
@@ -209,7 +212,7 @@ fun PhoneNumberInput(
                 },
                 enabled = enabled,
                 singleLine = true,
-                textStyle = style,
+                textStyle = numberStyle,
                 cursorBrush = SolidColor(colors.accent),
                 visualTransformation = NationalPhoneTransformation(value.code),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone, imeAction = ImeAction.Done),
@@ -219,7 +222,7 @@ fun PhoneNumberInput(
                         if (value.national.isEmpty()) {
                             Text(
                                 PhoneMask.nationalPlaceholder(value.code) ?: stringResource(R.string.auth_phone_label),
-                                style = style.copy(color = colors.tertiaryLabel),
+                                style = numberStyle.copy(color = colors.tertiaryLabel),
                                 maxLines = 1,
                             )
                         }
@@ -254,7 +257,7 @@ private fun NotchedDivider(notchX: Dp, color: Color) {
             val path = Path().apply {
                 moveTo(0f, 0f)
                 lineTo(x - half, 0f)
-                lineTo(x, half)
+                lineTo(x, half * NOTCH_DEPTH)
                 lineTo(x + half, 0f)
                 lineTo(size.width, 0f)
             }
@@ -307,6 +310,12 @@ private fun CountryPicker(countries: List<Country>, onPick: (Country) -> Unit, o
 }
 
 private val ROW_HEIGHT = 52.dp
-private val CODE_WIDTH = 64.dp
-private val DIVIDER_HEIGHT = 28.dp
-private val NOTCH = 6.dp
+/** «+код» — колонка 48dp после отступа строки; разделитель на 64dp, как в Telegram iOS. */
+private val CODE_WIDTH = 48.dp
+private val DIVIDER_HEIGHT = 36.dp
+/** Уголок под строкой страны: центр над кодом, полуширина 8dp, глубина ~0,9 полуширины. */
+private val NOTCH_OFFSET = 19.dp
+private val NOTCH = 8.dp
+private const val NOTCH_DEPTH = 0.9f
+private val NUMBER_SIZE = 22.sp
+private val NUMBER_SPACING = 0.5.sp

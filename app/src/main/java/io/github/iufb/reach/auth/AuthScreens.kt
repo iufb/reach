@@ -1,5 +1,6 @@
 package io.github.iufb.reach.auth
 
+import android.os.SystemClock
 import android.graphics.drawable.AnimatedVectorDrawable
 import android.widget.ImageView
 import androidx.compose.foundation.background
@@ -102,19 +103,33 @@ fun PhoneScreen(onSubmitted: () -> Unit, viewModel: PhoneViewModel = hiltViewMod
 /** Номер телефона: строка страны и «+код | номер» с маской, как в Telegram iOS (#330). */
 @Composable
 internal fun PhoneContent(state: PhoneUiState, onPhoneChange: (PhoneInput) -> Unit, onSubmit: () -> Unit) {
+    val waitLeft = secondsUntil(state.retryUntil)
     AuthLayout(
         title = stringResource(R.string.auth_phone_title),
         subtitle = stringResource(R.string.auth_phone_subtitle),
-        button = { AuthButton(enabled = state.canSubmit, submitting = state.submitting, onClick = onSubmit) },
+        button = {
+            AuthButton(
+                enabled = state.canSubmit && waitLeft == 0,
+                submitting = state.submitting,
+                onClick = onSubmit,
+                label = if (waitLeft > 0) stringResource(R.string.auth_retry_in, countdownText(waitLeft)) else null,
+            )
+        },
     ) {
         PhoneNumberInput(
             value = state.phone,
             onValueChange = onPhoneChange,
+            horizontalPadding = 16.dp,
             enabled = !state.submitting,
             focusOnStart = true,
             onDone = onSubmit,
         )
-        state.error?.let { AuthErrorText(it) }
+        when (val error = state.error) {
+            // Сколько ждать — видно на кнопке; после отсчёта ошибка больше не нужна
+            is AuthError.FloodWait -> if (waitLeft > 0) AuthErrorText(stringResource(R.string.auth_error_flood_short))
+            null -> Unit
+            else -> AuthErrorText(error)
+        }
     }
 }
 
@@ -366,7 +381,7 @@ private fun AuthLayout(
                     Text(
                         subtitle,
                         style = MaterialTheme.typography.bodyLarge,
-                        color = colors.secondaryLabel,
+                        color = colors.label,
                         textAlign = TextAlign.Center,
                     )
                 }
@@ -498,7 +513,7 @@ private fun CodeCells(code: String, length: Int, onCodeChange: (String) -> Unit,
 
 /** Акцентная пилюля «Продолжить» во всю ширину; во время запроса — индикатор вместо текста. */
 @Composable
-private fun AuthButton(enabled: Boolean, submitting: Boolean, onClick: () -> Unit) {
+private fun AuthButton(enabled: Boolean, submitting: Boolean, onClick: () -> Unit, label: String? = null) {
     val colors = ReachTheme.colors
     Box(
         Modifier
@@ -513,7 +528,7 @@ private fun AuthButton(enabled: Boolean, submitting: Boolean, onClick: () -> Uni
             CircularProgressIndicator(Modifier.size(22.dp), color = colors.onAccent, strokeWidth = 2.dp)
         } else {
             Text(
-                stringResource(R.string.auth_next),
+                label ?: stringResource(R.string.auth_next),
                 style = MaterialTheme.typography.bodyLarge,
                 fontWeight = FontWeight.SemiBold,
                 color = if (enabled) colors.onAccent else colors.tertiaryLabel,
@@ -539,9 +554,12 @@ private fun AuthLink(text: String, onClick: () -> Unit, enabled: Boolean = true)
 }
 
 @Composable
-private fun AuthErrorText(error: AuthError) {
+private fun AuthErrorText(error: AuthError) = AuthErrorText(errorText(error))
+
+@Composable
+private fun AuthErrorText(text: String) {
     Text(
-        errorText(error),
+        text,
         modifier = Modifier.fillMaxWidth(),
         style = MaterialTheme.typography.bodyMedium,
         color = ReachTheme.colors.destructive,
@@ -567,6 +585,30 @@ private fun errorText(error: AuthError): String = when (error) {
     AuthError.InvalidName -> stringResource(R.string.auth_error_invalid_name)
     is AuthError.FloodWait -> floodWaitText(error.seconds)
     is AuthError.Unknown -> error.error.arg?.let { stringResource(error.error.text, it) } ?: stringResource(error.error.text)
+}
+
+/** Секунд до [until] (по `elapsedRealtime`), обновляется каждую секунду; 0 — ждать не нужно. */
+@Composable
+private fun secondsUntil(until: Long?): Int {
+    var left by remember(until) { mutableIntStateOf(secondsLeft(until)) }
+    LaunchedEffect(until) {
+        while (left > 0) {
+            delay(1_000L - (SystemClock.elapsedRealtime() % 1_000L).coerceAtMost(999L))
+            left = secondsLeft(until)
+        }
+    }
+    return left
+}
+
+private fun secondsLeft(until: Long?): Int =
+    if (until == null) 0 else ((until - SystemClock.elapsedRealtime() + 999) / 1000).toInt().coerceAtLeast(0)
+
+/** `45` → `0:45`, `3725` → `1:02:05`. */
+private fun countdownText(seconds: Int): String {
+    val h = seconds / 3600
+    val m = seconds % 3600 / 60
+    val s = seconds % 60
+    return if (h > 0) "%d:%02d:%02d".format(h, m, s) else "%d:%02d".format(m, s)
 }
 
 @Composable

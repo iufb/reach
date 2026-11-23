@@ -1,5 +1,6 @@
 package io.github.iufb.reach.auth
 
+import android.os.SystemClock
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -16,6 +17,8 @@ data class PhoneUiState(
     val phone: PhoneInput = PhoneInput(),
     val submitting: Boolean = false,
     val error: AuthError? = null,
+    /** Telegram попросил подождать (FLOOD_WAIT): до этого момента по `elapsedRealtime` «Далее» недоступна. */
+    val retryUntil: Long? = null,
     /** Номер принят TDLib: навигация должна перейти к следующему шагу. */
     val submitted: Boolean = false,
 ) {
@@ -39,12 +42,14 @@ class PhoneViewModel @Inject constructor(private val auth: AuthRepository) : Vie
     fun submit() {
         val current = _state.value
         if (!current.canSubmit) return
+        if ((current.retryUntil ?: 0) > SystemClock.elapsedRealtime()) return
         _state.update { it.copy(submitting = true, error = null) }
         viewModelScope.launch {
             // Дальше экран сменит навигация: TDLib пришлёт AuthorizationStateWaitCode
             val error = runCatching { auth.setPhoneNumber("+" + current.phone.digits) }
                 .exceptionOrNull()?.toAuthError()
-            _state.update { it.copy(submitting = false, error = error, submitted = error == null) }
+            val retryUntil = (error as? AuthError.FloodWait)?.let { SystemClock.elapsedRealtime() + it.seconds * 1000L }
+            _state.update { it.copy(submitting = false, error = error, submitted = error == null, retryUntil = retryUntil) }
         }
     }
 
