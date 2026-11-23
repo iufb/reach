@@ -6,6 +6,12 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.os.SystemClock
+import android.view.View
+import android.view.ViewTreeObserver
+import android.view.animation.AccelerateInterpolator
+import android.window.SplashScreenView
+import androidx.activity.viewModels
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.runtime.LaunchedEffect
@@ -59,8 +65,11 @@ class MainActivity : ComponentActivity() {
         super.attachBaseContext(newBase.withInterfaceLanguage())
     }
 
+    private val appViewModel: AppViewModel by viewModels()
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        holdSplashUntilAuthKnown()
         OverlayPainter.typeface = interfaceFonts.bold()
         // После пересоздания активити запрос уже выполнен
         if (savedInstanceState == null) {
@@ -86,6 +95,46 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Системный сплэш (ADR-0012) держится, пока TDLib не скажет, куда вести: вход или список чатов.
+     * Иначе залогиненный пользователь видит мелькание загрузки. Не дольше [SPLASH_MAX_HOLD_MS].
+     */
+    private fun holdSplashUntilAuthKnown() {
+        val startedAt = SystemClock.uptimeMillis()
+        val content = findViewById<View>(android.R.id.content)
+        content.viewTreeObserver.addOnPreDrawListener(object : ViewTreeObserver.OnPreDrawListener {
+            override fun onPreDraw(): Boolean {
+                val ready = !hasApiCredentials() ||
+                    appViewModel.authState.value != AuthState.Loading ||
+                    SystemClock.uptimeMillis() - startedAt > SPLASH_MAX_HOLD_MS
+                if (ready) content.viewTreeObserver.removeOnPreDrawListener(this)
+                return ready
+            }
+        })
+        splashScreen.setOnExitAnimationListener { splash -> playSplashExit(splash) }
+    }
+
+    /** Знак увеличивается и тает, под ним проявляется экран. Анимация знака доигрывает до конца. */
+    private fun playSplashExit(splash: SplashScreenView) {
+        val iconStart = splash.iconAnimationStart?.toEpochMilli() ?: 0L
+        val iconDuration = splash.iconAnimationDuration?.toMillis() ?: 0L
+        val iconLeft = (iconStart + iconDuration - System.currentTimeMillis())
+            .coerceIn(0L, SPLASH_ICON_MS)
+        val icon = splash.iconView
+        icon?.animate()
+            ?.scaleX(1.6f)?.scaleY(1.6f)?.alpha(0f)
+            ?.setStartDelay(iconLeft)
+            ?.setDuration(SPLASH_EXIT_MS)
+            ?.setInterpolator(AccelerateInterpolator())
+            ?.start()
+        splash.animate()
+            .alpha(0f)
+            .setStartDelay(iconLeft + SPLASH_EXIT_MS / 3)
+            .setDuration(SPLASH_EXIT_MS)
+            .withEndAction { splash.remove() }
+            .start()
+    }
+
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         intent.chatIdExtra()?.let { openChatRequest.value = it }
@@ -99,6 +148,10 @@ class MainActivity : ComponentActivity() {
     companion object {
         /** Открыть этот чат: тап по уведомлению. */
         const val EXTRA_CHAT_ID = "io.github.iufb.reach.extra.CHAT_ID"
+
+        private const val SPLASH_MAX_HOLD_MS = 2_000L
+        private const val SPLASH_ICON_MS = 800L
+        private const val SPLASH_EXIT_MS = 300L
     }
 }
 
