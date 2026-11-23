@@ -5,6 +5,7 @@ import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -41,15 +42,19 @@ import io.github.iufb.reach.emoji.EmojiPanel
 import io.github.iufb.reach.ui.components.SegmentedControl
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.CoroutineScope
-import kotlinx.coroutines.Job
-import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withTimeoutOrNull
+import kotlin.math.roundToInt
 
 /** Вкладки панели под полем ввода. */
 internal enum class PanelTab { Emoji, Stickers }
 
 /** Последняя вкладка — на весь процесс, как в iOS: открыл стикеры — в следующий раз откроются стикеры. */
 private val lastPanelTab = mutableStateOf(PanelTab.Emoji)
+
+/** Высота клавиатуры — тоже на весь процесс: от чата она не зависит, и панель в новом чате сразу ей равна. */
+private val lastKeyboardPx = mutableIntStateOf(0)
 
 /**
  * Панель эмодзи на месте клавиатуры. Ключевое — лента не прыгает: пока клавиатура уезжает
@@ -81,15 +86,23 @@ internal class EmojiPanelState(private val scope: CoroutineScope) {
         }
 
     /** Высота клавиатуры в пикселях, как её видели в последний раз; 0 — ещё не открывалась. */
-    var keyboardPx by mutableIntStateOf(0)
+    var keyboardPx: Int
+        get() = lastKeyboardPx.intValue
+        set(value) {
+            lastKeyboardPx.intValue = value
+        }
+
+    /** Высота нижнего блока в последней раскладке; с неё панель начинает уступать место клавиатуре. */
+    internal var lastBlockPx = 0
+
+    /** Высота блока в момент [switchToKeyboard]: из неё блок по ходу клавиатуры переходит в её высоту. */
+    internal var yieldFromPx = 0
+        private set
 
     /** Куда вставлять выбранный эмодзи; задаёт поле ввода, пока оно на экране. */
     var onPick: (String) -> Unit = {}
 
-    private var yieldJob: Job? = null
-
     fun show(keyboardVisible: Boolean) {
-        yieldJob?.cancel()
         yieldingToKeyboard = false
         open = true
         // Из-под клавиатуры — место уже занято, панель видна сразу; иначе выезжает
@@ -97,18 +110,24 @@ internal class EmojiPanelState(private val scope: CoroutineScope) {
     }
 
     fun switchToKeyboard() {
-        android.util.Log.d("Reach", "dbg314 switchToKeyboard t=${System.nanoTime() / 1_000_000}")
+        android.util.Log.d("Reach", "dbg314 switchToKeyboard t=${System.nanoTime() / 1_000_000} from=$lastBlockPx")
+        // Панель держит место, пока его не займёт клавиатура; когда это случилось, решает ChatBottomArea
+        // по фактическим инсетам клавиатуры, а не по времени
+        yieldFromPx = lastBlockPx
         open = false
         searching = false
         yieldingToKeyboard = true
-        yieldJob?.cancel()
-        // Клавиатура может и не появиться (аппаратная) — тогда панель всё равно уходит
-        yieldJob = scope.launch {
-            delay(YIELD_TIMEOUT_MS)
-            android.util.Log.d("Reach", "dbg314 yield timeout t=${System.nanoTime() / 1_000_000}")
-            yieldingToKeyboard = false
-            reveal.snapTo(0f)
-        }
+    }
+
+    /**
+     * Панели больше нечего держать: клавиатура заняла её место ([keyboardShown]) — панели уже не видно,
+     * или клавиатура так и не появилась (аппаратная) либо уехала обратно — тогда панель уезжает сама.
+     */
+    internal fun finishYield(keyboardShown: Boolean) {
+        if (!yieldingToKeyboard) return
+        android.util.Log.d("Reach", "dbg314 finishYield shown=$keyboardShown t=${System.nanoTime() / 1_000_000}")
+        yieldingToKeyboard = false
+        scope.launch { if (keyboardShown) reveal.snapTo(0f) else reveal.animateTo(0f, tween(REVEAL_MS)) }
     }
 
     fun close() {
@@ -132,7 +151,7 @@ internal fun rememberEmojiPanelState(): EmojiPanelState {
  * [canSendStickers] `false` — на вкладке «Стикеры» вместо [stickerContent] текст об ограничении.
  * [stickerContent] — содержимое вкладки «Стикеры» (сетка `StickerPanel`; по умолчанию заглушка).
  */
-@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 internal fun ChatBottomArea(
     state: EmojiPanelState,
@@ -142,26 +161,38 @@ internal fun ChatBottomArea(
 ) {
     val ime = WindowInsets.ime
     val nav = WindowInsets.navigationBars
+    // Откуда и куда едет клавиатура: цель известна с первого кадра анимации, раньше первого сдвига
+    val imeSource = WindowInsets.imeAnimationSource
+    val imeTarget = WindowInsets.imeAnimationTarget
     val density = LocalDensity.current
+    // Высота клавиатуры — по цели её анимации, а не по текущему сдвигу: иначе на первом выезде
+    // запомненная высота растёт вместе со сдвигом, и уступающая панель пропадает с первого кадра (#314)
     LaunchedEffect(state) {
-        snapshotFlow { ime.getBottom(density) }.collect { if (it > state.keyboardPx) state.keyboardPx = it }
+        snapshotFlow { imeTarget.getBottom(density) }.collect { if (it > 0) state.keyboardPx = it }
     }
     LaunchedEffect(panelAllowed) { if (!panelAllowed && state.open) state.close() }
+    LaunchedEffect(state.yieldingToKeyboard) {
+        if (!state.yieldingToKeyboard) return@LaunchedEffect
+        val keyboard = snapshotFlow { ime.getBottom(density) to imeTarget.getBottom(density) }
+        // Клавиатура так и не тронулась (аппаратная, или система её не показала) — панель уезжает сама
+        val started = withTimeoutOrNull(YIELD_START_TIMEOUT_MS) { keyboard.first { (_, targetPx) -> targetPx > 0 } }
+        if (started == null) {
+            state.finishYield(keyboardShown = false)
+            return@LaunchedEffect
+        }
+        // Держим место, пока клавиатура не встала целиком; передумала и уехала — панель уезжает сама
+        val (imePx, targetPx) = withTimeoutOrNull(YIELD_MAX_MS) {
+            keyboard.first { (imePx, targetPx) -> targetPx == 0 || imePx >= targetPx }
+        } ?: (0 to 0)
+        state.finishYield(keyboardShown = targetPx > 0 && imePx >= targetPx)
+    }
     // DEBUG #314 — удалить до мержа
-    run {
-        val src = WindowInsets.imeAnimationSource
-        val tgt = WindowInsets.imeAnimationTarget
-        LaunchedEffect(state) {
-            while (true) {
-                androidx.compose.runtime.withFrameNanos { t ->
-                    val imeB = ime.getBottom(density)
-                    val navB = nav.getBottom(density)
-                    val inset = maxOf(imeB, navB)
-                    val show = panelAllowed && (state.open || state.yieldingToKeyboard || state.reveal.value > 0f)
-                    val panel = if (show) density.panelHeightPx(state, inset) else 0
-                    if (state.open || state.yieldingToKeyboard || state.reveal.value > 0f || imeB > 0) {
-                        android.util.Log.d("Reach", "dbg314 t=${t / 1_000_000} ime=$imeB src=${src.getBottom(density)} tgt=${tgt.getBottom(density)} nav=$navB open=${state.open} yield=${state.yieldingToKeyboard} reveal=${state.reveal.value} kb=${state.keyboardPx} panel=$panel total=${inset + panel}")
-                    }
+    LaunchedEffect(state) {
+        while (true) {
+            androidx.compose.runtime.withFrameNanos { t ->
+                val imeB = ime.getBottom(density)
+                if (state.open || state.yieldingToKeyboard || state.reveal.value > 0f || imeB > 0) {
+                    android.util.Log.d("Reach", "dbg314 t=${t / 1_000_000} ime=$imeB src=${imeSource.getBottom(density)} tgt=${imeTarget.getBottom(density)} nav=${nav.getBottom(density)} open=${state.open} yield=${state.yieldingToKeyboard} reveal=${state.reveal.value} kb=${state.keyboardPx} block=${state.lastBlockPx}")
                 }
             }
         }
@@ -171,9 +202,21 @@ internal fun ChatBottomArea(
         Modifier
             .fillMaxWidth()
             .layout { measurable, constraints ->
-                val insetPx = maxOf(ime.getBottom(this), nav.getBottom(this))
-                val panelPx = if (showPanel) panelHeightPx(state, insetPx) else 0
-                val heightPx = insetPx + panelPx
+                val imePx = ime.getBottom(this)
+                val navPx = nav.getBottom(this)
+                val insetPx = maxOf(imePx, navPx)
+                val heightPx = when {
+                    !showPanel -> insetPx
+                    state.yieldingToKeyboard -> yieldingBlockPx(
+                        fromPx = state.yieldFromPx,
+                        imePx = imePx,
+                        sourcePx = imeSource.getBottom(this),
+                        targetPx = imeTarget.getBottom(this),
+                        navPx = navPx,
+                    )
+                    else -> insetPx + panelHeightPx(state, insetPx)
+                }
+                state.lastBlockPx = heightPx
                 val placeable = measurable.measure(constraints.copy(minHeight = heightPx, maxHeight = heightPx))
                 layout(placeable.width, heightPx) { placeable.place(0, 0) }
             },
@@ -280,9 +323,22 @@ private fun Density.panelHeightPx(state: EmojiPanelState, insetPx: Int): Int {
     val freePx = (targetPx - insetPx).coerceAtLeast(0)
     return when {
         state.open && state.searching -> SEARCH_HEIGHT.roundToPx()
-        state.yieldingToKeyboard -> freePx
         else -> (freePx * state.reveal.value).toInt()
     }
+}
+
+/**
+ * Высота нижнего блока, пока панель уступает место клавиатуре. Блок начинает с высоты [fromPx], которая
+ * была при переключении, и приходит к высоте клавиатуры [targetPx] по ходу её же анимации
+ * (сдвиг [imePx] из [sourcePx] в [targetPx]). Пока клавиатура не тронулась, блок держит [fromPx];
+ * высоты совпадают — блок не меняется ни на кадр, а с ним и поле ввода над ним. Не ниже клавиатуры
+ * и навигационной полосы ([navPx]).
+ */
+internal fun yieldingBlockPx(fromPx: Int, imePx: Int, sourcePx: Int, targetPx: Int, navPx: Int): Int {
+    val insetPx = maxOf(imePx, navPx)
+    if (targetPx <= 0) return maxOf(fromPx, insetPx)
+    val progress = if (targetPx == sourcePx) 1f else ((imePx - sourcePx).toFloat() / (targetPx - sourcePx)).coerceIn(0f, 1f)
+    return maxOf((fromPx + (targetPx - fromPx) * progress).roundToInt(), insetPx)
 }
 
 private val DEFAULT_HEIGHT = 340.dp
@@ -290,4 +346,9 @@ private val SEARCH_HEIGHT = 112.dp
 private val CORNER = 20.dp
 private val TABS_WIDTH = 220.dp
 private const val REVEAL_MS = 250
-private const val YIELD_TIMEOUT_MS = 700L
+
+/** Сколько панель ждёт, что клавиатура начнёт выезжать; не начала — клавиатуры не будет (аппаратная). */
+private const val YIELD_START_TIMEOUT_MS = 1000L
+
+/** Страховка: клавиатура начала выезжать, но так и не встала на место. */
+private const val YIELD_MAX_MS = 2000L
