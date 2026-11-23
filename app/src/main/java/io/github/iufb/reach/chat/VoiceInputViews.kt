@@ -174,6 +174,10 @@ internal class RecordingUi(private val scope: CoroutineScope) {
     var cancelling by mutableStateOf(false)
         private set
 
+    /** Запись отменена и ещё не начата новая: пилюля доигрывает уход пустой. */
+    var discarded by mutableStateOf(false)
+        private set
+
     private var springJob: Job? = null
     private var trashJob: Job? = null
 
@@ -192,6 +196,7 @@ internal class RecordingUi(private val scope: CoroutineScope) {
     internal fun reset() {
         trashJob?.cancel()
         cancelling = false
+        discarded = false
         drag(0f, 0f)
     }
 
@@ -214,6 +219,7 @@ internal class RecordingUi(private val scope: CoroutineScope) {
         voice.onDiscard()
         springBack()
         cancelling = true
+        discarded = true
         trashJob?.cancel()
         trashJob = scope.launch {
             trash.snapTo(0f)
@@ -633,7 +639,7 @@ private fun RecordingContent(state: RecorderState.Recording, active: Boolean, vo
     val haptics = LocalHapticFeedback.current
     val colors = ReachTheme.colors
     // При отмене таймер и надписи гаснут, остаётся падающий в корзину микрофон
-    val fade = Modifier.graphicsLayer { alpha = if (ui.cancelling) 1f - (ui.trash.value / TRASH_FADE).coerceIn(0f, 1f) else 1f }
+    val fade = Modifier.graphicsLayer { alpha = if (ui.discarded) 1f - (ui.trash.value / TRASH_FADE).coerceIn(0f, 1f) else 1f }
     Row(Modifier.fillMaxSize().padding(start = 10.dp), verticalAlignment = Alignment.CenterVertically) {
         RecordingDot(ui, active)
         Spacer(Modifier.width(4.dp))
@@ -722,7 +728,7 @@ private fun SlideToCancel(ui: RecordingUi) {
 private fun RecordingDot(ui: RecordingUi, active: Boolean) {
     val colors = ReachTheme.colors
     Box(Modifier.size(DOT_SLOT), contentAlignment = Alignment.Center) {
-        if (ui.cancelling) {
+        if (ui.discarded) {
             TrashDrop(ui)
         } else {
             val blink = rememberInfiniteTransition(label = "dot").animateFloat(
@@ -854,7 +860,7 @@ private fun PreviewContent(state: RecorderState.Recorded, active: Boolean, voice
             Modifier
                 .weight(1f)
                 .height(PREVIEW_HEIGHT)
-                .graphicsLayer { alpha = if (ui.cancelling) 1f - (ui.trash.value / TRASH_FADE).coerceIn(0f, 1f) else 1f }
+                .graphicsLayer { alpha = if (ui.discarded) 1f - (ui.trash.value / TRASH_FADE).coerceIn(0f, 1f) else 1f }
                 .drawWithContent { clipRect(left = size.width * (1f - reveal.value)) { this@drawWithContent.drawContent() } }
                 .clip(RoundedCornerShape(percent = 50))
                 .background(colors.accent)
