@@ -1,4 +1,9 @@
 <resources>
     <!-- Только окно до старта Compose; сама тема — в ui/theme/Theme.kt -->
-    <style name="Theme.Reach" parent="android:Theme.Material.NoActionBar" />
+    <style name="Theme.Reach" parent="android:Theme.Material.NoActionBar">
+        <!-- Системный сплэш Android 12+ (ADR-0012): анимированный знак на фоне приложения -->
+        <item name="android:windowSplashScreenBackground">@color/splash_background</item>
+        <item name="android:windowSplashScreenAnimatedIcon">@drawable/avd_splash</item>
+        <item name="android:windowSplashScreenAnimationDuration">800</item>
+    </style>
 </resources>

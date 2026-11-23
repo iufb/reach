@@ -1,0 +1,103 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Анимированный знак Reach для системного сплэша (ADR-0012, docs/brand/reach-mark-cut.svg).
+  Анимация A1 «Прорезь»: знак появляется цельной R (pop 800 мс), через 300 мс клип уезжает вправо
+  за 440 мс и открывает прорезь между чашей и холмом. Фон — круг с градиентом бренда.
+-->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt">
+    <aapt:attr name="android:drawable">
+        <vector
+            android:width="108dp"
+            android:height="108dp"
+            android:viewportWidth="108"
+            android:viewportHeight="108">
+            <!-- Круг 72 из 108 (2/3, как маска adaptive icon): не все лаунчеры (MIUI) обрезают иконку сплэша сами -->
+            <path android:pathData="M54,18a36,36 0 1,1 0,72a36,36 0 1,1 0,-72z">
+                <aapt:attr name="android:fillColor">
+                    <gradient
+                        android:type="linear"
+                        android:startX="18"
+                        android:startY="18"
+                        android:endX="90"
+                        android:endY="90">
+                        <item android:offset="0" android:color="#FF3D9BFF" />
+                        <item android:offset="1" android:color="#FF0059E8" />
+                    </gradient>
+                </aapt:attr>
+            </path>
+            <group
+                android:name="pop"
+                android:pivotX="54"
+                android:pivotY="54">
+                <group
+                    android:scaleX="1.05"
+                    android:scaleY="1.05"
+                    android:translateX="-5.325"
+                    android:translateY="-1.125">
+                    <path
+                        android:fillColor="#FFFFFF"
+                        android:pathData="M42,35H60C69,35 75,41 75,47C75,51 73.6,54 71.3,55.9Q69.8,57.2 67.5,57.2Q52.5,57.2 42.5,62Q38,64.2 38,60V39Q38,35 42,35Z" />
+                    <path
+                        android:fillColor="#FFFFFF"
+                        android:pathData="M43.5,70Q40,70 42.3,68.3Q52,60.4 65,59Q67,58.9 68,60L73.9,68.4Q75.06,70 73,70Z" />
+                    <group android:name="cut">
+                        <clip-path
+                            android:name="sweep"
+                            android:pathData="M35,30h45v45h-45z" />
+                        <path
+                            android:fillColor="#FFFFFF"
+                            android:pathData="M38,56V66Q38,70 42,70L42.3,68.9Q52,61 65,59.6Q67,59.5 68,60.6L68.4,60.6Q67.6,58.6 69.6,56.9L69.4,56.4L67.5,56.6Q52.5,56.6 42.5,61.4Q38.5,63.4 38,59Z" />
+                    </group>
+                </group>
+            </group>
+        </vector>
+    </aapt:attr>
+
+    <target android:name="pop">
+        <aapt:attr name="android:animation">
+            <set>
+                <objectAnimator
+                    android:duration="800"
+                    android:propertyName="scaleX">
+                    <propertyValuesHolder android:propertyName="scaleX">
+                        <keyframe android:fraction="0" android:value="0.85" />
+                        <keyframe android:fraction="0.6" android:value="1" />
+                        <keyframe android:fraction="0.8" android:value="1.07" />
+                        <keyframe android:fraction="1" android:value="1" />
+                    </propertyValuesHolder>
+                </objectAnimator>
+                <objectAnimator
+                    android:duration="800"
+                    android:propertyName="scaleY">
+                    <propertyValuesHolder android:propertyName="scaleY">
+                        <keyframe android:fraction="0" android:value="0.85" />
+                        <keyframe android:fraction="0.6" android:value="1" />
+                        <keyframe android:fraction="0.8" android:value="1.07" />
+                        <keyframe android:fraction="1" android:value="1" />
+                    </propertyValuesHolder>
+                </objectAnimator>
+            </set>
+        </aapt:attr>
+    </target>
+
+    <target android:name="sweep">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="440"
+                android:propertyName="pathData"
+                android:startOffset="300"
+                android:valueFrom="M35,30h45v45h-45z"
+                android:valueTo="M80,30h45v45h-45z"
+                android:valueType="pathType">
+                <aapt:attr name="android:interpolator">
+                    <pathInterpolator
+                        android:controlX1="0.65"
+                        android:controlY1="0"
+                        android:controlX2="0.25"
+                        android:controlY2="1" />
+                </aapt:attr>
+            </objectAnimator>
+        </aapt:attr>
+    </target>
+</animated-vector>

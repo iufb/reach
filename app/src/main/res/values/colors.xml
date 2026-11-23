@@ -1,0 +1,4 @@
+<resources>
+    <!-- Фон системного сплэша: как фон приложения (Color.kt, DayColors.background) -->
+    <color name="splash_background">#FFFFFFFF</color>
+</resources>
