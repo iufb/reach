@@ -25,6 +25,7 @@ import io.github.iufb.reach.fonts.DeviceFonts
 import io.github.iufb.reach.media.AutoDownload
 import io.github.iufb.reach.notifications.Notifier
 import io.github.iufb.reach.push.PushRegistrar
+import io.github.iufb.reach.ui.PerfFlags
 import io.github.iufb.reach.ui.format.APP_LANGUAGE
 import io.github.iufb.reach.ui.format.AppLocale
 import io.github.iufb.reach.users.UsersRepository
@@ -62,6 +63,7 @@ class ReachApp : Application(), SingletonImageLoader.Factory {
 
     override fun onCreate() {
         super.onCreate()
+        PerfFlags.init(this)
         useInterfaceLanguage()
         // Единые эмодзи (PRODUCT.md §4.5): шрифт Noto из APK вместо системного, на любом устройстве.
         // Compose-текст подхватывает EmojiCompat сам, как только шрифт загружен.

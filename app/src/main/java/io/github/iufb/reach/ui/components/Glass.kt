@@ -10,6 +10,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import dev.chrisbanes.haze.HazeInput
 import dev.chrisbanes.haze.HazeState
@@ -18,6 +19,8 @@ import dev.chrisbanes.haze.blur.HazeColorEffect
 import dev.chrisbanes.haze.blur.hazeBlur
 import dev.chrisbanes.haze.hazeSource
 import dev.chrisbanes.haze.rememberHazeState
+import io.github.iufb.reach.ui.DevicePerformance
+import io.github.iufb.reach.ui.PerfFlags
 import io.github.iufb.reach.ui.theme.ReachTheme
 
 /**
@@ -29,10 +32,31 @@ import io.github.iufb.reach.ui.theme.ReachTheme
  */
 private val LocalGlass = staticCompositionLocalOf<HazeState?> { null }
 
+/**
+ * [liveBlur] = false — стекло без живого размытия, плотной подложкой цвета панели (как iOS
+ * с «Уменьшением прозрачности»). Живое размытие пересчитывается каждый кадр, пока под стеклом
+ * что-то меняется, и на средних устройствах удваивает цену кадра (#304).
+ */
 @Composable
-fun GlassScope(content: @Composable () -> Unit) {
-    val state = rememberHazeState()
+fun GlassScope(liveBlur: Boolean = true, content: @Composable () -> Unit) {
+    // Замеры #304 (только debug): glass=solid / glass=blur переопределяют выбор экрана
+    val blur = when (PerfFlags["glass"]) {
+        "solid" -> false
+        "blur" -> true
+        else -> liveBlur
+    }
+    val state = if (blur) rememberHazeState() else null
     CompositionLocalProvider(LocalGlass provides state, content = content)
+}
+
+/**
+ * Живое размытие там, где под стеклом всё время что-то движется (лента чата со стикерами,
+ * анимированными эмодзи, GIF): только на мощных устройствах, как в Telegram Android.
+ */
+@Composable
+fun rememberLiveBlurForAnimatedContent(): Boolean {
+    val context = LocalContext.current.applicationContext
+    return remember(context) { DevicePerformance.of(context) == DevicePerformance.High }
 }
 
 /** Содержимое, которое просвечивает сквозь стеклянные элементы. */

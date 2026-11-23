@@ -129,6 +129,7 @@ import io.github.iufb.reach.ui.components.PillTextButton
 import io.github.iufb.reach.ui.components.ReachTopBar
 import io.github.iufb.reach.ui.components.TailWidth
 import io.github.iufb.reach.ui.components.glassSource
+import io.github.iufb.reach.ui.components.rememberLiveBlurForAnimatedContent
 import io.github.iufb.reach.stickers.StickerSetSheet
 import io.github.iufb.reach.ui.components.glass
 import java.time.LocalDate
@@ -480,7 +481,9 @@ private fun ChatContent(
     val composerShown = composer != null && chat != null && selectionBar == null
     val menuOverlay = remember { MessageMenuOverlayState() }
     val blurPx = with(density) { MENU_BLUR.toPx() }
-    GlassScope {
+    // Под шапкой и полем ввода почти всегда что-то анимируется (стикеры, эмодзи, GIF): живое
+    // размытие — только на мощных устройствах (#304)
+    GlassScope(liveBlur = rememberLiveBlurForAnimatedContent()) {
         CompositionLocalProvider(LocalContentColor provides colors.label, LocalMessageMenuOverlay provides menuOverlay) {
         Box(Modifier.fillMaxSize()) {
         // Лента с шапкой и полем — сверху, под ними клавиатура / панель эмодзи / полоса навигации
