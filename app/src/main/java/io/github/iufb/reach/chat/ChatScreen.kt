@@ -103,6 +103,7 @@ import io.github.iufb.reach.chats.ContentKind
 import io.github.iufb.reach.chats.GroupRef
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.StickerInfo
+import io.github.iufb.reach.stickers.StickerPanel
 import io.github.iufb.reach.media.AudioState
 import io.github.iufb.reach.presence.activityText
 import io.github.iufb.reach.presence.userStatusText
@@ -301,6 +302,7 @@ fun ChatScreen(
         ChatContent(
             chat, state, senders, onBack,
             canSendStickers = canSendStickers,
+            onSendSticker = viewModel::sendSticker,
             toast = fontNotice?.let { notice -> fontToast(notice, onOpenFontSettings?.let { open -> { viewModel.dismissFontNotice(notice); open() } }) }
                 ?: forwardedTo?.let { ChatToastData(stringResource(R.string.forward_done, it)) },
             header = header,
@@ -465,6 +467,8 @@ private fun ChatContent(
     toast: ChatToastData? = null,
     /** `false` — на вкладке «Стикеры» панели текст об ограничении. */
     canSendStickers: Boolean = true,
+    /** Тап по стикеру в панели; `null` — вкладка «Стикеры» с заглушкой (превью). */
+    onSendSticker: ((StickerInfo) -> Unit)? = null,
 ) {
     val colors = ReachTheme.colors
     val density = LocalDensity.current
@@ -525,7 +529,12 @@ private fun ChatContent(
                 }
             }
         }
-        ChatBottomArea(emoji, panelAllowed = composerShown, canSendStickers = canSendStickers)
+        ChatBottomArea(
+            emoji,
+            panelAllowed = composerShown,
+            canSendStickers = canSendStickers,
+            stickerContent = { if (onSendSticker != null) StickerPanel(onSend = onSendSticker) else StickerTabPlaceholder() },
+        )
         }
         MessageMenuOverlay(menuOverlay, interactions.menu, interactions)
         }
