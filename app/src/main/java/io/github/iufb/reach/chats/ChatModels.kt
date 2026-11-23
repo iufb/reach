@@ -87,6 +87,8 @@ data class Chat(
     val canSendBasicMessages: Boolean,
     /** Общее разрешение на видеокружки (`ChatPermissions.canSendVideoNotes`). */
     val canSendVideoNotes: Boolean = true,
+    /** Общее разрешение на стикеры, GIF, игры и инлайн-ботов (`ChatPermissions.canSendOtherMessages`). */
+    val canSendOtherMessages: Boolean = true,
     val draft: Draft? = null,
     /** Последнее прочитанное собеседником исходящее: две галочки в списке чатов. */
     val lastReadOutboxMessageId: Long = 0,
@@ -159,6 +161,7 @@ internal fun TdApi.Chat.toModel() = Chat(
     accentColorId = accentColorId,
     canSendBasicMessages = permissions.canSendBasicMessages,
     canSendVideoNotes = permissions.canSendVideoNotes,
+    canSendOtherMessages = permissions.canSendOtherMessages,
     draft = draftMessage?.toDraft(),
     lastReadOutboxMessageId = lastReadOutboxMessageId,
     userId = when (val t = type) {

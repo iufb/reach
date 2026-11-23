@@ -22,6 +22,13 @@ data class StickerInfo(
     val file: TdFile,
     /** Картинка-миниатюра (WebP/JPEG/PNG), если есть. */
     val thumbnail: TdFile?,
+    /** Id стикера в паке (`sticker.id`); 0 — неизвестен. */
+    val id: Long = 0,
+    /**
+     * Постоянный remote id файла: по нему стикер отправляется (`InputFileRemote`).
+     * Пусто — файл ещё не на сервере, тогда отправка идёт по [TdFile.id] этой сессии.
+     */
+    val remoteId: String = "",
 )
 
 internal fun TdApi.Sticker.toInfo() = StickerInfo(
@@ -36,4 +43,6 @@ internal fun TdApi.Sticker.toInfo() = StickerInfo(
     thumbnail = thumbnail?.takeIf {
         it.format is TdApi.ThumbnailFormatWebp || it.format is TdApi.ThumbnailFormatJpeg || it.format is TdApi.ThumbnailFormatPng
     }?.file?.toTdFile(),
+    id = id,
+    remoteId = sticker.remote.id,
 )

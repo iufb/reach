@@ -62,6 +62,7 @@ import kotlinx.coroutines.flow.debounce
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import io.github.iufb.reach.notifications.VisibleChats
+import io.github.iufb.reach.stickers.canSendStickers
 import org.drinkless.tdlib.TdApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -647,6 +648,30 @@ class ChatViewModel @Inject constructor(
         val status = chat?.group?.let(statuses::get)
         chat != null && (chat.canSendVideoNotes || status is MemberStatus.Creator || status is MemberStatus.Administrator)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), true)
+
+    /**
+     * Стикеры разрешены (`canSendOtherMessages` чата и участника); иначе панель стикеров
+     * показывает заглушку. Сервер всё равно проверит.
+     */
+    val canSendStickers: StateFlow<Boolean> = combine(chat, groups.statuses) { chat, statuses ->
+        chat != null && chat.canSendStickers(chat.group?.let(statuses::get))
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), false)
+
+    /**
+     * Отправить стикер из панели: уходит в открытый тред / топик, начатый ответ прикрепляется
+     * и сбрасывается (при ошибке возвращается). Текст в поле ввода не трогаем.
+     */
+    fun sendSticker(sticker: StickerInfo, silent: Boolean = false) {
+        val reply = _replyTo.value
+        _replyTo.value = null
+        viewModelScope.launch {
+            runCatching { history.sendSticker(sticker, reply?.id, sendOptions(silent)) }.onFailure {
+                Log.e(TAG, "send sticker failed", it)
+                _replyTo.value = reply
+                _sendError.value = userErrors.message(it)
+            }
+        }
+    }
 
     /** Началась запись кружка: играющее аудио — на паузу. */
     fun onVideoNoteRecordingStarted() {

@@ -101,6 +101,7 @@
 | Видеостикеры (WebM, VP9 с альфой) | 🔴 прозрачность в декодере | v0.6 |
 | Кастомные эмодзи | 🔴 анимация внутри текста | v0.6 |
 | Редактор фото | 🔴 кроп, рисование, фильтры | v0.6 |
+| Отправка стикеров: панель как в iOS (недавние, избранные, паки, тренды), [эпик #293](https://github.com/iufb/reach/issues/293) | 🟡 `getRecentStickers`, `getInstalledStickerSets`, `getTrendingStickerSets`, `InputMessageSticker` | v0.8 |
 
 ### 4.5 Эмодзи
 Как устроено:

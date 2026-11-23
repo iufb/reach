@@ -14,6 +14,8 @@ import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.toBody
 import io.github.iufb.reach.chats.toInfo
 import io.github.iufb.reach.chats.toFormattedText
+import io.github.iufb.reach.chats.StickerInfo
+import io.github.iufb.reach.stickers.stickerMessage
 import org.drinkless.tdlib.TdApi
 
 /**
@@ -301,6 +303,13 @@ class ChatHistory(
         val voice = TdApi.InputVoiceNote(TdApi.InputFileLocal(path), duration, waveform)
         val replyTo = replyToMessageId?.let { TdApi.InputMessageReplyToMessage(it, null, 0, "") }
         val pending = td.send(TdApi.SendMessage(chatId, scope.toTd(), replyTo, options.toTd(), null, TdApi.InputMessageVoiceNote(voice, null, null)))
+        mergeSent(listOf(pending))
+    }
+
+    /** Стикер из панели; ответ и тред / топик — как у текста. */
+    suspend fun sendSticker(sticker: StickerInfo, replyToMessageId: Long? = null, options: SendOptions = SendOptions()) {
+        if (!_state.value.reachedNewest) open(lastReadInboxId = null)
+        val pending = td.send(stickerMessage(chatId, scope, replyToMessageId, sticker, options))
         mergeSent(listOf(pending))
     }
 
