@@ -164,7 +164,10 @@ fun StickerPanel(
     modifier: Modifier = Modifier,
     viewModel: StickerPanelViewModel = hiltViewModel(),
 ) {
-    val sections by viewModel.sections.collectAsStateWithLifecycle()
+    val sectionsState = viewModel.sections.collectAsStateWithLifecycle()
+    // Снимок списка на эту композицию: контент Lazy-сетки вычисляется вне композиции, и чтение
+    // состояния там дало бы список новее, чем `starts` (падение по индексу при добавлении пака)
+    val sections = sectionsState.value
     val colors = ReachTheme.colors
     var openedSet by remember { mutableStateOf<Long?>(null) }
     openedSet?.let { StickerSetSheet(it, onDismiss = { openedSet = null }, onSend = onSend) }
