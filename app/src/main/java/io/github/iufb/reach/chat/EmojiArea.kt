@@ -110,7 +110,6 @@ internal class EmojiPanelState(private val scope: CoroutineScope) {
     }
 
     fun switchToKeyboard() {
-        android.util.Log.d("Reach", "dbg314 switchToKeyboard t=${System.nanoTime() / 1_000_000} from=$lastBlockPx")
         // Панель держит место, пока его не займёт клавиатура; когда это случилось, решает ChatBottomArea
         // по фактическим инсетам клавиатуры, а не по времени
         yieldFromPx = lastBlockPx
@@ -125,7 +124,6 @@ internal class EmojiPanelState(private val scope: CoroutineScope) {
      */
     internal fun finishYield(keyboardShown: Boolean) {
         if (!yieldingToKeyboard) return
-        android.util.Log.d("Reach", "dbg314 finishYield shown=$keyboardShown t=${System.nanoTime() / 1_000_000}")
         yieldingToKeyboard = false
         scope.launch { if (keyboardShown) reveal.snapTo(0f) else reveal.animateTo(0f, tween(REVEAL_MS)) }
     }
@@ -185,17 +183,6 @@ internal fun ChatBottomArea(
             keyboard.first { (imePx, targetPx) -> targetPx == 0 || imePx >= targetPx }
         } ?: (0 to 0)
         state.finishYield(keyboardShown = targetPx > 0 && imePx >= targetPx)
-    }
-    // DEBUG #314 — удалить до мержа
-    LaunchedEffect(state) {
-        while (true) {
-            androidx.compose.runtime.withFrameNanos { t ->
-                val imeB = ime.getBottom(density)
-                if (state.open || state.yieldingToKeyboard || state.reveal.value > 0f || imeB > 0) {
-                    android.util.Log.d("Reach", "dbg314 t=${t / 1_000_000} ime=$imeB src=${imeSource.getBottom(density)} tgt=${imeTarget.getBottom(density)} nav=${nav.getBottom(density)} open=${state.open} yield=${state.yieldingToKeyboard} reveal=${state.reveal.value} kb=${state.keyboardPx} block=${state.lastBlockPx}")
-                }
-            }
-        }
     }
     val showPanel = panelAllowed && (state.open || state.yieldingToKeyboard || state.reveal.value > 0f)
     Box(
