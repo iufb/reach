@@ -55,6 +55,19 @@ class TdClient @Inject constructor(private val config: TdConfig) {
             }
         }
 
+    /**
+     * Синхронный вызов TDLib (функции с пометкой «Can be called synchronously», например `getPhoneNumberInfoSync`).
+     * Ошибка TDLib → `null`.
+     */
+    fun <T : TdApi.Object> execute(function: TdApi.Function<T>): T? {
+        val result: Any? = runCatching { Client.execute(function) }
+            .onFailure { Log.w(TAG, "execute ${function.javaClass.simpleName} failed", it) }
+            .getOrNull()
+        if (result is TdApi.Error) return null
+        @Suppress("UNCHECKED_CAST")
+        return result as T?
+    }
+
     /** Вызывается в потоке TDLib. */
     private fun onUpdate(update: TdApi.Object) {
         if (config.logUpdates) Log.d(UPDATES_TAG, update.toString())

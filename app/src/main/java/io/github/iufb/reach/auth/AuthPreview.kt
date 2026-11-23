@@ -22,7 +22,7 @@ fun AuthPreviewDialog(step: AuthPreviewStep, onDismiss: () -> Unit) {
         when (step) {
             AuthPreviewStep.Phone -> {
                 var state by remember { mutableStateOf(PhoneUiState()) }
-                PhoneContent(state, { state = state.copy(phoneNumber = it, error = null) }, {})
+                PhoneContent(state, { state = state.copy(phone = it, error = null) }, {})
             }
             AuthPreviewStep.Code -> {
                 var state by remember { mutableStateOf(CodeUiState()) }

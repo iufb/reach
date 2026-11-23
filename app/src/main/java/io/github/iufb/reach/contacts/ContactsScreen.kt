@@ -25,7 +25,6 @@ import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
@@ -46,7 +45,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
@@ -68,8 +66,8 @@ import io.github.iufb.reach.ui.components.SheetHeader
 import io.github.iufb.reach.ui.components.TabBarHeight
 import io.github.iufb.reach.ui.components.TopBarHeight
 import io.github.iufb.reach.ui.components.glassSource
-import io.github.iufb.reach.ui.format.PhoneMask
-import io.github.iufb.reach.ui.format.PhoneVisualTransformation
+import io.github.iufb.reach.phone.PhoneInput
+import io.github.iufb.reach.phone.PhoneNumberInput
 import io.github.iufb.reach.ui.theme.ReachTheme
 
 /** Вкладка «Контакты»: поиск, список, «+» — добавить по номеру. */
@@ -218,8 +216,8 @@ private fun AddContact(viewModel: ContactsViewModel, onDone: () -> Unit) {
 /** «Новый контакт» во весь экран: номер, имя, фамилия; «Добавить» — когда есть номер и имя. */
 @Composable
 private fun AddContactDialog(onAdd: (phone: String, first: String, last: String) -> Unit, onDismiss: () -> Unit) {
-    // Только цифры с кодом страны; маску рисует поле (#328)
-    var phone by rememberSaveable { mutableStateOf("") }
+    // Код страны и номер отдельно; маску рисует поле (#330)
+    var phone by rememberSaveable(stateSaver = PhoneInput.Saver) { mutableStateOf(PhoneInput()) }
     var first by rememberSaveable { mutableStateOf("") }
     var last by rememberSaveable { mutableStateOf("") }
     val focus = remember { FocusRequester() }
@@ -227,8 +225,8 @@ private fun AddContactDialog(onAdd: (phone: String, first: String, last: String)
     FormSheet(
         title = stringResource(R.string.contacts_add),
         action = stringResource(R.string.contacts_add_confirm),
-        actionEnabled = phone.length >= MIN_PHONE_DIGITS && first.isNotBlank(),
-        onAction = { onAdd("+$phone", first, last) },
+        actionEnabled = phone.code.isNotEmpty() && phone.digits.length >= MIN_PHONE_DIGITS && first.isNotBlank(),
+        onAction = { onAdd("+" + phone.digits, first, last) },
         onDismiss = onDismiss,
     ) {
         GroupedSection {
@@ -236,14 +234,7 @@ private fun AddContactDialog(onAdd: (phone: String, first: String, last: String)
             GroupedTextField(last, { last = it }, placeholder = stringResource(R.string.contacts_last_name), divider = false)
         }
         GroupedSection {
-            GroupedTextField(
-                phone,
-                { phone = PhoneMask.digits(it) },
-                placeholder = stringResource(R.string.contacts_phone),
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                visualTransformation = PhoneVisualTransformation,
-                divider = false,
-            )
+            PhoneNumberInput(phone, { phone = it }, horizontalPadding = 16.dp, outerLines = false)
         }
     }
 }

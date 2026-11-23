@@ -21,6 +21,14 @@ object PhoneMask {
     /** `77012345678` → `+7 701 234 56 78`; пустая строка остаётся пустой (виден плейсхолдер). */
     fun format(digits: String): String = if (digits.isEmpty()) "" else "+" + groups(digits).joinToString(" ")
 
+    /** Национальная часть номера по маске страны [code]: `7`, `7012345678` → `701 234 56 78`. */
+    fun formatNational(code: String, national: String): String =
+        if (national.isEmpty()) "" else groups(code + national).drop(1).joinToString(" ")
+
+    /** Шаблон национальной части для плейсхолдера: `7` → `000 000 00 00`; `null` — маски для кода нет. */
+    fun nationalPlaceholder(code: String): String? =
+        PATTERNS[code]?.joinToString(" ") { "0".repeat(it) }
+
     /** Код страны и группы национальной части. */
     internal fun groups(digits: String): List<String> {
         val code = PATTERNS.keys.filter(digits::startsWith).maxByOrNull { it.length }
@@ -126,4 +134,25 @@ object PhoneVisualTransformation : VisualTransformation {
         }
         return TransformedText(AnnotatedString(formatted), mapping)
     }
+}
+
+/** Показ национальной части номера по маске страны [code] (поле номера рядом с полем кода). */
+class NationalPhoneTransformation(private val code: String) : VisualTransformation {
+    override fun filter(text: AnnotatedString): TransformedText {
+        val raw = text.text
+        val formatted = PhoneMask.formatNational(code, raw)
+        val digitPositions = IntArray(raw.length + 1)
+        var d = 0
+        formatted.forEachIndexed { pos, c -> if (c.isDigit() && d < raw.length) digitPositions[d++] = pos }
+        digitPositions[raw.length] = formatted.length
+        val mapping = object : OffsetMapping {
+            override fun originalToTransformed(offset: Int): Int = digitPositions[offset.coerceIn(0, raw.length)]
+            override fun transformedToOriginal(offset: Int): Int =
+                formatted.take(offset.coerceIn(0, formatted.length)).count(Char::isDigit)
+        }
+        return TransformedText(AnnotatedString(formatted), mapping)
+    }
+
+    override fun equals(other: Any?): Boolean = other is NationalPhoneTransformation && other.code == code
+    override fun hashCode(): Int = code.hashCode()
 }

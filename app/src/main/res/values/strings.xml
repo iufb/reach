@@ -5,8 +5,11 @@
     <!-- Вход -->
     <string name="auth_next">Далее</string>
     <string name="auth_phone_title">Ваш номер телефона</string>
-    <string name="auth_phone_subtitle">Введите номер в международном формате, с кодом страны</string>
+    <string name="auth_phone_subtitle">Проверьте код страны и введите номер телефона</string>
     <string name="auth_phone_label">Номер телефона</string>
+    <string name="phone_country_choose">Выберите страну</string>
+    <string name="phone_country_invalid">Неверный код страны</string>
+    <string name="phone_country_title">Страна</string>
     <string name="auth_code_title">Код подтверждения</string>
     <string name="auth_code_label">Код</string>
     <string name="auth_code_sent_telegram">Код отправлен в Telegram на другом вашем устройстве</string>

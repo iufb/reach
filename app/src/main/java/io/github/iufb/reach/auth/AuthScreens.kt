@@ -72,8 +72,9 @@ import io.github.iufb.reach.ui.components.DialogSystemBars
 import io.github.iufb.reach.ui.components.PillHeight
 import io.github.iufb.reach.ui.components.RoundCheck
 import io.github.iufb.reach.ui.components.SheetHeader
+import io.github.iufb.reach.phone.PhoneInput
+import io.github.iufb.reach.phone.PhoneNumberInput
 import io.github.iufb.reach.ui.format.PhoneMask
-import io.github.iufb.reach.ui.format.PhoneVisualTransformation
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
@@ -95,25 +96,23 @@ fun PhoneScreen(onSubmitted: () -> Unit, viewModel: PhoneViewModel = hiltViewMod
             viewModel.onSubmittedHandled()
         }
     }
-    PhoneContent(state, viewModel::onPhoneNumberChange, viewModel::submit)
+    PhoneContent(state, viewModel::onPhoneChange, viewModel::submit)
 }
 
-/** Номер телефона: одно поле с кодом страны, маска по стране (#328). */
+/** Номер телефона: строка страны и «+код | номер» с маской, как в Telegram iOS (#330). */
 @Composable
-internal fun PhoneContent(state: PhoneUiState, onPhoneNumberChange: (String) -> Unit, onSubmit: () -> Unit) {
+internal fun PhoneContent(state: PhoneUiState, onPhoneChange: (PhoneInput) -> Unit, onSubmit: () -> Unit) {
     AuthLayout(
         title = stringResource(R.string.auth_phone_title),
         subtitle = stringResource(R.string.auth_phone_subtitle),
         button = { AuthButton(enabled = state.canSubmit, submitting = state.submitting, onClick = onSubmit) },
     ) {
-        AuthLineField(
-            value = state.phoneNumber,
-            onValueChange = { onPhoneNumberChange(PhoneMask.digits(it)) },
-            placeholder = stringResource(R.string.auth_phone_label),
-            keyboardType = KeyboardType.Phone,
+        PhoneNumberInput(
+            value = state.phone,
+            onValueChange = onPhoneChange,
             enabled = !state.submitting,
+            focusOnStart = true,
             onDone = onSubmit,
-            visualTransformation = PhoneVisualTransformation,
         )
         state.error?.let { AuthErrorText(it) }
     }
@@ -379,7 +378,6 @@ private fun AuthLayout(
     }
 }
 
-/** Знак Reach: буква «R» из иконки приложения на акцентном квадрате со скруглением, как значок приложения. */
 /** Анимация знака играет один раз за запуск: не на каждом шаге входа и не при повороте экрана. */
 private var brandAnimationPlayed = false
 
