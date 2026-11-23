@@ -140,6 +140,14 @@ class VoiceRecorder @Inject constructor(@ApplicationContext private val context:
         setPreviewPlaying(player.isPlaying)
     }
 
+    /** Позиция предпрослушивания 0..1; `0` — плеер ещё не создан. */
+    fun previewProgress(): Float {
+        val player = preview ?: return 0f
+        val duration = runCatching { player.duration }.getOrDefault(0)
+        if (duration <= 0) return 0f
+        return (runCatching { player.currentPosition }.getOrDefault(0).toFloat() / duration).coerceIn(0f, 1f)
+    }
+
     /** Отменить запись или удалить записанное. */
     fun discard() {
         if (_state.value is RecorderState.Recording) stopRecorder()

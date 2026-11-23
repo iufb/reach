@@ -371,6 +371,8 @@ fun ChatScreen(
                             onDiscard = viewModel::discardRecording,
                             onTogglePreview = viewModel::toggleRecordingPreview,
                             onToggleMode = if (canSendVideoNotes) ({ videoMode = true }) else null,
+                            previewProgress = viewModel::recordingPreviewProgress,
+                            level = viewModel::recordingLevel,
                         )
                     },
                     sendMenu = SendMenu(

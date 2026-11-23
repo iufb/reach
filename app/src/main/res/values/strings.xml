@@ -384,7 +384,9 @@
     <string name="video_note_record">Записать видеосообщение</string>
     <string name="video_note_flip">Сменить камеру</string>
     <string name="video_note_permission">Для видеосообщений нужен доступ к камере и микрофону</string>
-    <string name="voice_slide_to_cancel">‹ Влево — отмена</string>
+    <string name="voice_slide_to_cancel">Влево — отмена</string>
+    <string name="voice_hint_audio">Удерживайте, чтобы записать голосовое. Нажмите, чтобы переключиться на видео.</string>
+    <string name="voice_hint_video">Удерживайте, чтобы записать видео. Нажмите, чтобы переключиться на аудио.</string>
     <string name="voice_lock">Зафиксировать запись</string>
     <string name="voice_stop">Остановить запись</string>
     <string name="voice_delete">Удалить запись</string>
