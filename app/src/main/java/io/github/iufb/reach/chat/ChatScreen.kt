@@ -109,7 +109,7 @@ import io.github.iufb.reach.presence.activityText
 import io.github.iufb.reach.presence.userStatusText
 import io.github.iufb.reach.chats.RichText
 import io.github.iufb.reach.chats.SpanKind
-import io.github.iufb.reach.chats.customEmojiOnlyCount
+import io.github.iufb.reach.chats.emojiOnlyCount
 import io.github.iufb.reach.chats.TextSpan
 import io.github.iufb.reach.chats.contentKindText
 import io.github.iufb.reach.chats.serviceText
@@ -1376,12 +1376,13 @@ private fun MessageContent(
         is MessageBody.Text -> {
             val bigEmoji = body.bigEmojiCount()
             if (bigEmoji > 0) {
-                // Только кастомные эмодзи — крупно и без пузыря, как большие анимированные
-                val size = BIG_CUSTOM_EMOJI_SP[bigEmoji - 1]
+                // Только эмодзи — крупно и без пузыря, как большие анимированные
+                val size = BIG_EMOJI_SP[bigEmoji - 1]
                 RichTextView(
                     body.text,
                     Modifier.messageLongPress(message, interactions),
                     style = MaterialTheme.typography.bodyLarge.copy(fontSize = size, lineHeight = size * 1.3f),
+                    customEmojiEm = BIG_CUSTOM_EMOJI_EM,
                 )
             } else {
                 RichTextView(body.text, trailingSpace = trailingSpace)
@@ -1758,8 +1759,9 @@ private fun MessageBody.viewerItem(): ViewerItem? = when (this) {
 private fun MessageBody.isBare(): Boolean =
     this is MessageBody.Sticker || this is MessageBody.AnimatedEmoji || this is MessageBody.VideoNote || (this is MessageBody.Text && bigEmojiCount() > 0)
 
-/** 1–3 кастомных эмодзи без другого текста и превью — показываем крупно; иначе 0. */
+/** 1–3 эмодзи (обычных и кастомных) без другого текста и превью — показываем крупно; иначе 0. */
 private fun MessageBody.Text.bigEmojiCount(): Int =
-    if (preview != null) 0 else text.customEmojiOnlyCount().takeIf { it <= BIG_CUSTOM_EMOJI_SP.size } ?: 0
+    if (preview != null) 0 else text.emojiOnlyCount().takeIf { it <= BIG_EMOJI_SP.size } ?: 0
 
-private val BIG_CUSTOM_EMOJI_SP = listOf(80.sp, 64.sp, 52.sp)
+/** Размер крупных эмодзи по их числу: один, два, три. Общий для обычных и кастомных. */
+private val BIG_EMOJI_SP = listOf(80.sp, 64.sp, 52.sp)

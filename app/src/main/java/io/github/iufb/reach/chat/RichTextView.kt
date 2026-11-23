@@ -50,6 +50,8 @@ internal fun RichTextView(
     style: TextStyle = MaterialTheme.typography.bodyLarge,
     /** Невидимый заполнитель такой ширины в конце текста — место под время сообщения. */
     trailingSpace: TextUnit? = null,
+    /** Сторона кастомного эмодзи в em шрифта. */
+    customEmojiEm: Float = CUSTOM_EMOJI_EM,
 ) {
     val colors = richTextColors()
     val mentions = LocalMentionHandler.current
@@ -64,8 +66,8 @@ internal fun RichTextView(
             appendInlineContent(TRAILING_SPACE_KEY, " ")
         }
     }
-    val inlineContent = remember(text, trailingSpace) {
-        val emoji = customEmojiContent(text)
+    val inlineContent = remember(text, trailingSpace, customEmojiEm) {
+        val emoji = customEmojiContent(text, customEmojiEm)
         if (trailingSpace == null) emoji else emoji + (TRAILING_SPACE_KEY to InlineTextContent(
             Placeholder(trailingSpace, 1.em, PlaceholderVerticalAlign.TextBottom),
         ) {})
@@ -87,16 +89,22 @@ internal fun RichTextView(
 /** Вставки для кастомных эмодзи текста: квадрат чуть больше строки, по центру строки. */
 private const val TRAILING_SPACE_KEY = "reach:trailing-space"
 
-private fun customEmojiContent(text: RichText): Map<String, InlineTextContent> =
+private fun customEmojiContent(text: RichText, em: Float): Map<String, InlineTextContent> =
     text.spans.mapNotNull { (it.kind as? SpanKind.CustomEmoji)?.id }.distinct().associate { id ->
         customEmojiKey(id) to InlineTextContent(
-            Placeholder(CUSTOM_EMOJI_EM.em, CUSTOM_EMOJI_EM.em, PlaceholderVerticalAlign.TextCenter),
+            Placeholder(em.em, em.em, PlaceholderVerticalAlign.TextCenter),
         ) { fallback -> CustomEmojiView(id, fallback, Modifier.fillMaxSize()) }
     }
 
 private fun customEmojiKey(id: Long) = "custom_emoji:$id"
 
 private const val CUSTOM_EMOJI_EM = 1.2f
+
+/**
+ * Кастомный эмодзи в крупном эмодзи-сообщении: размер глифа Noto (≈1.07 em на устройстве), чтобы
+ * обычные и кастомные эмодзи одного количества были одного размера (#294).
+ */
+internal const val BIG_CUSTOM_EMOJI_EM = 1.07f
 
 /** Частицы поверх скрытых участков; текст под ними прозрачный (см. [Spoilers.Hidden]). */
 @Composable

@@ -39,22 +39,6 @@ sealed interface SpanKind {
     data class CustomEmoji(val id: Long) : SpanKind
 }
 
-/**
- * Сколько кастомных эмодзи в тексте, если кроме них только пробелы; 0 — есть другой текст
- * или эмодзи нет. Для крупного показа, как у больших анимированных эмодзи.
- */
-fun RichText.customEmojiOnlyCount(): Int {
-    val emojis = spans.filter { it.kind is SpanKind.CustomEmoji }.sortedBy { it.start }
-    if (emojis.isEmpty()) return 0
-    var pos = 0
-    for (span in emojis) {
-        if (span.start < pos) return 0
-        if (text.substring(pos, span.start).isNotBlank()) return 0
-        pos = span.end
-    }
-    return if (text.substring(pos).isBlank()) emojis.size else 0
-}
-
 /** Текст для превью (список чатов, ответы, уведомления): спойлеры заменены на «▒». */
 fun RichText.masked(): String {
     val hidden = spans.filter { it.kind == SpanKind.Spoiler }
