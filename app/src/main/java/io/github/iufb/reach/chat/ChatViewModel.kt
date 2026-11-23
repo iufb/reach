@@ -625,31 +625,35 @@ class ChatViewModel @Inject constructor(
     /** Палец лёг на микрофон. Играющее аудио на время записи — на паузу. */
     fun startRecording() {
         audioPlayer.pause()
-        if (!recorder.start(viewModelScope)) Log.w(TAG, "microphone unavailable")
+        recorder.start(viewModelScope)
     }
 
     fun lockRecording() = recorder.lock()
 
     /** Палец отпущен без фиксации — сразу отправить (слишком короткое не отправляется). */
     fun releaseRecording() {
-        recorder.finish()?.let(::sendVoice)
+        viewModelScope.launch { recorder.finish()?.let(::sendVoice) }
     }
 
     /** «Стоп» в зафиксированном режиме — предпрослушивание. */
     fun stopRecordingForPreview() = recorder.stopForPreview()
 
-    fun toggleRecordingPreview() = recorder.togglePreview()
+    fun toggleRecordingPreview() {
+        viewModelScope.launch { recorder.togglePreview() }
+    }
 
     fun recordingPreviewProgress(): Float = recorder.previewProgress()
 
     /** Отправить: из идущей зафиксированной записи или из предпрослушивания. */
     fun sendRecording() {
-        val recording = when (recorder.state.value) {
-            is RecorderState.Recording -> recorder.finish()
-            is RecorderState.Recorded -> recorder.takeRecorded()
-            RecorderState.Idle -> null
+        viewModelScope.launch {
+            val recording = when (recorder.state.value) {
+                is RecorderState.Recording -> recorder.finish()
+                is RecorderState.Recorded -> recorder.takeRecorded()
+                RecorderState.Idle -> null
+            }
+            recording?.let(::sendVoice)
         }
-        recording?.let(::sendVoice)
     }
 
     fun discardRecording() = recorder.discard()
