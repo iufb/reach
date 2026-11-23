@@ -497,7 +497,8 @@ private fun LockCapsule(voice: VoiceInput, ui: RecordingUi) {
             .requiredSize(LOCK_WIDTH, height)
             .graphicsLayer {
                 val a = appear.value.coerceIn(0f, 1f)
-                alpha = a * (1f - ui.cancelProgress)
+                // После отмены сдвиг пружинит обратно — капсула не должна снова проступать
+                alpha = if (ui.discarded) 0f else a * (1f - ui.cancelProgress)
                 scaleX = 0.6f + 0.4f * a
                 scaleY = 0.6f + 0.4f * a
             }
