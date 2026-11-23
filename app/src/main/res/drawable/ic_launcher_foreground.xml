@@ -1,11 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- Временная иконка: буква «R», пока нет финального логотипа -->
+<!-- Знак Reach «Вершина» (ADR-0012, docs/brand/reach-mark.svg). Сетка adaptive icon 108 dp, знак в safe zone 66 dp.
+     Группа = translate(54 54) scale(1.05) translate(-56.5 -52.5) из SVG. -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
-    <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M42,34h14c8,0 13,5 13,11.5c0,5 -3,8.6 -7.4,10.2L70,74h-8.2l-7.6,-17H50v17h-8zM50,41v9h5.6c3.2,0 5.2,-1.8 5.2,-4.5S58.8,41 55.6,41z" />
+    <group
+        android:scaleX="1.05"
+        android:scaleY="1.05"
+        android:translateX="-5.325"
+        android:translateY="-1.125">
+        <path
+            android:name="bowl"
+            android:fillColor="#FFFFFF"
+            android:pathData="M42,35H60C69,35 75,41 75,47C75,51 73.6,54 71.3,55.9Q69.8,57.2 67.5,57.2Q52.5,57.2 42.5,62Q38,64.2 38,60V39Q38,35 42,35Z" />
+        <path
+            android:name="hill"
+            android:fillColor="#FFFFFF"
+            android:pathData="M43.5,70Q40,70 42.3,68.3Q52,60.4 65,59Q67,58.9 68,60L73.9,68.4Q75.06,70 73,70Z" />
+    </group>
 </vector>

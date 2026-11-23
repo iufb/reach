@@ -146,7 +146,7 @@ class Notifier @Inject constructor(
         if (style.messages.isEmpty()) return
 
         val builder = NotificationCompat.Builder(context, channel)
-            .setSmallIcon(R.drawable.ic_notification)
+            .setSmallIcon(R.drawable.ic_stat_reach)
             .setStyle(style)
             .setContentTitle(chat.title)
             .setCategory(NotificationCompat.CATEGORY_MESSAGE)

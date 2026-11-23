@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Small icon уведомлений: белый силуэт знака Reach (ADR-0012). Окно 44×44 вокруг знака, около 2 dp поля в 24 dp. -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="24dp"
+    android:height="24dp"
+    android:viewportWidth="44"
+    android:viewportHeight="44">
+    <group
+        android:scaleX="1.05"
+        android:scaleY="1.05"
+        android:translateX="-37.625"
+        android:translateY="-33.125">
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M42,35H60C69,35 75,41 75,47C75,51 73.6,54 71.3,55.9Q69.8,57.2 67.5,57.2Q52.5,57.2 42.5,62Q38,64.2 38,60V39Q38,35 42,35Z" />
+        <path
+            android:fillColor="#FFFFFFFF"
+            android:pathData="M43.5,70Q40,70 42.3,68.3Q52,60.4 65,59Q67,58.9 68,60L73.9,68.4Q75.06,70 73,70Z" />
+    </group>
+</vector>
