@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Checks the built fonts. Runs inside the reach-fonts container.
 
-Emoji (each AppleColorEmoji-*.ttf):
+Emoji (the AppleColorEmoji-*.ttf given as arguments, or every one in --out):
   - has CBDT, CBLC, cmap, GSUB; has no sbix;
   - android_fixups.py ran: no digits/space in the regular cmap, ❤️ and 1️⃣ in cmap format 14;
   - sample ZWJ sequences, flags and skin tones shape to one glyph;
@@ -35,11 +35,28 @@ SAMPLES = {
 }
 
 
+def stale_build(font: TTFont) -> bool:
+    """Built before android_fixups.py (PR #281): no cmap format 14, or digits/space in the regular cmap."""
+    if "cmap" not in font:
+        return False
+    has_uvs = any(t.format == 14 for t in font["cmap"].tables)
+    best = font.getBestCmap()
+    return not has_uvs or any(cp in best for cp in (0x0020, 0x0031))
+
+
+def strike_of(path: Path) -> str:
+    """`AppleColorEmoji-96.ttf` → `96`."""
+    return path.stem.rsplit("-", 1)[-1]
+
+
 def check_emoji(path: Path, source: Path) -> list[str]:
     import uharfbuzz as hb
 
     errors: list[str] = []
     font = TTFont(path)
+    if stale_build(font):
+        # Дальнейшие проверки на таком файле падают с traceback (#284): одна понятная ошибка вместо них
+        return [f"{path.name}: собран без android_fixups — пересобери tools/fonts/build.sh {strike_of(path)}"]
     for tag in REQUIRED_TABLES:
         if tag not in font:
             errors.append(f"missing table {tag}")
@@ -140,10 +157,22 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--out", type=Path, default=Path("/out"))
     parser.add_argument("--source", type=Path, default=Path("/in/Apple Color Emoji.ttc"))
+    parser.add_argument(
+        "fonts", nargs="*",
+        help="emoji font file names in --out to check (build.sh passes the ones it built); default: all",
+    )
     args = parser.parse_args()
 
     failed = False
-    emoji = sorted(args.out.glob("AppleColorEmoji-*.ttf"))
+    if args.fonts:
+        emoji = [args.out / name for name in args.fonts]
+        missing = [p for p in emoji if not p.exists()]
+        for path in missing:
+            print(f"no {path.name} in {args.out}")
+        failed |= bool(missing)
+        emoji = [p for p in emoji if p.exists()]
+    else:
+        emoji = sorted(args.out.glob("AppleColorEmoji-*.ttf"))
     if not emoji:
         print("no AppleColorEmoji-*.ttf in", args.out)
         failed = True
