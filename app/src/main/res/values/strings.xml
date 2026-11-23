@@ -4,6 +4,8 @@
 
     <!-- Вход -->
     <string name="auth_next">Далее</string>
+    <string name="auth_retry_in">Повторить через %1$s</string>
+    <string name="auth_error_flood_short">Слишком много попыток входа. Telegram просит подождать</string>
     <string name="auth_phone_title">Ваш номер телефона</string>
     <string name="auth_phone_subtitle">Проверьте код страны и введите номер телефона</string>
     <string name="auth_phone_label">Номер телефона</string>
