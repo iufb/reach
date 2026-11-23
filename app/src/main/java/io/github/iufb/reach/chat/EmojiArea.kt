@@ -132,7 +132,7 @@ internal fun rememberEmojiPanelState(): EmojiPanelState {
 internal fun ChatBottomArea(
     state: EmojiPanelState,
     panelAllowed: Boolean,
-    canSendStickers: Boolean = true,
+    canSendStickers: Boolean,
     stickerContent: @Composable () -> Unit = { StickerTabPlaceholder() },
 ) {
     val ime = WindowInsets.ime
