@@ -33,6 +33,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
@@ -136,9 +137,11 @@ internal class SendMenu(
  * кнопка записи рисует за своими границами (свайпы, индикатор).
  */
 @Composable
-private fun GlassCircle(content: @Composable () -> Unit) {
+private fun GlassCircle(glass: Boolean = true, content: @Composable () -> Unit) {
+    // Во время записи кнопку накрывает большой круг и уводит за пальцем — пустое стекло под ним прячем
+    val glassAlpha by animateFloatAsState(if (glass) 1f else 0f, tween(GLASS_FADE_MS), label = "glassCircle")
     Box(Modifier.size(PillHeight), contentAlignment = Alignment.Center) {
-        Box(Modifier.matchParentSize().glass(CircleShape))
+        Box(Modifier.matchParentSize().graphicsLayer { alpha = glassAlpha }.glass(CircleShape))
         content()
     }
 }
@@ -152,6 +155,7 @@ private val SEND_ICON = 20.dp
 private val BAR_SLIDE = 24.dp
 private const val BAR_IN_MS = 180
 private const val BAR_OUT_MS = 220
+private const val GLASS_FADE_MS = 150
 
 /** Сколько последних отданных модели текстов помнит поле, см. [Composer]. */
 private const val MAX_SENT_TEXTS = 64
@@ -350,7 +354,7 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, em
                     }
                 }
                 if (showMic) {
-                    GlassCircle { MicButton(voice!!, recordingUi) }
+                    GlassCircle(glass = voice!!.state !is RecorderState.Recording) { MicButton(voice, recordingUi) }
                 } else {
                     SendButton(
                         enabled = canSend,

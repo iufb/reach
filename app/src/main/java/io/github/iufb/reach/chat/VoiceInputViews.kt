@@ -69,6 +69,7 @@ import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.draw.drawBehind
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.draw.shadow
@@ -638,7 +639,8 @@ private fun RecordingContent(state: RecorderState.Recording, active: Boolean, vo
         Spacer(Modifier.width(4.dp))
         RecordingTimer(state.startedAt, running = active, modifier = fade)
         Box(
-            Modifier.weight(1f).fillMaxHeight().padding(end = BAR_END_INSET).then(fade),
+            // Уезжающая влево надпись прячется за край своей области, а не наезжает на таймер
+            Modifier.weight(1f).fillMaxHeight().padding(end = BAR_END_INSET).clipToBounds().then(fade),
             contentAlignment = Alignment.Center,
         ) {
             Crossfade(state.locked, label = "cancelLabel") { locked ->
