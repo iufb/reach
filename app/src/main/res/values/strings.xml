@@ -420,6 +420,11 @@
     <string name="stickers_trending">Трендовые стикеры</string>
     <string name="stickers_trending_hide">Скрыть трендовые стикеры</string>
     <string name="stickers_empty">Здесь будут ваши стикеры: недавние, избранные и добавленные паки</string>
+    <string name="sticker_action_send">Отправить</string>
+    <string name="sticker_action_favorite">В избранное</string>
+    <string name="sticker_action_unfavorite">Убрать из избранного</string>
+    <string name="sticker_action_open_set">Открыть пак</string>
+    <string name="sticker_action_remove_recent">Убрать из недавних</string>
 
     <!-- Статус и действия -->
     <string name="status_online">в сети</string>

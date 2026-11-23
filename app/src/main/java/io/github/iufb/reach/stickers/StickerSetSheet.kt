@@ -25,6 +25,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
@@ -137,6 +138,7 @@ class StickerSetViewModel @Inject constructor(
  * `t.me/addstickers/<name>` (id пака — [StickersRepository.setByName]).
  * [onSend] — отправить стикер в чат, из которого открыт лист: тап по стикеру отправляет его
  * и закрывает лист. `null` — отправлять некуда или нельзя, стикеры только для просмотра.
+ * Долгое нажатие на стикер — превью с действиями ([StickerPreview]), без «Открыть пак».
  */
 @Composable
 fun StickerSetSheet(setId: Long, onDismiss: () -> Unit, onSend: ((StickerInfo) -> Unit)? = null) {
@@ -255,15 +257,22 @@ private fun Placeholder(content: @Composable () -> Unit) {
 
 @Composable
 private fun StickerGrid(stickers: List<StickerInfo>, modifier: Modifier, onClick: ((StickerInfo) -> Unit)?) {
+    val preview = rememberStickerPreviewState()
+    val grid = rememberLazyGridState()
+    val byKey = remember(stickers) { stickers.associateBy { it.file.id } }
+    StickerPreview(preview, onSend = onClick, onOpenSet = null)
     LazyVerticalGrid(
         columns = GridCells.Fixed(GRID_COLUMNS),
-        modifier = modifier.fillMaxWidth(),
-        contentPadding = PaddingValues(horizontal = 8.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .stickerPreviewDrag(preview, grid, GRID_PADDING) { key -> byKey[key]?.let { StickerPick(it) } },
+        state = grid,
+        contentPadding = GRID_PADDING,
     ) {
         items(stickers, key = { it.file.id }) { sticker ->
             StickerCell(
                 sticker,
-                if (onClick != null) Modifier.clickable(role = Role.Button) { onClick(sticker) } else Modifier,
+                Modifier.stickerCellGestures(preview, StickerPick(sticker), onClick?.let { { it(sticker) } }),
             )
         }
     }
@@ -303,6 +312,7 @@ private fun InstallButton(set: StickerSetInfo, busy: Boolean, onClick: () -> Uni
 }
 
 private val SHEET_CORNER = 20.dp
+private val GRID_PADDING = PaddingValues(horizontal = 8.dp)
 private val PLACEHOLDER_HEIGHT = 240.dp
 private val BUTTON_HEIGHT = 50.dp
 private const val SHEET_MAX_FRACTION = 0.85f
