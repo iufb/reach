@@ -277,7 +277,9 @@ private fun NoAccess(onAllow: () -> Unit, onSystem: () -> Unit) {
             textAlign = TextAlign.Center,
         )
         Text(
-            stringResource(R.string.attach_access_text),
+            stringResource(
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) R.string.attach_access_text else R.string.attach_access_text_full,
+            ),
             modifier = Modifier.padding(top = 8.dp, bottom = 20.dp),
             style = MaterialTheme.typography.bodyMedium,
             color = colors.secondaryLabel,
