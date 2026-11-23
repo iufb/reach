@@ -42,14 +42,29 @@ run() {
     "$IMAGE" "$@"
 }
 
+built=()
 for strike in "${strikes[@]}"; do
   echo "== Apple Color Emoji, strike $strike"
   run "$strike"
+  built+=("AppleColorEmoji-$strike.ttf")
 done
-[ "$sbix_sample" -eq 1 ] && run sbix-sample
+if [ "$sbix_sample" -eq 1 ]; then run sbix-sample; fi
+
+# Older AppleColorEmoji-*.ttf in out/ are not checked: they may predate android_fixups (#284)
+for path in "$out"/AppleColorEmoji-*.ttf; do
+  [ -e "$path" ] || continue
+  name="$(basename "$path")"
+  case " ${built[*]} " in
+    *" $name "*) ;;
+    *) echo "warning: $name was not built in this run and is not checked; rebuild or delete it" >&2 ;;
+  esac
+done
 
 echo "== Verify"
-run verify
+if ! run verify "${built[@]}"; then
+  echo "verify failed: the fonts in $out are not ready to use" >&2
+  exit 1
+fi
 
 echo "== Output"
 ls -lh "$out"
