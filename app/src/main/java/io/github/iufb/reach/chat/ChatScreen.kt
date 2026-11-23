@@ -17,7 +17,6 @@ import io.github.iufb.reach.media.VoiceRecording
 import androidx.compose.ui.unit.Dp
 import kotlinx.coroutines.delay
 import io.github.iufb.reach.fonts.FontKind
-import android.os.SystemClock
 import io.github.iufb.reach.media.VideoNoteCamera
 import io.github.iufb.reach.photoedit.PhotoEditorDialog
 import androidx.compose.runtime.collectAsState
@@ -351,7 +350,7 @@ fun ChatScreen(
                                     camera.reviewPlaying,
                                 )
                                 else -> RecorderState.Recording(
-                                    camera.startedAt.takeIf { it > 0 } ?: SystemClock.elapsedRealtime(), 0f, camera.locked,
+                                    camera.requestedAt, 0f, camera.locked,
                                 )
                             },
                             onStart = {

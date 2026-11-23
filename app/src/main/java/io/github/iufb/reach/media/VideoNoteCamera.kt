@@ -87,6 +87,13 @@ class VideoNoteCamera(private val context: Context) {
     var startedAt by mutableLongStateOf(0L)
         private set
 
+    /**
+     * `elapsedRealtime` нажатия: таймер в поле ввода считает от него, а не от [startedAt] — иначе,
+     * пока камера открывается и подбирает экспозицию (до ~2 с), ему не от чего считать, и он прыгал на 0.
+     */
+    var requestedAt by mutableLongStateOf(0L)
+        private set
+
     /** Зафиксирована: палец можно отпустить. */
     var locked by mutableStateOf(false)
         private set
@@ -168,6 +175,7 @@ class VideoNoteCamera(private val context: Context) {
         sendOnFinish = false
         reviewOnFinish = false
         outcome = null
+        requestedAt = SystemClock.elapsedRealtime()
         phase = Phase.Starting
     }
 
