@@ -24,7 +24,7 @@
 
   Приложение копирует файл в `filesDir/fonts/` и проверяет его: `CBDT`/`COLR` — эмодзи-шрифт, `sbix` — ошибка «нужен CBDT-вариант».
 - **Выбор раздельный:** шрифт текста (Inter или свой) и шрифт эмодзи (Noto или свой), в Настройки → Шрифт. Превью сразу на экране, применение — после перезапуска («Перезапустить и применить»).
-- **Без выбора всё как раньше:** Inter и Noto Color Emoji. EmojiCompat включается, только когда свой emoji-шрифт не выбран. Текст и эмодзи собираются через `Typeface.CustomFallbackBuilder` (minSdk 36): текстовый шрифт основной, emoji-шрифт в fallback.
+- **Без выбора всё как раньше:** Inter и Noto Color Emoji. EmojiCompat включается, только когда свой emoji-шрифт не выбран. Текст и эмодзи собираются через `Typeface.CustomFallbackBuilder` (есть с API 29, ниже minSdk 31): текстовый шрифт основной, emoji-шрифт в fallback.
 - **SF Pro** — `/System/Library/Fonts/SFNS.ttf` с Mac владельца: один вариативный файл с осями `wght` и `opsz`.
 - **Apple Color Emoji** собирается из `.ttc` с Mac конвертером apple-emoji-ttf (закреплённый коммит) в **Docker-контейнере** без сети, один strike, `CBDT/CBLC`. В репозитории только код сборки — `tools/fonts/`; результат пишется в gitignored `fonts-local/`.
 - `.gitignore` страхует от случайного коммита: `*.ttc`, `/fonts-local/`, `AppleColorEmoji*.ttf`, `SF-Pro*.ttf`, `SFNS*.ttf`. Эти файлы также нельзя прикладывать к issue и PR.

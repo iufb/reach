@@ -192,7 +192,7 @@
 | Lottie / TGS | `lottie-compose` — с v0.4; rlottie при проблемах с производительностью |
 | Push | Firebase Cloud Messaging — с v0.3 |
 | Telegram | TDLib (Java-интерфейс через JNI) |
-| Min SDK | 36 — [ADR-0004](docs/adr/0004-project-setup.md) |
+| Min SDK | 31 (Android 12) — [ADR-0004](docs/adr/0004-project-setup.md) |
 | Сборка | Только GitHub Actions — [ADR-0001](docs/adr/0001-ci-only-builds.md) |
 
 ## 7. Архитектура

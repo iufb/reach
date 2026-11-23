@@ -1,8 +1,10 @@
 package io.github.iufb.reach
 
 import android.Manifest
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -52,6 +54,10 @@ class MainActivity : ComponentActivity() {
     private val openLinkRequest = MutableStateFlow<String?>(null)
 
     @Inject lateinit var interfaceFonts: InterfaceFonts
+
+    override fun attachBaseContext(newBase: Context) {
+        super.attachBaseContext(newBase.withInterfaceLanguage())
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -116,6 +122,8 @@ private fun NotificationPermissionRequest() {
     val launcher = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {}
     var asked by rememberSaveable { mutableStateOf(false) }
     LaunchedEffect(Unit) {
+        // До Android 13 разрешения нет: уведомления разрешены по умолчанию
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) return@LaunchedEffect
         val granted = ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) ==
             PackageManager.PERMISSION_GRANTED
         if (!granted && !asked) {

@@ -28,7 +28,7 @@ android {
 
     defaultConfig {
         applicationId = "io.github.iufb.reach"
-        minSdk = 36
+        minSdk = 31
         targetSdk = 37
         versionCode = 9
         versionName = "0.8.0"
@@ -76,6 +76,15 @@ android {
     buildFeatures {
         compose = true
         buildConfig = true
+    }
+
+    // Lint в CI ловит вызовы API новее minSdk (ADR-0004). Остальные проверки пока выключены.
+    lint {
+        checkOnly += setOf("NewApi", "InlinedApi", "ObsoleteSdkInt")
+        error += setOf("NewApi", "InlinedApi")
+        warning += "ObsoleteSdkInt"
+        abortOnError = true
+        checkDependencies = true
     }
 }
 

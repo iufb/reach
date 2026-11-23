@@ -383,6 +383,8 @@
     <string name="attach_send_count">Отправить %1$d</string>
     <string name="attach_access_title">Нет доступа к фото</string>
     <string name="attach_access_text">Разрешите доступ ко всем фото или только к выбранным — они появятся здесь</string>
+    <!-- До Android 14 доступа только к выбранным фото нет -->
+    <string name="attach_access_text_full">Разрешите доступ к фото — они появятся здесь</string>
     <string name="attach_access_allow">Разрешить доступ</string>
     <string name="attach_access_system">Выбрать в системной галерее</string>
     <string name="attach_access_partial">Доступ только к выбранным фото</string>

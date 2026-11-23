@@ -2,6 +2,7 @@ package io.github.iufb.reach.ui.components
 
 import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
+import android.os.Build
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -152,7 +153,8 @@ fun ReachTabBar(
     }
     val anyPressed = pressed.map { it.collectIsPressedAsState().value }.any { it }
     val held by animateFloatAsState(if (anyPressed) 1f else 0f, spring(dampingRatio = 0.7f), label = "lensHeld")
-    val shader = remember { RuntimeShader(LENS_SHADER) }
+    // Преломление линзы — RuntimeShader, он есть с Android 13; на Android 12 линза без искажения
+    val shader = remember { if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) RuntimeShader(LENS_SHADER) else null }
     val restFill = colors.fill
     // Пузырь почти прозрачный: та же заливка, только бледнее; кромка — тонкая тень и блик сверху
     val glassFill = restFill.copy(alpha = restFill.alpha * GLASS_FILL_ALPHA)
@@ -250,7 +252,9 @@ fun ReachTabBar(
                 }
                 .graphicsLayer {
                     val g = glassness()
-                    renderEffect = if (g > 0f && lensSpan().second > 0f) {
+                    renderEffect = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && shader != null &&
+                        g > 0f && lensSpan().second > 0f
+                    ) {
                         val r = lensRect(g, size.height, LENS_GROW_X.toPx(), LENS_GROW_Y.toPx())
                         shader.setFloatUniform("lens", r.left, r.top, r.right, r.bottom)
                         shader.setFloatUniform("strength", g)
