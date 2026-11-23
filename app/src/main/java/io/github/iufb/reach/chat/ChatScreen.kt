@@ -1379,6 +1379,7 @@ private fun MessageContent(
                     body.text,
                     Modifier.messageLongPress(message, interactions),
                     style = MaterialTheme.typography.bodyLarge.copy(fontSize = size, lineHeight = size * 1.3f),
+                    customEmojiEm = BIG_CUSTOM_EMOJI_EM,
                 )
             } else {
                 RichTextView(body.text, trailingSpace = trailingSpace)
