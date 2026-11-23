@@ -364,7 +364,7 @@ class ChatHistory(
     }
 
     private fun replace(oldId: Long, message: Message) {
-        _state.update { s -> s.copy(messages = s.messages.filterNot { it.id == oldId || it.id == message.id }).merge(listOf(message)) }
+        _state.update { s -> s.copy(messages = s.messages.replaceSent(oldId, message)) }
     }
 
     private inline fun edit(messageId: Long, crossinline change: Message.() -> Message) {
@@ -386,10 +386,7 @@ class ChatHistory(
             .onFailure { Log.e(TAG, "history($chatId, $scope) failed", it) }
             .getOrNull()?.messages.orEmpty().map { it.toModel() }
 
-    private fun State.merge(added: List<Message>): State {
-        val byId = messages.associateBy { it.id } + added.associateBy { it.id }
-        return copy(messages = byId.values.sortedByDescending { it.id })
-    }
+    private fun State.merge(added: List<Message>): State = copy(messages = messages.mergeMessages(added))
 
     private companion object {
         const val TAG = "ChatHistory"
@@ -406,4 +403,17 @@ internal suspend fun TdClient.editMessageText(chatId: Long, message: Message, te
         )
         else -> send(TdApi.EditMessageCaption(chatId, message.id, null, formatted, false))
     }
+}
+
+/** Лента от новых к старым с добавленными; у уже известных сообщений ключ элемента ленты сохраняется. */
+internal fun List<Message>.mergeMessages(added: List<Message>): List<Message> {
+    val byId = associateBy { it.id }
+    val merged = byId + added.associateBy { it.id }.mapValues { (id, m) -> byId[id]?.let { m.copy(listKey = it.listKey) } ?: m }
+    return merged.values.sortedByDescending { it.id }
+}
+
+/** Отправка завершилась: [oldId] → постоянный id, а ключ элемента ленты — прежний (#295). */
+internal fun List<Message>.replaceSent(oldId: Long, message: Message): List<Message> {
+    val listKey = firstOrNull { it.id == oldId }?.listKey ?: firstOrNull { it.id == message.id }?.listKey ?: message.listKey
+    return filterNot { it.id == oldId || it.id == message.id }.mergeMessages(listOf(message.copy(listKey = listKey)))
 }
