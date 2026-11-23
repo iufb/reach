@@ -1,7 +1,6 @@
 package io.github.iufb.reach.stickers
 
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
@@ -14,7 +13,6 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.layout.ContentScale
-import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
@@ -31,12 +29,14 @@ import io.github.iufb.reach.media.rememberTgsComposition
  * Картинка стикера с прозрачностью, вписанная в [modifier]: сначала миниатюра (а без неё —
  * эмодзи стилем [emojiStyle]), поверх — сам WebP, TGS-анимация или видеостикер по кругу.
  * [load] = false — только миниатюра, файл стикера не качается (автозагрузка в ленте выключена).
+ * [animate] = false — TGS стоит на первом кадре, видеостикер — миниатюрой.
  */
 @Composable
 fun StickerImage(
     sticker: StickerInfo,
     modifier: Modifier = Modifier,
     load: Boolean = true,
+    animate: Boolean = true,
     emojiStyle: TextStyle = MaterialTheme.typography.displayMedium,
 ) {
     Box(modifier, contentAlignment = Alignment.Center) {
@@ -52,7 +52,7 @@ fun StickerImage(
                 Text(sticker.emoji, style = emojiStyle)
             }
         }
-        if (sticker.isWebm && load) {
+        if (sticker.isWebm && load && animate) {
             // Видеостикер прозрачный: миниатюру показывает сам, пока нет первого кадра
             VideoStickerImage(sticker.file, Modifier.fillMaxSize(), placeholder)
         } else if (!loaded) {
@@ -60,26 +60,28 @@ fun StickerImage(
         }
         if (loadStatic) Image(main, sticker.emoji, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
         if (animation != null) {
-            val progress by animateLottieCompositionAsState(animation, iterations = LottieConstants.IterateForever)
-            LottieAnimation(animation, progress = { progress }, modifier = Modifier.fillMaxSize())
+            val progress by animateLottieCompositionAsState(
+                animation,
+                isPlaying = animate,
+                iterations = LottieConstants.IterateForever,
+            )
+            LottieAnimation(animation, progress = { if (animate) progress else 0f }, modifier = Modifier.fillMaxSize())
         }
     }
 }
 
 /**
- * Квадратная ячейка сетки стикеров (лист пака, панель стикеров): стикер вписан с отступом,
- * качается всегда, без значка автозагрузки. [onClick] `null` — ячейка не нажимается.
+ * Квадратная ячейка сетки стикеров (лист пака, панель стикеров): только картинка, вписанная
+ * с отступом; файл качается всегда, без значка автозагрузки и без ограничения размера ленты.
+ * Нажатия (тап, долгое) вешает вызывающий через [modifier]. [animate] = false — без анимации.
  */
 @Composable
-fun StickerCell(sticker: StickerInfo, modifier: Modifier = Modifier, onClick: (() -> Unit)? = null) {
-    Box(
-        modifier
-            .aspectRatio(1f)
-            .then(if (onClick != null) Modifier.clickable(role = Role.Button, onClick = onClick) else Modifier),
-    ) {
+fun StickerCell(sticker: StickerInfo, modifier: Modifier = Modifier, animate: Boolean = true) {
+    Box(modifier.aspectRatio(1f)) {
         StickerImage(
             sticker,
             Modifier.fillMaxSize().padding(CELL_PADDING),
+            animate = animate,
             emojiStyle = MaterialTheme.typography.headlineMedium,
         )
     }

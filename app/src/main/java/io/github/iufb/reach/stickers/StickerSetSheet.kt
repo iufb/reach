@@ -252,7 +252,10 @@ private fun StickerGrid(stickers: List<StickerInfo>, modifier: Modifier, onClick
         contentPadding = PaddingValues(horizontal = 8.dp),
     ) {
         items(stickers, key = { it.file.id }) { sticker ->
-            StickerCell(sticker, onClick = onClick?.let { click -> { click(sticker) } })
+            StickerCell(
+                sticker,
+                if (onClick != null) Modifier.clickable(role = Role.Button) { onClick(sticker) } else Modifier,
+            )
         }
     }
 }
