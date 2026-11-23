@@ -3,6 +3,7 @@ package io.github.iufb.reach.auth
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.iufb.reach.ui.format.PhoneMask
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -11,13 +12,14 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 data class PhoneUiState(
+    /** Только цифры, с кодом страны; маску рисует поле. */
     val phoneNumber: String = "",
     val submitting: Boolean = false,
     val error: AuthError? = null,
     /** Номер принят TDLib: навигация должна перейти к следующему шагу. */
     val submitted: Boolean = false,
 ) {
-    val canSubmit: Boolean get() = !submitting && phoneNumber.count(Char::isDigit) >= MIN_DIGITS
+    val canSubmit: Boolean get() = !submitting && phoneNumber.length >= MIN_DIGITS
 
     private companion object {
         const val MIN_DIGITS = 5
@@ -31,8 +33,7 @@ class PhoneViewModel @Inject constructor(private val auth: AuthRepository) : Vie
     val state: StateFlow<PhoneUiState> = _state.asStateFlow()
 
     fun onPhoneNumberChange(value: String) {
-        val filtered = value.filterIndexed { i, c -> c.isDigit() || (c == '+' && i == 0) || c == ' ' }
-        _state.update { it.copy(phoneNumber = filtered, error = null) }
+        _state.update { it.copy(phoneNumber = PhoneMask.digits(value), error = null) }
     }
 
     fun submit() {
@@ -41,7 +42,7 @@ class PhoneViewModel @Inject constructor(private val auth: AuthRepository) : Vie
         _state.update { it.copy(submitting = true, error = null) }
         viewModelScope.launch {
             // Дальше экран сменит навигация: TDLib пришлёт AuthorizationStateWaitCode
-            val error = runCatching { auth.setPhoneNumber(current.phoneNumber.filter { it.isDigit() || it == '+' }) }
+            val error = runCatching { auth.setPhoneNumber("+" + current.phoneNumber) }
                 .exceptionOrNull()?.toAuthError()
             _state.update { it.copy(submitting = false, error = error, submitted = error == null) }
         }

@@ -68,6 +68,8 @@ import io.github.iufb.reach.ui.components.DialogSystemBars
 import io.github.iufb.reach.ui.components.PillHeight
 import io.github.iufb.reach.ui.components.RoundCheck
 import io.github.iufb.reach.ui.components.SheetHeader
+import io.github.iufb.reach.ui.format.PhoneMask
+import io.github.iufb.reach.ui.format.PhoneVisualTransformation
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.delay
 
@@ -90,7 +92,7 @@ fun PhoneScreen(onSubmitted: () -> Unit, viewModel: PhoneViewModel = hiltViewMod
     PhoneContent(state, viewModel::onPhoneNumberChange, viewModel::submit)
 }
 
-/** Номер телефона: одно поле с кодом страны. */
+/** Номер телефона: одно поле с кодом страны, маска по стране (#328). */
 @Composable
 internal fun PhoneContent(state: PhoneUiState, onPhoneNumberChange: (String) -> Unit, onSubmit: () -> Unit) {
     AuthLayout(
@@ -100,11 +102,12 @@ internal fun PhoneContent(state: PhoneUiState, onPhoneNumberChange: (String) -> 
     ) {
         AuthLineField(
             value = state.phoneNumber,
-            onValueChange = onPhoneNumberChange,
+            onValueChange = { onPhoneNumberChange(PhoneMask.digits(it)) },
             placeholder = stringResource(R.string.auth_phone_label),
             keyboardType = KeyboardType.Phone,
             enabled = !state.submitting,
             onDone = onSubmit,
+            visualTransformation = PhoneVisualTransformation,
         )
         state.error?.let { AuthErrorText(it) }
     }
@@ -129,7 +132,7 @@ internal fun CodeContent(
 ) {
     val length = info?.delivery?.length?.takeIf { it in 1..MAX_CODE } ?: DEFAULT_CODE
     AuthLayout(
-        title = info?.phoneNumber?.let { "+" + it.removePrefix("+") } ?: stringResource(R.string.auth_code_title),
+        title = info?.phoneNumber?.let { PhoneMask.format(PhoneMask.digits(it)) } ?: stringResource(R.string.auth_code_title),
         subtitle = info?.delivery?.let { deliveryText(it) }.orEmpty(),
         button = { AuthButton(enabled = !state.submitting && state.code.isNotEmpty(), submitting = state.submitting, onClick = onSubmit) },
     ) {
