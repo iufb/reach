@@ -30,6 +30,7 @@ import io.github.iufb.reach.links.InviteDialog
 import io.github.iufb.reach.links.LinkEvent
 import io.github.iufb.reach.links.LinkMessage
 import io.github.iufb.reach.links.LinksViewModel
+import io.github.iufb.reach.stickers.StickerSetSheet
 import io.github.iufb.reach.auth.CodeScreen
 import io.github.iufb.reach.auth.LoadingScreen
 import io.github.iufb.reach.auth.PasswordScreen
@@ -340,6 +341,9 @@ private fun LinkEffects(
     }
     val invite by links.invite.collectAsStateWithLifecycle()
     invite?.let { InviteDialog(it, onJoin = links::join, onDismiss = links::dismissInvite) }
+    // Пак по ссылке — только просмотр и добавление: чата для отправки здесь нет
+    val stickerSet by links.stickerSet.collectAsStateWithLifecycle()
+    stickerSet?.let { StickerSetSheet(it, onDismiss = links::dismissStickerSet) }
 }
 
 /** Назад к уже введённому номеру. */
