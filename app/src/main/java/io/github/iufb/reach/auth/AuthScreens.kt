@@ -1,10 +1,7 @@
 package io.github.iufb.reach.auth
 
-import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
-import androidx.compose.animation.graphics.res.animatedVectorResource
-import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
-import androidx.compose.animation.graphics.vector.AnimatedImageVector
-import androidx.compose.foundation.Image
+import android.graphics.drawable.AnimatedVectorDrawable
+import android.widget.ImageView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -62,6 +59,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.viewinterop.AndroidView
 import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
@@ -379,22 +377,27 @@ private fun AuthLayout(
 private var brandAnimationPlayed = false
 
 /**
- * Знак Reach с анимацией «Прорезь» (ADR-0012). Тот же `avd_splash`, что и на системном сплэше:
- * круг в нём занимает 72 из 108, поэтому холст в 1,5 раза больше [BRAND_SIZE].
+ * Знак Reach с анимацией «Прорезь» (ADR-0012). Тот же `avd_splash`, что и на системном сплэше,
+ * через платформенный AnimatedVectorDrawable: разбор AVD в Compose на нём падает.
+ * Круг в холсте занимает 72 из 108, поэтому холст в 1,5 раза больше [BRAND_SIZE].
  */
-@OptIn(ExperimentalAnimationGraphicsApi::class)
 @Composable
 private fun BrandMark() {
-    val image = AnimatedImageVector.animatedVectorResource(R.drawable.avd_splash)
-    var atEnd by remember { mutableStateOf(brandAnimationPlayed) }
-    LaunchedEffect(Unit) {
-        atEnd = true
-        brandAnimationPlayed = true
-    }
+    val animate = remember { !brandAnimationPlayed }
     Box(Modifier.size(BRAND_SIZE), contentAlignment = Alignment.Center) {
-        Image(
-            painter = rememberAnimatedVectorPainter(image, atEnd),
-            contentDescription = null,
+        AndroidView(
+            factory = { context ->
+                ImageView(context).apply {
+                    if (animate) {
+                        val avd = context.getDrawable(R.drawable.avd_splash) as AnimatedVectorDrawable
+                        setImageDrawable(avd)
+                        avd.start()
+                        brandAnimationPlayed = true
+                    } else {
+                        setImageResource(R.drawable.ic_reach_mark_circle)
+                    }
+                }
+            },
             modifier = Modifier.requiredSize(BRAND_SIZE * 1.5f),
         )
     }
