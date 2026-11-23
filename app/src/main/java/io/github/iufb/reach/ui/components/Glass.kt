@@ -11,7 +11,9 @@ import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
 import androidx.compose.ui.unit.dp
+import dev.chrisbanes.haze.ExperimentalHazeApi
 import dev.chrisbanes.haze.HazeInput
+import dev.chrisbanes.haze.HazeInputSharing
 import dev.chrisbanes.haze.HazePerformanceMode
 import dev.chrisbanes.haze.HazeState
 import dev.chrisbanes.haze.blur.HazeBlurStyle
@@ -39,10 +41,15 @@ fun GlassScope(content: @Composable () -> Unit) {
 }
 
 /** Содержимое, которое просвечивает сквозь стеклянные элементы. */
+@OptIn(ExperimentalHazeApi::class)
 @Composable
 fun Modifier.glassSource(): Modifier {
     val state = LocalGlass.current ?: return this
-    return hazeSource(state)
+    return when (PerfFlags["glass"]) {
+        "share" -> hazeSource(state, inputSharing = HazeInputSharing.Always)
+        "auto" -> hazeSource(state, inputSharing = HazeInputSharing.Auto)
+        else -> hazeSource(state)
+    }
 }
 
 /**
@@ -58,6 +65,7 @@ fun Modifier.glass(shape: Shape, elevated: Boolean = true, tint: Color = ReachTh
     val style = remember(colors, tint) {
         HazeBlurStyle {
             blurRadius(GLASS_BLUR)
+            if (PerfFlags["glass"] == "noblur") blurEnabled(false)
             backgroundColor(colors.background)
             colorEffects(listOf(HazeColorEffect.tint(tint.copy(alpha = GLASS_TINT_ALPHA))))
             fallbackColorEffect(HazeColorEffect.tint(tint))
