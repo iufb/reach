@@ -149,7 +149,8 @@ class StickerPanelViewModel @Inject constructor(
 /**
  * Вкладка «Стикеры» панели под полем ввода (Telegram iOS): сверху полоса значков — недавние,
  * избранные, паки; под ней сетка в [COLUMNS] колонок с заголовками секций капсом. Тап по стикеру —
- * [onSend]; панель остаётся открытой. Значок прокручивает сетку к секции, а при прокрутке сетки
+ * [onSend]; панель остаётся открытой. Долгое нажатие — превью с действиями ([StickerPreview]),
+ * «Открыть пак» из него — тот же [StickerSetSheet], что и у трендов. Значок прокручивает сетку к секции, а при прокрутке сетки
  * подсвечивается значок текущей секции.
  *
  * Сверху — тренды ([TrendingSection]): строка паков, тап открывает [StickerSetSheet] с кнопкой
@@ -183,6 +184,9 @@ fun StickerPanel(
         return
     }
     val starts = remember(sections) { sectionStarts(sections) }
+    val preview = rememberStickerPreviewState()
+    val picks = remember(sections) { sectionPicks(sections) }
+    StickerPreview(preview, onSend = onSend, onOpenSet = { openedSet = it.setId })
     val grid = rememberLazyGridState()
     val strip = rememberLazyListState()
     val scope = rememberCoroutineScope()
@@ -232,9 +236,9 @@ fun StickerPanel(
         }
         LazyVerticalGrid(
             GridCells.Fixed(COLUMNS),
-            Modifier.fillMaxWidth().weight(1f),
+            Modifier.fillMaxWidth().weight(1f).stickerPreviewDrag(preview, grid, GRID_PADDING) { picks[it] },
             state = grid,
-            contentPadding = PaddingValues(start = 8.dp, end = 8.dp, bottom = 8.dp),
+            contentPadding = GRID_PADDING,
         ) {
             sections.forEachIndexed { s, section ->
                 val start = starts[s]
@@ -256,14 +260,17 @@ fun StickerPanel(
                 item(key = "header-${section.key}", span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
                     SectionHeader(section)
                 }
+                val recent = section.kind == StickerSection.Kind.Recent
                 itemsIndexed(
                     section.stickers,
-                    key = { _, sticker -> "${section.key}:${sticker.file.uniqueId}" },
+                    key = { _, sticker -> stickerKey(section, sticker) },
                     contentType = { _, _ -> "sticker" },
                 ) { i, sticker ->
                     StickerCell(
                         sticker,
-                        Modifier.clip(RoundedCornerShape(10.dp)).clickable { onSend(sticker) },
+                        Modifier
+                            .clip(RoundedCornerShape(10.dp))
+                            .stickerCellGestures(preview, StickerPick(sticker, recent)) { onSend(sticker) },
                         animate = start + 1 + i in visible,
                     )
                 }
@@ -403,6 +410,19 @@ private fun SetCover(set: StickerSetInfo, modifier: Modifier) {
         else -> AsyncImage(thumbnail.file, set.title, modifier, contentScale = ContentScale.Fit)
     }
 }
+
+/** Ключ ячейки стикера в сетке: стикер может быть и в недавних, и в паке. */
+private fun stickerKey(section: StickerSection, sticker: StickerInfo): String = "${section.key}:${sticker.file.uniqueId}"
+
+/** Стикер по ключу ячейки — для перелистывания превью пальцем. */
+private fun sectionPicks(sections: List<StickerSection>): Map<Any, StickerPick> = buildMap {
+    sections.forEach { section ->
+        val recent = section.kind == StickerSection.Kind.Recent
+        section.stickers.forEach { put(stickerKey(section, it), StickerPick(it, recent)) }
+    }
+}
+
+private val GRID_PADDING = PaddingValues(start = 8.dp, end = 8.dp, bottom = 8.dp)
 
 /** Колонок в сетке, как в Telegram iOS. */
 private const val COLUMNS = 5
