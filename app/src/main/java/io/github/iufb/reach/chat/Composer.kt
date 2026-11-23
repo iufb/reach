@@ -298,7 +298,7 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, em
                             )
                             Row(Modifier.padding(end = 4.dp, bottom = (PillHeight - FIELD_ICON) / 2)) {
                                 state.silent?.let { silent -> SilentToggle(silent, state.onToggleSilent) }
-                                EmojiToggle(emoji.open) {
+                                EmojiToggle(emoji.open, stickers = emoji.tab == PanelTab.Stickers) {
                                     if (emoji.open) {
                                         emoji.switchToKeyboard()
                                         runCatching { focusRequester.requestFocus() }
@@ -427,12 +427,24 @@ private fun FieldIcon(icon: Int, description: String, onClick: () -> Unit) {
     }
 }
 
-/** Смайлик открывает панель эмодзи, клавиатура — возвращает её. */
+/**
+ * Смайлик (или стикер, если в прошлый раз открывали стикеры) открывает панель, клавиатура — возвращает её.
+ */
 @Composable
-private fun EmojiToggle(open: Boolean, onClick: () -> Unit) {
+private fun EmojiToggle(open: Boolean, stickers: Boolean, onClick: () -> Unit) {
     FieldIcon(
-        if (open) R.drawable.ic_keyboard else R.drawable.ic_emoji,
-        stringResource(if (open) R.string.emoji_keyboard else R.string.emoji_open),
+        when {
+            open -> R.drawable.ic_keyboard
+            stickers -> R.drawable.ic_sticker
+            else -> R.drawable.ic_emoji
+        },
+        stringResource(
+            when {
+                open -> R.string.emoji_keyboard
+                stickers -> R.string.stickers_open
+                else -> R.string.emoji_open
+            },
+        ),
         onClick,
     )
 }
