@@ -1,21 +1,13 @@
 package io.github.iufb.reach.contacts
 
 import androidx.annotation.DrawableRes
-import androidx.compose.foundation.layout.ColumnScope
-import androidx.compose.ui.focus.FocusRequester
-import androidx.compose.ui.window.Dialog
-import androidx.compose.ui.window.DialogProperties
-import io.github.iufb.reach.ui.components.GroupedSection
-import io.github.iufb.reach.ui.components.GroupedTextField
-import io.github.iufb.reach.ui.components.SheetHeader
-import androidx.compose.foundation.layout.statusBarsPadding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.annotation.StringRes
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.RowScope
@@ -25,9 +17,11 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.items
@@ -49,11 +43,14 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.window.Dialog
+import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
@@ -61,13 +58,18 @@ import io.github.iufb.reach.navigation.MainTab
 import io.github.iufb.reach.navigation.MainTabBar
 import io.github.iufb.reach.ui.components.BackPill
 import io.github.iufb.reach.ui.components.GlassScope
+import io.github.iufb.reach.ui.components.GroupedSection
+import io.github.iufb.reach.ui.components.GroupedTextField
 import io.github.iufb.reach.ui.components.ListSectionHeader
 import io.github.iufb.reach.ui.components.PillIconButton
 import io.github.iufb.reach.ui.components.ReachTopBar
 import io.github.iufb.reach.ui.components.SearchField
+import io.github.iufb.reach.ui.components.SheetHeader
 import io.github.iufb.reach.ui.components.TabBarHeight
 import io.github.iufb.reach.ui.components.TopBarHeight
 import io.github.iufb.reach.ui.components.glassSource
+import io.github.iufb.reach.ui.format.PhoneMask
+import io.github.iufb.reach.ui.format.PhoneVisualTransformation
 import io.github.iufb.reach.ui.theme.ReachTheme
 
 /** Вкладка «Контакты»: поиск, список, «+» — добавить по номеру. */
@@ -216,7 +218,8 @@ private fun AddContact(viewModel: ContactsViewModel, onDone: () -> Unit) {
 /** «Новый контакт» во весь экран: номер, имя, фамилия; «Добавить» — когда есть номер и имя. */
 @Composable
 private fun AddContactDialog(onAdd: (phone: String, first: String, last: String) -> Unit, onDismiss: () -> Unit) {
-    var phone by rememberSaveable { mutableStateOf("+") }
+    // Только цифры с кодом страны; маску рисует поле (#328)
+    var phone by rememberSaveable { mutableStateOf("") }
     var first by rememberSaveable { mutableStateOf("") }
     var last by rememberSaveable { mutableStateOf("") }
     val focus = remember { FocusRequester() }
@@ -224,8 +227,8 @@ private fun AddContactDialog(onAdd: (phone: String, first: String, last: String)
     FormSheet(
         title = stringResource(R.string.contacts_add),
         action = stringResource(R.string.contacts_add_confirm),
-        actionEnabled = phone.count { it.isDigit() } >= MIN_PHONE_DIGITS && first.isNotBlank(),
-        onAction = { onAdd(phone, first, last) },
+        actionEnabled = phone.length >= MIN_PHONE_DIGITS && first.isNotBlank(),
+        onAction = { onAdd("+$phone", first, last) },
         onDismiss = onDismiss,
     ) {
         GroupedSection {
@@ -235,9 +238,10 @@ private fun AddContactDialog(onAdd: (phone: String, first: String, last: String)
         GroupedSection {
             GroupedTextField(
                 phone,
-                { phone = it },
+                { phone = PhoneMask.digits(it) },
                 placeholder = stringResource(R.string.contacts_phone),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                visualTransformation = PhoneVisualTransformation,
                 divider = false,
             )
         }
