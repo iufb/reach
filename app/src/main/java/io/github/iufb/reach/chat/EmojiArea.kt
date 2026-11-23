@@ -95,6 +95,7 @@ internal class EmojiPanelState(private val scope: CoroutineScope) {
     }
 
     fun switchToKeyboard() {
+        android.util.Log.d("Reach", "dbg314 switchToKeyboard t=${System.nanoTime() / 1_000_000}")
         open = false
         searching = false
         yieldingToKeyboard = true
@@ -102,6 +103,7 @@ internal class EmojiPanelState(private val scope: CoroutineScope) {
         // Клавиатура может и не появиться (аппаратная) — тогда панель всё равно уходит
         yieldJob = scope.launch {
             delay(YIELD_TIMEOUT_MS)
+            android.util.Log.d("Reach", "dbg314 yield timeout t=${System.nanoTime() / 1_000_000}")
             yieldingToKeyboard = false
             reveal.snapTo(0f)
         }
@@ -128,6 +130,7 @@ internal fun rememberEmojiPanelState(): EmojiPanelState {
  * [canSendStickers] `false` — на вкладке «Стикеры» вместо [stickerContent] текст об ограничении.
  * [stickerContent] — содержимое вкладки «Стикеры» (сетка `StickerPanel`; по умолчанию заглушка).
  */
+@OptIn(androidx.compose.foundation.layout.ExperimentalLayoutApi::class)
 @Composable
 internal fun ChatBottomArea(
     state: EmojiPanelState,
@@ -142,6 +145,25 @@ internal fun ChatBottomArea(
         snapshotFlow { ime.getBottom(density) }.collect { if (it > state.keyboardPx) state.keyboardPx = it }
     }
     LaunchedEffect(panelAllowed) { if (!panelAllowed && state.open) state.close() }
+    // DEBUG #314 — удалить до мержа
+    run {
+        val src = WindowInsets.imeAnimationSource
+        val tgt = WindowInsets.imeAnimationTarget
+        LaunchedEffect(state) {
+            while (true) {
+                androidx.compose.runtime.withFrameNanos { t ->
+                    val imeB = ime.getBottom(density)
+                    val navB = nav.getBottom(density)
+                    val inset = maxOf(imeB, navB)
+                    val show = panelAllowed && (state.open || state.yieldingToKeyboard || state.reveal.value > 0f)
+                    val panel = if (show) density.panelHeightPx(state, inset) else 0
+                    if (state.open || state.yieldingToKeyboard || state.reveal.value > 0f || imeB > 0) {
+                        android.util.Log.d("Reach", "dbg314 t=${t / 1_000_000} ime=$imeB src=${src.getBottom(density)} tgt=${tgt.getBottom(density)} nav=$navB open=${state.open} yield=${state.yieldingToKeyboard} reveal=${state.reveal.value} kb=${state.keyboardPx} panel=$panel total=${inset + panel}")
+                    }
+                }
+            }
+        }
+    }
     val showPanel = panelAllowed && (state.open || state.yieldingToKeyboard || state.reveal.value > 0f)
     Box(
         Modifier
