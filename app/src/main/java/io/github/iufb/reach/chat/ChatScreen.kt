@@ -794,7 +794,8 @@ private sealed interface Item {
         val tail: Boolean = true,
         val groupStart: Boolean = true,
     ) : Item {
-        override val key: Any get() = message.id
+        // Ключ — стабильный [Message.listKey], а не id: после отправки id меняется (#295)
+        override val key: Any get() = message.listKey
     }
 
     /** Плашка дня над сообщениями этого дня. */
@@ -861,16 +862,14 @@ private fun MessageList(
         flashId = null
     }
     val visibleChanged by rememberUpdatedState(onVisibleMessagesChange)
-    // Ключ альбома — id одного сообщения, а видны все его сообщения
-    val albumIds by rememberUpdatedState(
-        items.filterIsInstance<Item.Msg>().filter { it.album.size > 1 }.associate { it.key to it.album.map(Message::id) },
+    // Ключ элемента — не id сообщения (#295), а у альбома видны все его сообщения
+    val idsByKey by rememberUpdatedState(
+        items.filterIsInstance<Item.Msg>().associate { it.key to it.album.map(Message::id) },
     )
     LaunchedEffect(listState) {
-        // Ключи сообщений — их id (Long); разделитель и загрузчик отсеиваются
+        // Разделитель и загрузчик в карте не значатся и отсеиваются
         snapshotFlow {
-            listState.layoutInfo.visibleItemsInfo.flatMap { info ->
-                albumIds[info.key] ?: listOfNotNull(info.key as? Long)
-            }
+            listState.layoutInfo.visibleItemsInfo.flatMap { info -> idsByKey[info.key].orEmpty() }
         }
             .distinctUntilChanged()
             .collect { visibleChanged(it) }

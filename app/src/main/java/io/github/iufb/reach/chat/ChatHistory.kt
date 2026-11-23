@@ -169,11 +169,13 @@ class ChatHistory(
                 // Отложенные живут на своём экране, в истории их нет
                 is TdApi.UpdateNewMessage -> if (update.message.chatId == chatId && update.message.schedulingState == null && scope.contains(update.message)) {
                     val message = update.message.toModel()
+                    if (update.message.sendingState != null) Log.d(TAG, "#295 new ${update.message.id} ${update.message.content.javaClass.simpleName}")
                     // До open копим всё: open решит, нужны ли они
                     _state.update { s -> if (s.reachedNewest || !s.opened) s.merge(listOf(message)) else s }
                 }
                 is TdApi.UpdateMessageContent -> if (update.chatId == chatId) {
                     val body = update.newContent.toBody()
+                    Log.d(TAG, "#295 content ${update.messageId} ${update.newContent.javaClass.simpleName}")
                     edit(update.messageId) { copy(content = body) }
                 }
                 // Голосовое прослушано или кружок просмотрен (нами или собеседником)
@@ -224,6 +226,7 @@ class ChatHistory(
                 }
                 // Отправка завершилась: временный id меняется на постоянный
                 is TdApi.UpdateMessageSendSucceeded -> if (update.message.chatId == chatId && update.message.schedulingState == null && scope.contains(update.message)) {
+                    Log.d(TAG, "#295 sent ${update.oldMessageId} -> ${update.message.id} ${update.message.content.javaClass.simpleName}")
                     replace(update.oldMessageId, update.message.toModel())
                 }
                 is TdApi.UpdateMessageSendFailed -> if (update.message.chatId == chatId && update.message.schedulingState == null && scope.contains(update.message)) {
@@ -364,7 +367,7 @@ class ChatHistory(
     }
 
     private fun replace(oldId: Long, message: Message) {
-        _state.update { s -> s.copy(messages = s.messages.filterNot { it.id == oldId || it.id == message.id }).merge(listOf(message)) }
+        _state.update { s -> s.copy(messages = s.messages.replaceSent(oldId, message)) }
     }
 
     private inline fun edit(messageId: Long, crossinline change: Message.() -> Message) {
@@ -386,10 +389,7 @@ class ChatHistory(
             .onFailure { Log.e(TAG, "history($chatId, $scope) failed", it) }
             .getOrNull()?.messages.orEmpty().map { it.toModel() }
 
-    private fun State.merge(added: List<Message>): State {
-        val byId = messages.associateBy { it.id } + added.associateBy { it.id }
-        return copy(messages = byId.values.sortedByDescending { it.id })
-    }
+    private fun State.merge(added: List<Message>): State = copy(messages = messages.mergeMessages(added))
 
     private companion object {
         const val TAG = "ChatHistory"
@@ -406,4 +406,17 @@ internal suspend fun TdClient.editMessageText(chatId: Long, message: Message, te
         )
         else -> send(TdApi.EditMessageCaption(chatId, message.id, null, formatted, false))
     }
+}
+
+/** Лента от новых к старым с добавленными; у уже известных сообщений ключ элемента ленты сохраняется. */
+internal fun List<Message>.mergeMessages(added: List<Message>): List<Message> {
+    val byId = associateBy { it.id }
+    val merged = byId + added.associateBy { it.id }.mapValues { (id, m) -> byId[id]?.let { m.copy(listKey = it.listKey) } ?: m }
+    return merged.values.sortedByDescending { it.id }
+}
+
+/** Отправка завершилась: [oldId] → постоянный id, а ключ элемента ленты — прежний (#295). */
+internal fun List<Message>.replaceSent(oldId: Long, message: Message): List<Message> {
+    val listKey = firstOrNull { it.id == oldId }?.listKey ?: firstOrNull { it.id == message.id }?.listKey ?: message.listKey
+    return filterNot { it.id == oldId || it.id == message.id }.mergeMessages(listOf(message.copy(listKey = listKey)))
 }

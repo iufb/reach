@@ -1,5 +1,7 @@
 package io.github.iufb.reach.chat
 
+import androidx.compose.animation.Crossfade
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
@@ -15,8 +17,8 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.rememberLottieAnimatable
 import io.github.iufb.reach.files.TdFile
@@ -27,20 +29,26 @@ import io.github.iufb.reach.media.rememberTgsComposition
 /**
  * Большой анимированный эмодзи без пузыря. Анимация проигрывается один раз при появлении
  * на экране и останавливается на последнем кадре; тап ([replay] меняется) — повтор.
- * Пока TGS не загружен или его нет — крупный символ шрифтом Noto.
+ * Пока TGS не загружен или его нет — крупный символ шрифтом того же размера.
  */
 @Composable
 internal fun AnimatedEmojiView(emoji: String, animation: TdFile?, replay: Int, modifier: Modifier = Modifier) {
     val allowed = currentAutoDownloadRules().allows(MediaKind.Sticker)
     val composition = rememberTgsComposition(animation?.takeIf { allowed })
-    Box(modifier.size(EMOJI_SIZE), contentAlignment = Alignment.Center) {
-        if (composition == null) {
-            Text(emoji, fontSize = FALLBACK_FONT)
-        } else {
-            val animatable = rememberLottieAnimatable()
-            // Элемент ленты создаётся заново при появлении на экране — отсюда и «играть при появлении»
-            LaunchedEffect(composition, replay) { animatable.animate(composition, iterations = 1) }
-            LottieAnimation(composition, progress = { animatable.progress }, modifier = Modifier.size(EMOJI_SIZE))
+    // Готовая композиция из кеша приходит в первом же кадре — без заглушки и без перехода.
+    // Если TGS ещё грузится, шрифтовой эмодзи того же размера плавно сменяется анимацией (#295)
+    Crossfade(composition, modifier.size(EMOJI_SIZE), animationSpec = tween(CROSSFADE_MS), label = "animated-emoji") { ready ->
+        Box(Modifier.size(EMOJI_SIZE), contentAlignment = Alignment.Center) {
+            if (ready == null) {
+                // В dp, а не sp: заглушка совпадает с анимацией при любом масштабе шрифта
+                Text(emoji, fontSize = with(LocalDensity.current) { FALLBACK_FONT.toSp() })
+            } else {
+                val animatable = rememberLottieAnimatable()
+                // Элемент ленты создаётся заново при появлении на экране — отсюда и «играть при появлении».
+                // Смена id после отправки элемент не пересоздаёт: ключ ленты — Message.listKey
+                LaunchedEffect(ready, replay) { animatable.animate(ready, iterations = 1) }
+                LottieAnimation(ready, progress = { animatable.progress }, modifier = Modifier.size(EMOJI_SIZE))
+            }
         }
     }
 }
@@ -88,4 +96,6 @@ internal fun rememberReplay(): Pair<Int, () -> Unit> {
 
 private val EMOJI_SIZE = 140.dp
 private val EFFECT_SIZE = 320.dp
-private val FALLBACK_FONT = 96.sp
+/** Шрифтовой эмодзи с этим кеглем по размеру близок к рисунку анимации в [EMOJI_SIZE]. */
+private val FALLBACK_FONT = 96.dp
+private const val CROSSFADE_MS = 150
