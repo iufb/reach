@@ -339,6 +339,7 @@ private fun ReviewCircle(camera: VideoNoteCamera, path: String) {
             withFrameMillis { }
             val duration = player.duration
             progress = if (duration > 0) (player.currentPosition.toFloat() / duration).coerceIn(0f, 1f) else 0f
+            camera.reviewProgress = progress
         }
     }
     val description = stringResource(R.string.video_note_review)

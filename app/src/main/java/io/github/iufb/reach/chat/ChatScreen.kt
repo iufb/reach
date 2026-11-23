@@ -366,6 +366,7 @@ fun ChatScreen(
                             onTogglePreview = camera::toggleReviewPlayback,
                             videoMode = true,
                             onToggleMode = { videoMode = false },
+                            previewProgress = { camera.reviewProgress },
                         )
                     } else {
                         VoiceInput(

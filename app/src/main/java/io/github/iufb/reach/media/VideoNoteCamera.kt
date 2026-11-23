@@ -112,6 +112,9 @@ class VideoNoteCamera(private val context: Context) {
     var recordedDurationSec by mutableStateOf(0)
         private set
 
+    /** Доля проигранного в предпросмотре 0..1; пишет экран с плеером каждый кадр, читает полоса записи. */
+    var reviewProgress = 0f
+
     /** Предпросмотр играет (в фазе [Phase.Recorded]). */
     var reviewPlaying by mutableStateOf(true)
         private set
