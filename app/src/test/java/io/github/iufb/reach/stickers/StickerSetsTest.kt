@@ -179,4 +179,11 @@ class StickerSetsTest {
         assertFalse(channel.canSendStickers(MemberStatus.Administrator(canPostMessages = false)))
         assertTrue(channel.canSendStickers(MemberStatus.Administrator(canPostMessages = true)))
     }
+
+    @Test
+    fun `findByName ignores case of the link name`() {
+        val sets = listOf(set(1), set(2).copy(name = "HotCherry"))
+        assertEquals(2L, sets.findByName("hotcherry")?.id)
+        assertNull(sets.findByName("missing"))
+    }
 }

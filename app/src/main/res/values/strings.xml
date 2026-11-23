@@ -280,6 +280,19 @@
     <string name="video_pause">Пауза</string>
     <string name="video_play_error">Не удалось воспроизвести видео</string>
     <string name="sticker_set">Стикерпак</string>
+    <string name="sticker_set_failed">Не удалось загрузить стикерпак</string>
+    <plurals name="sticker_set_add">
+        <item quantity="one">Добавить %d стикер</item>
+        <item quantity="few">Добавить %d стикера</item>
+        <item quantity="many">Добавить %d стикеров</item>
+        <item quantity="other">Добавить %d стикера</item>
+    </plurals>
+    <plurals name="sticker_set_remove">
+        <item quantity="one">Удалить %d стикер</item>
+        <item quantity="few">Удалить %d стикера</item>
+        <item quantity="many">Удалить %d стикеров</item>
+        <item quantity="other">Удалить %d стикера</item>
+    </plurals>
     <string name="profile_action_message">сообщение</string>
     <string name="profile_action_mute">выкл. звук</string>
     <string name="profile_action_unmute">вкл. звук</string>

@@ -86,6 +86,19 @@ class StickersRepository @Inject constructor(
         return set
     }
 
+    /**
+     * Полный пак по короткому имени из ссылки `t.me/addstickers/<name>` (`searchStickerSet`),
+     * кладётся в кеш [sets]. `null` — пака с таким именем нет.
+     */
+    suspend fun setByName(name: String): StickerSetInfo? {
+        _sets.value.values.findByName(name)?.let { return it }
+        val set = runCatching { td.send(TdApi.SearchStickerSet(name, false)) }
+            .onFailure { Log.w(TAG, "searchStickerSet $name failed", it) }
+            .getOrNull()?.toModel() ?: return null
+        _sets.update { it + (set.id to set) }
+        return set
+    }
+
     /** Следующая страница трендов; повторный вызов во время загрузки ничего не делает. */
     suspend fun loadMoreTrending() {
         if (!trendingMutex.tryLock()) return

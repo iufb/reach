@@ -7,6 +7,7 @@ import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.iufb.reach.core.td.TdClient
 import io.github.iufb.reach.files.TdFile
 import io.github.iufb.reach.files.toTdFile
+import io.github.iufb.reach.stickers.StickersRepository
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -42,14 +43,22 @@ enum class LinkMessage { RequestSent, Invalid }
 
 /**
  * Внутренние ссылки Telegram (PRODUCT.md §4.6): `t.me/+…` / `t.me/joinchat/…` — приглашения,
- * `t.me/username` — публичные чаты, `t.me/username/123` — сообщения. Разбор — `getInternalLinkType`,
- * всё остальное открывается снаружи. Общий вход для ссылок из сообщений и из других приложений.
+ * `t.me/username` — публичные чаты, `t.me/username/123` — сообщения, `t.me/addstickers/<name>` —
+ * лист пака. Разбор — `getInternalLinkType`, всё остальное открывается снаружи. Общий вход для ссылок из сообщений и из других приложений.
  */
 @HiltViewModel
-class LinksViewModel @Inject constructor(private val td: TdClient) : ViewModel() {
+class LinksViewModel @Inject constructor(
+    private val td: TdClient,
+    private val stickers: StickersRepository,
+) : ViewModel() {
 
     private val _invite = MutableStateFlow<InvitePreview?>(null)
     val invite: StateFlow<InvitePreview?> = _invite.asStateFlow()
+
+    private val _stickerSet = MutableStateFlow<Long?>(null)
+
+    /** Пак по ссылке `t.me/addstickers/…` для листа пака; `null` — лист закрыт. */
+    val stickerSet: StateFlow<Long?> = _stickerSet.asStateFlow()
 
     private val _events = MutableSharedFlow<LinkEvent>(extraBufferCapacity = 4)
     val events: SharedFlow<LinkEvent> = _events.asSharedFlow()
@@ -87,7 +96,20 @@ class LinksViewModel @Inject constructor(private val td: TdClient) : ViewModel()
             val info = td.send(TdApi.GetMessageLinkInfo(type.url))
             if (info.chatId == 0L) LinkEvent.Message(LinkMessage.Invalid) else LinkEvent.OpenChat(info.chatId, info.message?.id ?: 0)
         }
+        is TdApi.InternalLinkTypeStickerSet -> {
+            val set = stickers.setByName(type.stickerSetName)
+            if (set == null) {
+                LinkEvent.Message(LinkMessage.Invalid)
+            } else {
+                _stickerSet.value = set.id
+                null
+            }
+        }
         else -> LinkEvent.External(url)
+    }
+
+    fun dismissStickerSet() {
+        _stickerSet.value = null
     }
 
     fun join() {

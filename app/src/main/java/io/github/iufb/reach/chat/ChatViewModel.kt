@@ -803,21 +803,17 @@ class ChatViewModel @Inject constructor(
         _pollVoters.value = null
     }
 
-    private val _stickerSetTitle = MutableStateFlow<String?>(null)
+    private val _openedStickerSet = MutableStateFlow<Long?>(null)
 
-    /** Название пака стикера, по которому тапнули; `null` — диалог закрыт. */
-    val stickerSetTitle: StateFlow<String?> = _stickerSetTitle.asStateFlow()
+    /** Пак стикера, по которому тапнули в ленте; `null` — лист пака закрыт. */
+    val openedStickerSet: StateFlow<Long?> = _openedStickerSet.asStateFlow()
 
     fun onStickerClick(sticker: StickerInfo) {
-        if (sticker.setId == 0L) return
-        viewModelScope.launch {
-            runCatching { td.send(TdApi.GetStickerSet(sticker.setId)).title }
-                .onSuccess { _stickerSetTitle.value = it }
-        }
+        if (sticker.setId != 0L) _openedStickerSet.value = sticker.setId
     }
 
     fun dismissStickerSet() {
-        _stickerSetTitle.value = null
+        _openedStickerSet.value = null
     }
 
     /** Открыть скачанный файл во внешнем приложении. */

@@ -96,6 +96,10 @@ internal fun <T, K> reorderKnown(current: List<T>, ids: List<K>, key: (T) -> K):
     return ids.map { byKey[it] ?: return null }
 }
 
+/** Пак по короткому имени из ссылки: в ссылках регистр имени не важен. */
+internal fun Iterable<StickerSetInfo>.findByName(name: String): StickerSetInfo? =
+    firstOrNull { it.name.equals(name, ignoreCase = true) }
+
 /** Флаг «установлен» по актуальному списку установленных паков. */
 internal fun StickerSetInfo.withInstalled(installedIds: Set<Long>): StickerSetInfo {
     val installed = id in installedIds

@@ -128,6 +128,7 @@ import io.github.iufb.reach.ui.components.PillTextButton
 import io.github.iufb.reach.ui.components.ReachTopBar
 import io.github.iufb.reach.ui.components.TailWidth
 import io.github.iufb.reach.ui.components.glassSource
+import io.github.iufb.reach.stickers.StickerSetSheet
 import io.github.iufb.reach.ui.components.glass
 import java.time.LocalDate
 import java.time.ZoneId
@@ -234,7 +235,7 @@ fun ChatScreen(
     val context = LocalContext.current
     LaunchedEffect(viewModel) { viewModel.openFile.collect { openFile(context, it) } }
     viewer?.let { (items, index) -> MediaViewer(items, index) { viewer = null } }
-    val stickerSetTitle by viewModel.stickerSetTitle.collectAsStateWithLifecycle()
+    val openedStickerSet by viewModel.openedStickerSet.collectAsStateWithLifecycle()
     val audio by viewModel.audio.collectAsStateWithLifecycle()
     val reactionEffect by viewModel.reactionEffect.collectAsStateWithLifecycle()
     val emojiEffects by viewModel.emojiEffects.collectAsStateWithLifecycle()
@@ -250,7 +251,9 @@ fun ChatScreen(
             delay(CHAT_ACTION_INTERVAL_MS)
         }
     }
-    stickerSetTitle?.let { StickerSetDialog(it, viewModel::dismissStickerSet) }
+    openedStickerSet?.let { setId ->
+        StickerSetSheet(setId, onDismiss = viewModel::dismissStickerSet, onSend = if (canSendStickers) ({ viewModel.sendSticker(it) }) else null)
+    }
     var creatingPoll by remember { mutableStateOf(false) }
     var attaching by remember { mutableStateOf(false) }
     if (attaching) {
