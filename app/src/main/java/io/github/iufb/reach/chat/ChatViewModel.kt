@@ -610,8 +610,17 @@ class ChatViewModel @Inject constructor(
         return AudioTrack(chatId, id, body.voice.file, isVoice = true, duration = body.voice.duration)
     }
 
-    /** Запись голосового из поля ввода. */
+    /**
+     * Запись голосового из поля ввода — без громкости: она меняется каждые 50 мс, и экран чата,
+     * собирающий это состояние, перекомпоновывался бы целиком (#296). Громкость — [recordingLevel].
+     */
     val recorderState: StateFlow<RecorderState> = recorder.state
+        .map { if (it is RecorderState.Recording) it.copy(level = 0f) else it }
+        .distinctUntilChanged()
+        .stateIn(viewModelScope, SharingStarted.Eagerly, RecorderState.Idle)
+
+    /** Громкость микрофона 0..1; кнопка записи читает её каждый кадр. */
+    fun recordingLevel(): Float = (recorder.state.value as? RecorderState.Recording)?.level ?: 0f
 
     /** Палец лёг на микрофон. Играющее аудио на время записи — на паузу. */
     fun startRecording() {

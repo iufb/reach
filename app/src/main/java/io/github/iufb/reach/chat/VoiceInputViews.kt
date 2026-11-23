@@ -138,6 +138,11 @@ internal class VoiceInput(
     val onToggleMode: (() -> Unit)? = null,
     /** Позиция предпрослушивания 0..1; читается каждый кадр, пока оно играет. */
     val previewProgress: () -> Float = { 0f },
+    /**
+     * Громкость 0..1 для «облака» вокруг кнопки; читается каждый кадр, пока идёт запись.
+     * Отдельно от [state], чтобы громкость не перекомпоновывала экран.
+     */
+    val level: () -> Float = { (state as? RecorderState.Recording)?.level ?: 0f },
 )
 
 /**
@@ -383,7 +388,19 @@ private fun BigCircle(voice: VoiceInput, ui: RecordingUi) {
         )
     }
     if (target == 0f && scale.targetValue == 0f && !scale.isRunning) return
-    val level by animateFloatAsState(recording?.level ?: 0f, spring(stiffness = Spring.StiffnessLow), label = "level")
+    // Громкость сглаживается покадрово и читается только при отрисовке — без перекомпоновки
+    val current by rememberUpdatedState(voice)
+    var level by remember { mutableFloatStateOf(0f) }
+    LaunchedEffect(recording != null) {
+        if (recording == null) {
+            level = 0f
+            return@LaunchedEffect
+        }
+        while (true) {
+            withFrameMillis { }
+            level += (current.level() - level) * LEVEL_SMOOTHING
+        }
+    }
     val pulse by animateFloatAsState(if (recording != null) 1f else 0f, tween(CIRCLE_OUT_MS), label = "pulse")
     val breath = rememberInfiniteTransition(label = "breath").animateFloat(
         initialValue = 0f,
@@ -899,6 +916,8 @@ private const val PULSE_BASE = 0.06f
 private const val PULSE_BREATH = 0.06f
 private const val PULSE_LEVEL = 0.4f
 private const val PULSE_ALPHA = 0.24f
+/** Доля пути к новой громкости за кадр. */
+private const val LEVEL_SMOOTHING = 0.2f
 
 /** Капсула замка: снизу на этом расстоянии от центра кнопки, над большим кругом. */
 private val LOCK_WIDTH = 40.dp
