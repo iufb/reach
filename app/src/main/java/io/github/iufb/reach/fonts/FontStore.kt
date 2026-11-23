@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.fonts.Font
+import android.graphics.fonts.SystemFonts
 import android.graphics.fonts.FontFamily
 import android.graphics.text.TextRunShaper
 import android.net.Uri
@@ -129,7 +130,7 @@ class FontStore @Inject constructor(
                 }
                 val target = fileOf(id)
                 if (target.exists()) temp.delete() else check(temp.renameTo(target)) { "rename failed" }
-                val font = LocalFont(id, info.name ?: id, info.kind, target.length())
+                val font = LocalFont(id, info.displayName ?: id, info.kind, target.length())
                 _fonts.value = _fonts.value.filterNot { it.id == id } + font
                 Log.i(TAG, "font imported: ${font.name} (${font.kind}, ${font.sizeBytes} B) as $id")
                 Result.success(font)
@@ -146,7 +147,7 @@ class FontStore @Inject constructor(
         dir.listFiles { f -> f.name.startsWith(TEMP_PREFIX) }?.forEach { it.delete() }
         return dir.listFiles { f -> f.name.endsWith(EXT) }.orEmpty().sortedBy { it.lastModified() }.mapNotNull { file ->
             val id = file.name.removeSuffix(EXT)
-            SfntFont.inspect(file).getOrNull()?.let { LocalFont(id, it.name ?: id, it.kind, file.length()) }
+            SfntFont.inspect(file).getOrNull()?.let { LocalFont(id, it.displayName ?: id, it.kind, file.length()) }
         }
     }
 
@@ -176,9 +177,18 @@ class FontStore @Inject constructor(
      * Превью на экране выбора: [Typeface] из файлов кандидатов, собранный так же, как в [load].
      * `null` — оба стандартные (или файл не загрузился).
      */
-    suspend fun preview(textId: String?, emojiId: String?): Typeface? = withContext(Dispatchers.IO) {
+    suspend fun preview(textId: String?, emojiId: String?, explicitNoto: Boolean = false): Typeface? = withContext(Dispatchers.IO) {
         fun font(id: String?) = id?.let { runCatching { Font.Builder(fileOf(it)).build() }.getOrNull() }
-        typeface(font(textId), font(emojiId))
+        // [explicitNoto]: в процессе применён свой emoji-шрифт, EmojiCompat не запущен — без явного Noto
+        // в цепочке превью «Noto» рисовалось бы применённым шрифтом (#285)
+        val emoji = font(emojiId) ?: if (explicitNoto) systemNotoEmoji() else null
+        typeface(font(textId), emoji)
+    }
+
+    /** Системный Noto Color Emoji (из него же рисует EmojiCompat-набор по умолчанию); `null` — не найден. */
+    private fun systemNotoEmoji(): Font? {
+        val fonts = SystemFonts.getAvailableFonts().filter { it.file?.name?.startsWith("NotoColorEmoji") == true }
+        return fonts.firstOrNull { it.file?.name == "NotoColorEmoji.ttf" } ?: fonts.firstOrNull()
     }
 
     /** Emoji-шрифт (если выбран и [emojiGoesFirst]), за ним текстовый (или Inter), дальше системные. */
@@ -207,7 +217,7 @@ class FontStore @Inject constructor(
             if (!file.exists()) error("file missing")
             val info = SfntFont.inspect(file).getOrThrow()
             if (info.kind != kind) error("expected $kind, got ${info.kind}")
-            Loaded(file, info.name ?: id, Font.Builder(file).build())
+            Loaded(file, info.displayName ?: id, Font.Builder(file).build())
         } catch (e: Exception) {
             Log.w(TAG, "fonts: selected $kind font $id unusable, back to default", e)
             null

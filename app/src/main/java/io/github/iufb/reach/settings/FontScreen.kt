@@ -83,7 +83,11 @@ class FontViewModel @Inject constructor(private val store: FontStore, applied: D
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val preview: StateFlow<FontPreview> = selection
-        .mapLatest { FontPreview(store.preview(it.text, it.emoji), it.emoji != null) }
+        .mapLatest {
+            // Noto выбран, а применён свой emoji-шрифт: Noto в превью явно, EmojiCompat не участвует (#285)
+            val explicitNoto = it.emoji == null && this.applied.emoji != null
+            FontPreview(store.preview(it.text, it.emoji, explicitNoto), it.emoji != null || explicitNoto)
+        }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), FontPreview(null, false))
 
     private val _importing = MutableStateFlow(false)
