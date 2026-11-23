@@ -241,6 +241,7 @@ fun ChatScreen(
     val recorderState by viewModel.recorderState.collectAsStateWithLifecycle()
     val camera = remember { VideoNoteCamera(context.applicationContext) }
     val canSendVideoNotes by viewModel.canSendVideoNotes.collectAsStateWithLifecycle()
+    val canSendStickers by viewModel.canSendStickers.collectAsStateWithLifecycle()
     var videoMode by rememberSaveable { mutableStateOf(false) }
     val recordingNote = camera.phase == VideoNoteCamera.Phase.Recording
     LaunchedEffect(recordingNote) {
@@ -296,6 +297,7 @@ fun ChatScreen(
     CompositionLocalProvider(LocalMentionHandler provides mentionHandler) {
         ChatContent(
             chat, state, senders, onBack,
+            canSendStickers = canSendStickers,
             toast = fontNotice?.let { notice -> fontToast(notice, onOpenFontSettings?.let { open -> { viewModel.dismissFontNotice(notice); open() } }) }
                 ?: forwardedTo?.let { ChatToastData(stringResource(R.string.forward_done, it)) },
             header = header,
@@ -458,6 +460,8 @@ private fun ChatContent(
     onPinnedClick: () -> Unit = {},
     /** Короткое уведомление под шапкой («Переслано в …»); `null` — нет. */
     toast: ChatToastData? = null,
+    /** `false` — на вкладке «Стикеры» панели текст об ограничении. */
+    canSendStickers: Boolean = true,
 ) {
     val colors = ReachTheme.colors
     val density = LocalDensity.current
@@ -518,7 +522,7 @@ private fun ChatContent(
                 }
             }
         }
-        ChatBottomArea(emoji, panelAllowed = composerShown)
+        ChatBottomArea(emoji, panelAllowed = composerShown, canSendStickers = canSendStickers)
         }
         MessageMenuOverlay(menuOverlay, interactions.menu, interactions)
         }

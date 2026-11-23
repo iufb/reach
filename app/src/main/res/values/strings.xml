@@ -398,6 +398,10 @@
     <string name="emoji_search">Поиск эмодзи</string>
     <string name="emoji_recent">Недавние</string>
     <string name="emoji_nothing_found">Ничего не нашлось</string>
+    <string name="stickers_tab">Стикеры</string>
+    <string name="stickers_open">Стикеры</string>
+    <string name="stickers_coming_soon">Стикеры появятся здесь</string>
+    <string name="stickers_restricted">Отправка стикеров в этом чате ограничена</string>
 
     <!-- Статус и действия -->
     <string name="status_online">в сети</string>

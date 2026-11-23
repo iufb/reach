@@ -4,11 +4,16 @@ import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.ime
 import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -20,18 +25,29 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.layout
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Density
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
+import io.github.iufb.reach.R
 import io.github.iufb.reach.emoji.EmojiPanel
+import io.github.iufb.reach.ui.components.SegmentedControl
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/** Вкладки панели под полем ввода. */
+internal enum class PanelTab { Emoji, Stickers }
+
+/** Последняя вкладка — на весь процесс, как в iOS: открыл стикеры — в следующий раз откроются стикеры. */
+private val lastPanelTab = mutableStateOf(PanelTab.Emoji)
 
 /**
  * Панель эмодзи на месте клавиатуры. Ключевое — лента не прыгает: пока клавиатура уезжает
@@ -53,6 +69,14 @@ internal class EmojiPanelState(private val scope: CoroutineScope) {
 
     /** Доля раскрытия, когда клавиатуры не было: панель выезжает снизу сама. */
     val reveal = Animatable(0f)
+
+    /** Открытая вкладка; помнится между чатами до конца процесса. Поиск есть только у эмодзи. */
+    var tab: PanelTab
+        get() = lastPanelTab.value
+        set(value) {
+            lastPanelTab.value = value
+            if (value != PanelTab.Emoji) searching = false
+        }
 
     /** Высота клавиатуры в пикселях, как её видели в последний раз; 0 — ещё не открывалась. */
     var keyboardPx by mutableIntStateOf(0)
@@ -101,9 +125,16 @@ internal fun rememberEmojiPanelState(): EmojiPanelState {
  * Его высота — max(ime, nav) плюс панель, и при переключении клавиатура ↔ панель сумма постоянна:
  * область ленты и поле над ней не меняют размер ни на кадр. Считается при раскладке, в том же кадре,
  * что и сдвиг клавиатуры. [panelAllowed] `false` — поля ввода нет, панель не нужна.
+ * [canSendStickers] `false` — на вкладке «Стикеры» вместо [stickerContent] текст об ограничении.
+ * [stickerContent] — содержимое вкладки «Стикеры» (сетка придёт в #289; пока заглушка).
  */
 @Composable
-internal fun ChatBottomArea(state: EmojiPanelState, panelAllowed: Boolean) {
+internal fun ChatBottomArea(
+    state: EmojiPanelState,
+    panelAllowed: Boolean,
+    canSendStickers: Boolean,
+    stickerContent: @Composable () -> Unit = { StickerTabPlaceholder() },
+) {
     val ime = WindowInsets.ime
     val nav = WindowInsets.navigationBars
     val density = LocalDensity.current
@@ -139,14 +170,83 @@ internal fun ChatBottomArea(state: EmojiPanelState, panelAllowed: Boolean) {
                         layout(placeable.width, panelPx) { placeable.place(0, 0) }
                     },
                 ) {
-                    EmojiPanel(
-                        onPick = { state.onPick(it) },
-                        modifier = Modifier.fillMaxSize(),
-                        onSearchFocusChange = { state.searching = it && state.open },
+                    PanelTabs(
+                        tab = state.tab,
+                        onTabChange = { state.tab = it },
+                        // В поиске панель ужата до строки результатов — переключателю там не место
+                        showTabs = !state.searching,
+                        emojiContent = {
+                            EmojiPanel(
+                                onPick = { state.onPick(it) },
+                                modifier = Modifier.fillMaxSize(),
+                                onSearchFocusChange = { state.searching = it && state.open },
+                            )
+                        },
+                        stickerContent = {
+                            if (canSendStickers) stickerContent() else PanelMessage(stringResource(R.string.stickers_restricted))
+                        },
                     )
                 }
             }
         }
+    }
+}
+
+/**
+ * Содержимое панели и переключатель «Эмодзи | Стикеры» под ним, как в Telegram iOS. Высоту задаёт
+ * [ChatBottomArea]; смена вкладки меняет только содержимое, а не размер.
+ */
+@Composable
+private fun PanelTabs(
+    tab: PanelTab,
+    onTabChange: (PanelTab) -> Unit,
+    showTabs: Boolean,
+    emojiContent: @Composable () -> Unit,
+    stickerContent: @Composable () -> Unit,
+) {
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.fillMaxWidth().weight(1f)) {
+            when (tab) {
+                PanelTab.Emoji -> emojiContent()
+                PanelTab.Stickers -> stickerContent()
+            }
+        }
+        if (showTabs) {
+            val tabs = PanelTab.entries
+            SegmentedControl(
+                items = tabs.map { stringResource(it.label) },
+                selected = tabs.indexOf(tab),
+                onSelect = { onTabChange(tabs[it]) },
+                modifier = Modifier
+                    .align(Alignment.CenterHorizontally)
+                    .padding(top = 2.dp, bottom = 6.dp)
+                    .width(TABS_WIDTH),
+            )
+        }
+    }
+}
+
+private val PanelTab.label: Int
+    get() = when (this) {
+        PanelTab.Emoji -> R.string.emoji_open
+        PanelTab.Stickers -> R.string.stickers_tab
+    }
+
+/** Вкладка «Стикеры» до сетки (#289). */
+@Composable
+internal fun StickerTabPlaceholder() {
+    PanelMessage(stringResource(R.string.stickers_coming_soon))
+}
+
+@Composable
+private fun PanelMessage(text: String) {
+    Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
+        Text(
+            text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = ReachTheme.colors.secondaryLabel,
+            textAlign = TextAlign.Center,
+        )
     }
 }
 
@@ -164,5 +264,6 @@ private fun Density.panelHeightPx(state: EmojiPanelState, insetPx: Int): Int {
 private val DEFAULT_HEIGHT = 340.dp
 private val SEARCH_HEIGHT = 112.dp
 private val CORNER = 20.dp
+private val TABS_WIDTH = 220.dp
 private const val REVEAL_MS = 250
 private const val YIELD_TIMEOUT_MS = 700L
