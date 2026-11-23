@@ -1,5 +1,10 @@
 package io.github.iufb.reach.auth
 
+import androidx.compose.animation.graphics.ExperimentalAnimationGraphicsApi
+import androidx.compose.animation.graphics.res.animatedVectorResource
+import androidx.compose.animation.graphics.res.rememberAnimatedVectorPainter
+import androidx.compose.animation.graphics.vector.AnimatedImageVector
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -16,6 +21,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.requiredSize
 import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -31,7 +37,6 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -47,7 +52,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.FocusRequester
 import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.SolidColor
-import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
@@ -371,12 +375,28 @@ private fun AuthLayout(
 }
 
 /** Знак Reach: буква «R» из иконки приложения на акцентном квадрате со скруглением, как значок приложения. */
+/** Анимация знака играет один раз за запуск: не на каждом шаге входа и не при повороте экрана. */
+private var brandAnimationPlayed = false
+
+/**
+ * Знак Reach с анимацией «Прорезь» (ADR-0012). Тот же `avd_splash`, что и на системном сплэше:
+ * круг в нём занимает 72 из 108, поэтому холст в 1,5 раза больше [BRAND_SIZE].
+ */
+@OptIn(ExperimentalAnimationGraphicsApi::class)
 @Composable
 private fun BrandMark() {
-    val colors = ReachTheme.colors
-    Box(Modifier.size(BRAND_SIZE).clip(RoundedCornerShape(BRAND_CORNER)).background(colors.accent), contentAlignment = Alignment.Center) {
-        // У адаптивной иконки знак занимает центр холста 108dp — показываем холст крупнее, чтобы буква заполнила квадрат
-        Icon(painterResource(R.drawable.ic_launcher_foreground), contentDescription = null, Modifier.size(BRAND_SIZE * 1.5f), tint = colors.onAccent)
+    val image = AnimatedImageVector.animatedVectorResource(R.drawable.avd_splash)
+    var atEnd by remember { mutableStateOf(brandAnimationPlayed) }
+    LaunchedEffect(Unit) {
+        atEnd = true
+        brandAnimationPlayed = true
+    }
+    Box(Modifier.size(BRAND_SIZE), contentAlignment = Alignment.Center) {
+        Image(
+            painter = rememberAnimatedVectorPainter(image, atEnd),
+            contentDescription = null,
+            modifier = Modifier.requiredSize(BRAND_SIZE * 1.5f),
+        )
     }
 }
 
@@ -571,7 +591,6 @@ private fun resendText(next: CodeDelivery): String = when (next) {
 
 private val MAX_WIDTH = 480.dp
 private val BRAND_SIZE = 88.dp
-private val BRAND_CORNER = 22.dp
 private val FIELD_HEIGHT = 52.dp
 private val CODE_CELL_WIDTH = 44.dp
 private val CODE_CELL_HEIGHT = 56.dp
