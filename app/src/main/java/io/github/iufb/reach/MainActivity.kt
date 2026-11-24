@@ -22,6 +22,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
 import io.github.iufb.reach.auth.AuthState
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.withTimeoutOrNull
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -210,4 +212,14 @@ private fun MissingCredentialsScreen() {
 /** Ушёл ли системный сплэш: анимации под ним никто не видит, экран входа ждёт этого флага. */
 object SplashGate {
     val dismissed = MutableStateFlow(false)
+
+    /**
+     * Дождаться ухода сплэша, но не дольше [WAIT_MS] — на случай, если сплэша не было.
+     * Анимации и автофокус (клавиатура) на экране под сплэшем запускаются только после этого.
+     */
+    suspend fun awaitDismissed() {
+        withTimeoutOrNull(WAIT_MS) { dismissed.first { it } }
+    }
+
+    private const val WAIT_MS = 3_000L
 }
