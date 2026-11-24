@@ -15,8 +15,10 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
@@ -26,7 +28,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Text
-import io.github.iufb.reach.ui.components.PillTextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.derivedStateOf
@@ -59,11 +60,16 @@ import io.github.iufb.reach.ui.components.CellIcon
 import io.github.iufb.reach.ui.components.GlassScope
 import io.github.iufb.reach.ui.components.GroupedCell
 import io.github.iufb.reach.ui.components.GroupedSection
+import io.github.iufb.reach.ui.components.PillTextButton
 import io.github.iufb.reach.ui.components.ReachTopBar
 import io.github.iufb.reach.ui.components.SheetAction
+import io.github.iufb.reach.ui.components.SkeletonBox
+import io.github.iufb.reach.ui.components.SkeletonCircleShape
+import io.github.iufb.reach.ui.components.SkeletonCrossfade
 import io.github.iufb.reach.ui.components.TabBarHeight
 import io.github.iufb.reach.ui.components.TopBarHeight
 import io.github.iufb.reach.ui.components.glassSource
+import io.github.iufb.reach.ui.components.skeletonFraction
 import io.github.iufb.reach.ui.theme.CellIconColors
 import io.github.iufb.reach.ui.theme.ReachTheme
 
@@ -114,61 +120,65 @@ fun SettingsScreen(
             val me = profile
             if (loggingOut) {
                 CircularProgressIndicator(Modifier.align(Alignment.Center), color = colors.accent)
-            } else if (me != null) {
-                // Пока профиль не пришёл (кадр-другой после перехода) — пустой фон, без мелькания спиннера
-                Column(
-                    Modifier
-                        .fillMaxSize()
-                        .glassSource()
-                        .verticalScroll(scroll)
-                        .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + HEADER_TOP)
-                        .navigationBarsPadding()
-                        .padding(bottom = TabBarHeight + 32.dp),
-                ) {
-                    ProfileHeader(
-                        me,
-                        onPhoto = pickOrEditPhoto,
-                        modifier = Modifier.onPlaced { headerBottom = (it.positionInParent().y + it.size.height).toInt() },
-                    )
-                    GroupedSection {
-                        GroupedCell(
-                            stringResource(if (me.hasPhoto) R.string.settings_photo_edit else R.string.settings_photo_set),
-                            onClick = pickOrEditPhoto,
-                            icon = { CellIcon(painterResource(R.drawable.ic_photo), colors.accent) },
-                            accent = true,
-                            chevron = false,
-                            divider = false,
-                        )
-                    }
-                    GroupedSection {
-                        GroupedCell(stringResource(R.string.settings_name), onClick = onEditProfile, value = me.user.fullName)
-                        GroupedCell(
-                            stringResource(R.string.profile_username),
-                            onClick = onEditProfile,
-                            value = if (me.user.username.isBlank()) stringResource(R.string.settings_username_empty) else "@${me.user.username}",
-                        )
-                        GroupedCell(
-                            stringResource(R.string.profile_bio),
-                            onClick = onEditProfile,
-                            subtitle = me.bio.ifBlank { stringResource(R.string.settings_bio_empty) },
-                        )
-                        // Номер виден, но не меняется: смена номера — вне скоупа
-                        GroupedCell(stringResource(R.string.profile_phone), value = "+${me.user.phoneNumber}", divider = false)
-                    }
-                    GroupedSection {
-                        val rows = buildList {
-                            add(SettingsLink(R.string.autodownload_title, R.drawable.ic_download, CellIconColors.Green, onOpenAutoDownload))
-                            onOpenFont?.let { add(SettingsLink(R.string.font_title, R.drawable.ic_text, CellIconColors.Blue, it, textFont ?: INTER)) }
-                            onOpenBlocked?.let { add(SettingsLink(R.string.blocked_title, R.drawable.ic_lock, CellIconColors.Gray, it)) }
-                            onOpenContactSync?.let { add(SettingsLink(R.string.contact_sync_title, R.drawable.ic_tab_contacts, CellIconColors.Orange, it)) }
+            } else {
+                // Профиль обычно приходит за кадр-другой: скелетон — только если дольше SkeletonDelayMs
+                SkeletonCrossfade(loading = me == null, modifier = Modifier.fillMaxSize(), skeleton = { SettingsSkeleton() }) {
+                    if (me != null) {
+                        Column(
+                            Modifier
+                                .fillMaxSize()
+                                .glassSource()
+                                .verticalScroll(scroll)
+                                .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + HEADER_TOP)
+                                .navigationBarsPadding()
+                                .padding(bottom = TabBarHeight + 32.dp),
+                        ) {
+                            ProfileHeader(
+                                me,
+                                onPhoto = pickOrEditPhoto,
+                                modifier = Modifier.onPlaced { headerBottom = (it.positionInParent().y + it.size.height).toInt() },
+                            )
+                            GroupedSection {
+                                GroupedCell(
+                                    stringResource(if (me.hasPhoto) R.string.settings_photo_edit else R.string.settings_photo_set),
+                                    onClick = pickOrEditPhoto,
+                                    icon = { CellIcon(painterResource(R.drawable.ic_photo), colors.accent) },
+                                    accent = true,
+                                    chevron = false,
+                                    divider = false,
+                                )
+                            }
+                            GroupedSection {
+                                GroupedCell(stringResource(R.string.settings_name), onClick = onEditProfile, value = me.user.fullName)
+                                GroupedCell(
+                                    stringResource(R.string.profile_username),
+                                    onClick = onEditProfile,
+                                    value = if (me.user.username.isBlank()) stringResource(R.string.settings_username_empty) else "@${me.user.username}",
+                                )
+                                GroupedCell(
+                                    stringResource(R.string.profile_bio),
+                                    onClick = onEditProfile,
+                                    subtitle = me.bio.ifBlank { stringResource(R.string.settings_bio_empty) },
+                                )
+                                // Номер виден, но не меняется: смена номера — вне скоупа
+                                GroupedCell(stringResource(R.string.profile_phone), value = "+${me.user.phoneNumber}", divider = false)
+                            }
+                            GroupedSection {
+                                val rows = buildList {
+                                    add(SettingsLink(R.string.autodownload_title, R.drawable.ic_download, CellIconColors.Green, onOpenAutoDownload))
+                                    onOpenFont?.let { add(SettingsLink(R.string.font_title, R.drawable.ic_text, CellIconColors.Blue, it, textFont ?: INTER)) }
+                                    onOpenBlocked?.let { add(SettingsLink(R.string.blocked_title, R.drawable.ic_lock, CellIconColors.Gray, it)) }
+                                    onOpenContactSync?.let { add(SettingsLink(R.string.contact_sync_title, R.drawable.ic_tab_contacts, CellIconColors.Orange, it)) }
+                                }
+                                rows.forEachIndexed { index, row -> LinkCell(row, divider = index < rows.lastIndex) }
+                            }
+                            onOpenComponents?.let {
+                                GroupedSection { LinkCell(SettingsLink(R.string.components_catalog, R.drawable.ic_select, CellIconColors.Purple, it), divider = false) }
+                            }
+                            GroupedSection {
+                                GroupedCell(stringResource(R.string.logout), onClick = { confirmLogOut = true }, destructive = true, chevron = false, divider = false)
+                            }
                         }
-                        rows.forEachIndexed { index, row -> LinkCell(row, divider = index < rows.lastIndex) }
-                    }
-                    onOpenComponents?.let {
-                        GroupedSection { LinkCell(SettingsLink(R.string.components_catalog, R.drawable.ic_select, CellIconColors.Purple, it), divider = false) }
-                    }
-                    GroupedSection {
-                        GroupedCell(stringResource(R.string.logout), onClick = { confirmLogOut = true }, destructive = true, chevron = false, divider = false)
                     }
                 }
             }
@@ -204,6 +214,35 @@ fun SettingsScreen(
             actions = listOf(SheetAction(stringResource(R.string.logout), destructive = true) { viewModel.logOut() }),
             onDismiss = { confirmLogOut = false },
         )
+    }
+}
+
+/** Скелетон экрана: шапка профиля (аватар, имя, номер) и карточка строк. */
+@Composable
+private fun SettingsSkeleton() {
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + HEADER_TOP),
+    ) {
+        Column(Modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
+            SkeletonBox(Modifier.size(AVATAR), SkeletonCircleShape)
+            Box(Modifier.padding(top = 12.dp).height(32.dp), contentAlignment = Alignment.Center) {
+                SkeletonBox(Modifier.size(width = 160.dp, height = 20.dp))
+            }
+            Box(Modifier.padding(top = 2.dp).height(22.dp), contentAlignment = Alignment.Center) {
+                SkeletonBox(Modifier.size(width = 200.dp, height = 12.dp))
+            }
+        }
+        repeat(2) { section ->
+            GroupedSection {
+                repeat(if (section == 0) 1 else 4) { row ->
+                    Box(Modifier.fillMaxWidth().height(44.dp).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+                        SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(section * 5 + row, 0.3f, 0.6f)).height(12.dp))
+                    }
+                }
+            }
+        }
     }
 }
 
