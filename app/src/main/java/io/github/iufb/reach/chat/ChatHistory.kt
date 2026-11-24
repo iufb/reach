@@ -59,6 +59,13 @@ class ChatHistory(
      */
     private var segment = 0
 
+    /**
+     * Временные id, чья отправка уже завершилась (`UpdateMessageSendSucceeded` / `UpdateMessageSendFailed`).
+     * Ответ `sendMessage` приходит в другом потоке и может опоздать к апдейту — тогда его временное
+     * сообщение в ленту уже не кладём, иначе копия «отправляется» повиснет рядом с отправленным (#313).
+     */
+    private val finishedSends: MutableSet<Long> = java.util.concurrent.ConcurrentHashMap.newKeySet()
+
     private val _replied = MutableStateFlow<Map<Long, Message?>>(emptyMap())
 
     /**
@@ -360,10 +367,12 @@ class ChatHistory(
     /** Только что отправленное — в ленту; отложенное в историю не попадает. */
     private fun mergeSent(sent: List<TdApi.Message>) {
         val now = sent.filter { it.schedulingState == null }.map { it.toModel() }
-        if (now.isNotEmpty()) _state.update { it.merge(now) }
+        // Проверка внутри update: если апдейт успеет между проверкой и записью, update повторится
+        if (now.isNotEmpty()) _state.update { s -> s.copy(messages = s.messages.mergeSent(now, finishedSends)) }
     }
 
     private fun replace(oldId: Long, message: Message) {
+        finishedSends += oldId
         _state.update { s -> s.copy(messages = s.messages.replaceSent(oldId, message)) }
     }
 
@@ -411,6 +420,10 @@ internal fun List<Message>.mergeMessages(added: List<Message>): List<Message> {
     val merged = byId + added.associateBy { it.id }.mapValues { (id, m) -> byId[id]?.let { m.copy(listKey = it.listKey) } ?: m }
     return merged.values.sortedByDescending { it.id }
 }
+
+/** Ответ `sendMessage`: временные сообщения, кроме тех, чья отправка уже завершилась апдейтом (#313). */
+internal fun List<Message>.mergeSent(sent: List<Message>, finished: Set<Long>): List<Message> =
+    mergeMessages(sent.filterNot { it.id in finished })
 
 /** Отправка завершилась: [oldId] → постоянный id, а ключ элемента ленты — прежний (#295). */
 internal fun List<Message>.replaceSent(oldId: Long, message: Message): List<Message> {
