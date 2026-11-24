@@ -320,6 +320,8 @@ private fun ChatList(
     val listState = rememberLazyListState()
     LoadMoreEffect(listState, enabled = chats != null && !allLoaded, onLoadMore)
     val skeleton = rememberSkeletonVisible(chats == null)
+    // Хвост из заглушек — тоже с задержкой: короткая подгрузка не мигает внизу списка
+    val loadingMore = rememberSkeletonVisible(chats != null && !allLoaded)
     val skeletonRows = LocalConfiguration.current.screenHeightDp.dp.div(ROW_HEIGHT).toInt() + 1
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().glassSource(), contentPadding = padding) {
         item(key = "header") { Column { header() } }
@@ -345,9 +347,12 @@ private fun ChatList(
                 modifier = Modifier.animateItem(fadeInSpec = tween(SkeletonFadeMs), placementSpec = null, fadeOutSpec = null),
             )
         }
-        if (!allLoaded) {
+        if (loadingMore) {
             items(LOAD_MORE_SKELETON_ROWS, key = { "loading:$it" }, contentType = { "skeleton" }) { index ->
-                SkeletonChatRow(index)
+                SkeletonChatRow(
+                    index,
+                    Modifier.animateItem(fadeInSpec = tween(SkeletonFadeMs), placementSpec = null, fadeOutSpec = tween(SkeletonFadeMs)),
+                )
             }
         }
     }
