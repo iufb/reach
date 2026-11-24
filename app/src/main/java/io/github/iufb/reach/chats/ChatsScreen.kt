@@ -1,6 +1,7 @@
 package io.github.iufb.reach.chats
 
 import android.content.res.Configuration
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
@@ -54,6 +55,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.pluralStringResource
@@ -70,9 +72,9 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
+import io.github.iufb.reach.chat.Sender
 import io.github.iufb.reach.navigation.MainTab
 import io.github.iufb.reach.navigation.MainTabBar
-import io.github.iufb.reach.chat.Sender
 import io.github.iufb.reach.presence.ActivityKind
 import io.github.iufb.reach.presence.activityText
 import io.github.iufb.reach.ui.components.BackPill
@@ -81,8 +83,13 @@ import io.github.iufb.reach.ui.components.PillGroup
 import io.github.iufb.reach.ui.components.PillGroupIcon
 import io.github.iufb.reach.ui.components.ReachTopBar
 import io.github.iufb.reach.ui.components.SearchButton
+import io.github.iufb.reach.ui.components.SkeletonBox
+import io.github.iufb.reach.ui.components.SkeletonCircleShape
+import io.github.iufb.reach.ui.components.SkeletonFadeMs
 import io.github.iufb.reach.ui.components.TabBarHeight
 import io.github.iufb.reach.ui.components.glassSource
+import io.github.iufb.reach.ui.components.rememberSkeletonVisible
+import io.github.iufb.reach.ui.components.skeletonFraction
 import io.github.iufb.reach.ui.format.Dates
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -276,8 +283,8 @@ private fun ChatsBody(
     val isArchive = list == ChatListType.Archive
     val placeholder = Modifier.fillMaxSize().padding(padding)
     when {
-        loggingOut || chats == null -> Box(placeholder, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-        chats.isEmpty() && allLoaded && archive == null -> Column(placeholder) {
+        loggingOut -> Box(placeholder, contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+        chats != null && chats.isEmpty() && allLoaded && archive == null -> Column(placeholder) {
             header()
             Box(Modifier.fillMaxSize().padding(24.dp), contentAlignment = Alignment.Center) {
                 Text(
@@ -298,7 +305,8 @@ private fun ChatsBody(
 @Composable
 private fun ChatList(
     list: ChatListType,
-    chats: List<Chat>,
+    /** `null` — первая страница ещё не пришла: вместо строк скелетон. */
+    chats: List<Chat>?,
     allLoaded: Boolean,
     onChatClick: (Long) -> Unit,
     onChatLongClick: (Long) -> Unit,
@@ -310,11 +318,21 @@ private fun ChatList(
     header: @Composable () -> Unit,
 ) {
     val listState = rememberLazyListState()
-    LoadMoreEffect(listState, enabled = !allLoaded, onLoadMore)
+    LoadMoreEffect(listState, enabled = chats != null && !allLoaded, onLoadMore)
+    val skeleton = rememberSkeletonVisible(chats == null)
+    val skeletonRows = LocalConfiguration.current.screenHeightDp.dp.div(ROW_HEIGHT).toInt() + 1
     LazyColumn(state = listState, modifier = Modifier.fillMaxSize().glassSource(), contentPadding = padding) {
         item(key = "header") { Column { header() } }
         if (archive != null) {
             item(key = "archive") { ArchiveRow(archive, onOpenArchive) }
+        }
+        if (chats == null) {
+            if (skeleton) {
+                items(skeletonRows, key = { "skeleton:$it" }, contentType = { "skeleton" }) { index ->
+                    SkeletonChatRow(index, Modifier.animateItem(fadeInSpec = null, placementSpec = null, fadeOutSpec = tween(SkeletonFadeMs)))
+                }
+            }
+            return@LazyColumn
         }
         items(chats, key = { it.id }) { chat ->
             ChatRow(
@@ -323,13 +341,13 @@ private fun ChatList(
                 activity = activities[chat.id]?.let { activityText(it, withNames = false) { "" } },
                 onClick = { onChatClick(chat.id) },
                 onLongClick = { onChatLongClick(chat.id) },
+                // Строки проявляются поверх уходящего скелетона
+                modifier = Modifier.animateItem(fadeInSpec = tween(SkeletonFadeMs), placementSpec = null, fadeOutSpec = null),
             )
         }
         if (!allLoaded) {
-            item(key = "loading") {
-                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                }
+            items(LOAD_MORE_SKELETON_ROWS, key = { "loading:$it" }, contentType = { "skeleton" }) { index ->
+                SkeletonChatRow(index)
             }
         }
     }
@@ -357,9 +375,17 @@ private fun LoadMoreEffect(listState: LazyListState, enabled: Boolean, onLoadMor
  * под ними превью в две строки и счётчик (или значок закрепа). Разделитель — от текста.
  */
 @Composable
-private fun ChatRow(chat: Chat, isPinned: Boolean, activity: String?, onClick: () -> Unit, onLongClick: () -> Unit) {
+private fun ChatRow(
+    chat: Chat,
+    isPinned: Boolean,
+    activity: String?,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
     val colors = ReachTheme.colors
     ChatRowLayout(
+        modifier = modifier,
         avatar = { ChatAvatar(chat, size = AVATAR_SIZE) },
         onClick = onClick,
         onLongClick = onLongClick,
@@ -438,19 +464,20 @@ private fun ReadMark(chat: Chat) {
 @Composable
 private fun ChatRowLayout(
     avatar: @Composable () -> Unit,
-    onClick: () -> Unit,
+    onClick: (() -> Unit)?,
     onLongClick: (() -> Unit)?,
     title: @Composable RowScope.() -> Unit,
     meta: @Composable RowScope.() -> Unit,
     preview: @Composable RowScope.() -> Unit,
     badge: @Composable () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val colors = ReachTheme.colors
     Row(
-        Modifier
+        modifier
             .fillMaxWidth()
             .height(ROW_HEIGHT)
-            .combinedClickable(onClick = onClick, onLongClick = onLongClick)
+            .then(if (onClick != null) Modifier.combinedClickable(onClick = onClick, onLongClick = onLongClick) else Modifier)
             .padding(start = 10.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
@@ -472,6 +499,34 @@ private fun ChatRowLayout(
             HorizontalDivider(thickness = 0.5.dp, color = colors.separator)
         }
     }
+}
+
+/** Скелетон строки чата: та же раскладка, что у [ChatRow], вместо текста — полоски разной длины. */
+@Composable
+private fun SkeletonChatRow(index: Int, modifier: Modifier = Modifier) {
+    ChatRowLayout(
+        modifier = modifier,
+        avatar = { SkeletonBox(Modifier.size(AVATAR_SIZE), SkeletonCircleShape) },
+        onClick = null,
+        onLongClick = null,
+        title = {
+            Box(Modifier.weight(1f).height(22.dp), contentAlignment = Alignment.CenterStart) {
+                SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(index, 0.3f, 0.55f)).height(14.dp))
+            }
+        },
+        meta = { SkeletonBox(Modifier.size(width = 34.dp, height = 12.dp)) },
+        preview = {
+            Column(Modifier.weight(1f)) {
+                Box(Modifier.height(20.dp), contentAlignment = Alignment.CenterStart) {
+                    SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(index + 3, 0.7f, 0.92f)).height(12.dp))
+                }
+                Box(Modifier.height(20.dp), contentAlignment = Alignment.CenterStart) {
+                    SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(index + 5, 0.4f, 0.65f)).height(12.dp))
+                }
+            }
+        },
+        badge = {},
+    )
 }
 
 /** Строка «Архив»: сколько чатов и чьи, счётчик непрочитанных — серый, архив без звука. */
@@ -537,6 +592,7 @@ private fun UnreadBadge(count: Int, muted: Boolean = false) {
 }
 
 private const val MAX_BADGE = 999
+private const val LOAD_MORE_SKELETON_ROWS = 3
 private val ROW_HEIGHT = 78.dp
 private val AVATAR_SIZE = 60.dp
 private val BADGE_SIZE = 20.dp
