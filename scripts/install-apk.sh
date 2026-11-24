@@ -3,16 +3,17 @@
 # Локально ничего не собираем (docs/adr/0001-ci-only-builds.md).
 # Требуется: gh (авторизован), adb, подключённое устройство или эмулятор.
 #
-# Использование: scripts/install-apk.sh [--testdc] [ветка]
+# Использование: scripts/install-apk.sh [--testdc | --release-testdc] [ветка]
 #   --testdc  поставить сборку на тестовых серверах Telegram («Reach Test», рядом с основной)
+#   --release-testdc  то же на test DC, но release со включённым R8 (ставится поверх --testdc)
 #   без флага — debug-сборка «Reach Dev» (io.github.iufb.reach.debug, ADR-0014)
 set -euo pipefail
 
 artifact=reach-debug
-if [ "${1:-}" = "--testdc" ]; then
-  artifact=reach-testdc
-  shift
-fi
+case "${1:-}" in
+  --testdc) artifact=reach-testdc; shift ;;
+  --release-testdc) artifact=reach-release-testdc; shift ;;
+esac
 
 branch="${1:-$(git rev-parse --abbrev-ref HEAD)}"
 

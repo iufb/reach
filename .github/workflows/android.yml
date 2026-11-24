@@ -37,7 +37,7 @@ jobs:
             echo "::warning::DEBUG_KEYSTORE_BASE64 не задан — APK подписан случайным ключом и не встанет поверх установленного"
           fi
 
-      - run: ./gradlew assembleDebug assembleDctest testDebugUnitTest lintDebug
+      - run: ./gradlew assembleDebug assembleDctest assembleReleaseTestdc testDebugUnitTest lintDebug
         env:
           APP_ID: ${{ secrets.APP_ID }}
           APP_HASH: ${{ secrets.APP_HASH }}
@@ -66,5 +66,15 @@ jobs:
         with:
           name: reach-testdc
           path: app/build/outputs/apk/dctest/*.apk
+          retention-days: 14
+          if-no-files-found: error
+
+      # Release (R8) на тестовых серверах (buildTypes.releaseTestdc, ADR-0014): ловит поломки R8
+      - uses: actions/upload-artifact@v7
+        with:
+          name: reach-release-testdc
+          path: |
+            app/build/outputs/apk/releaseTestdc/*.apk
+            app/build/outputs/mapping/releaseTestdc/mapping.txt
           retention-days: 14
           if-no-files-found: error
