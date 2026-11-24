@@ -4,6 +4,7 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
     alias(libs.plugins.ksp)
     alias(libs.plugins.hilt)
+    alias(libs.plugins.baselineprofile)
 }
 
 // Ключи Telegram API только из окружения CI (GitHub Secrets APP_ID / APP_HASH), см. ADR-0003.
@@ -166,4 +167,14 @@ dependencies {
     implementation(libs.hilt.lifecycle.viewmodel.compose)
 
     testImplementation(libs.junit)
+
+    // Baseline profile (ADR-0014): генератор — модуль :baselineprofile, профиль — в src/main/generated
+    implementation(libs.androidx.profileinstaller)
+    baselineProfile(project(":baselineprofile"))
+}
+
+baselineProfile {
+    // Один профиль на release и releaseTestdc; генерируется вручную на устройстве, не при каждой сборке
+    mergeIntoMain = true
+    automaticGenerationDuringBuild = false
 }
