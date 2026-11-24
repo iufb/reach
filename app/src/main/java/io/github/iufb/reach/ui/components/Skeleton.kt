@@ -10,6 +10,7 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxScope
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -101,10 +102,10 @@ fun rememberSkeletonVisible(loading: Boolean): Boolean {
  * загрузки известно только внутри элемента.
  */
 @Composable
-fun DelayedSkeleton(modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+fun DelayedSkeleton(modifier: Modifier = Modifier, content: @Composable BoxScope.() -> Unit) {
     val visible = rememberSkeletonVisible(true)
     val alpha by animateFloatAsState(if (visible) 1f else 0f, tween(SkeletonFadeMs), label = "skeletonAlpha")
-    Box(modifier.graphicsLayer { this.alpha = alpha }) { content() }
+    Box(modifier.graphicsLayer { this.alpha = alpha }, content = content)
 }
 
 private enum class SkeletonPhase { Blank, Skeleton, Content }
