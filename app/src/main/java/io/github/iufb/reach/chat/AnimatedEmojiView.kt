@@ -51,6 +51,12 @@ internal fun AnimatedEmojiView(emoji: String, animation: TdFile?, replay: Int, m
     }
 }
 
+/** Один эмодзи текстом (без анимации): рисунок шрифта на месте и в размер лица [AnimatedEmojiView]. */
+@Composable
+internal fun LoneEmoji(emoji: String, modifier: Modifier = Modifier) {
+    FittedEmoji(emoji, EMOJI_SIZE, TGS_FACE_FRACTION, modifier)
+}
+
 /**
  * Эффект по тапу на большой эмодзи поверх ленты, крупнее самого эмодзи. У своих сообщений (справа)
  * разлетается влево ([towardsStart]), у чужих — зеркально вправо. По окончании — [onDone].

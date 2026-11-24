@@ -1395,7 +1395,11 @@ private fun MessageContent(
     when (val body = message.content) {
         is MessageBody.Text -> {
             val bigEmoji = body.bigEmojiCount()
-            if (bigEmoji > 0) {
+            if (bigEmoji == 1 && body.text.spans.isEmpty()) {
+                // Один эмодзи текстом — того же размера и там же, что анимированный: при подмене
+                // (отправка, догрузка TGS) ничего не прыгает (#372)
+                LoneEmoji(body.text.text.trim(), Modifier.messageLongPress(message, interactions))
+            } else if (bigEmoji > 0) {
                 // Только эмодзи — крупно и без пузыря, как большие анимированные
                 val size = BIG_EMOJI_SP[bigEmoji - 1]
                 RichTextView(
