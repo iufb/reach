@@ -78,8 +78,6 @@ import io.github.iufb.reach.phone.PhoneNumberInput
 import io.github.iufb.reach.ui.format.PhoneMask
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.delay
-import kotlinx.coroutines.flow.first
-import kotlinx.coroutines.withTimeoutOrNull
 
 /*
  * Вход в стиле Telegram iOS (#209), но со своим брендингом: знак Reach вместо логотипа Telegram.
@@ -408,7 +406,7 @@ private fun BrandMark() {
     LaunchedEffect(avd) {
         if (avd == null) return@LaunchedEffect
         // На холодном старте экран входа собирается под сплэшем: ждём, пока тот уйдёт
-        withTimeoutOrNull(SPLASH_WAIT_MS) { SplashGate.dismissed.first { it } }
+        SplashGate.awaitDismissed()
         avd.start()
         brandAnimationPlayed = true
     }
@@ -419,8 +417,6 @@ private fun BrandMark() {
         )
     }
 }
-
-private const val SPLASH_WAIT_MS = 3_000L
 
 /**
  * Поле шага входа как в iOS: без рамки, между тонкими линиями во всю ширину, плейсхолдер серым.
@@ -441,7 +437,8 @@ private fun AuthLineField(
 ) {
     val colors = ReachTheme.colors
     val focus = remember { FocusRequester() }
-    if (focusOnStart) LaunchedEffect(Unit) { focus.requestFocus() }
+    // На холодном старте экран собирается под сплэшем: клавиатура — только после его ухода (#376)
+    if (focusOnStart) LaunchedEffect(Unit) { SplashGate.awaitDismissed(); focus.requestFocus() }
     val style = MaterialTheme.typography.bodyLarge.copy(color = colors.label)
     Column(Modifier.fillMaxWidth()) {
         HorizontalDivider(thickness = 0.5.dp, color = colors.separator)
@@ -475,7 +472,7 @@ private fun AuthLineField(
 private fun CodeCells(code: String, length: Int, onCodeChange: (String) -> Unit, enabled: Boolean, error: Boolean, onDone: () -> Unit) {
     val colors = ReachTheme.colors
     val focus = remember { FocusRequester() }
-    LaunchedEffect(Unit) { focus.requestFocus() }
+    LaunchedEffect(Unit) { SplashGate.awaitDismissed(); focus.requestFocus() }
     BasicTextField(
         value = code,
         onValueChange = { onCodeChange(it.filter(Char::isDigit).take(length)) },

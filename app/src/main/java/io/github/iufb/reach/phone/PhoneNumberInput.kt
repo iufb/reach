@@ -62,6 +62,7 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
+import io.github.iufb.reach.SplashGate
 import io.github.iufb.reach.ui.components.SearchField
 import io.github.iufb.reach.ui.components.SheetHeader
 import io.github.iufb.reach.ui.format.PhoneMask
@@ -105,7 +106,11 @@ fun PhoneNumberInput(
         if (prefilled || countries.isEmpty()) return@LaunchedEffect
         prefilled = true
         if (current.digits.isEmpty()) viewModel.simCountry()?.let { change(PhoneInput(it.callingCode, "", it.iso)) }
-        if (focusOnStart) (if (current.code.isEmpty()) codeFocus else nationalFocus).requestFocus()
+        if (focusOnStart) {
+            // На холодном старте экран входа собирается под сплэшем: клавиатура — после его ухода (#376)
+            SplashGate.awaitDismissed()
+            (if (current.code.isEmpty()) codeFocus else nationalFocus).requestFocus()
+        }
     }
 
     val country = remember(value, countries) { viewModel.countryFor(value) }
