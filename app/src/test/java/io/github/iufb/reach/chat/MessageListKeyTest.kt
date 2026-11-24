@@ -45,4 +45,21 @@ class MessageListKeyTest {
         assertEquals(listOf(101L, 2L, 1L), merged.map { it.listKey })
         assertEquals(MessageBody.Text(RichText("😂")), merged.first().content)
     }
+
+    @Test
+    fun `send response after send succeeded does not bring back the pending copy`() {
+        // #313: UpdateNewMessage(101) → UpdateMessageSendSucceeded(101 → 4) → ответ sendMessage(101)
+        val afterUpdates = listOf(message(101, sending = SendingState.Pending), message(1)).replaceSent(101, message(4))
+        val merged = afterUpdates.mergeSent(listOf(message(101, sending = SendingState.Pending)), finished = setOf(101L))
+        assertEquals(listOf(4L, 1L), merged.map { it.id })
+        assertEquals(null, merged.first().sendingState)
+    }
+
+    @Test
+    fun `send response before send succeeded leaves one message`() {
+        // ответ sendMessage(101) → UpdateMessageSendSucceeded(101 → 4)
+        val pending = listOf(message(1)).mergeSent(listOf(message(101, sending = SendingState.Pending)), finished = emptySet())
+        val sent = pending.replaceSent(101, message(4))
+        assertEquals(listOf(4L, 1L), sent.map { it.id })
+    }
 }
