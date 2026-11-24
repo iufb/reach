@@ -22,6 +22,11 @@ fun fcm(name: String): String = providers.environmentVariable(name).orNull?.trim
 // Без него AGP подписывает случайным ключом раннера, и APK не встанет поверх установленного.
 val debugKeystorePath: String? = providers.environmentVariable("DEBUG_KEYSTORE_PATH").orNull?.takeIf { it.isNotBlank() }
 
+// Release-ключ (ADR-0014): только в workflow Release по тегу v*, из секретов RELEASE_*.
+// Без него release собирается неподписанным — обычный CI и PR из форков не ломаются.
+fun env(name: String): String? = providers.environmentVariable(name).orNull?.takeIf { it.isNotBlank() }
+val releaseKeystorePath: String? = env("RELEASE_KEYSTORE_PATH")
+
 android {
     namespace = "io.github.iufb.reach"
     compileSdk = 37
@@ -41,6 +46,15 @@ android {
     }
 
     signingConfigs {
+        if (releaseKeystorePath != null) {
+            create("release") {
+                storeFile = file(releaseKeystorePath)
+                storeType = "PKCS12"
+                storePassword = env("RELEASE_KEYSTORE_PASSWORD") ?: error("нет RELEASE_KEYSTORE_PASSWORD")
+                keyAlias = env("RELEASE_KEY_ALIAS") ?: error("нет RELEASE_KEY_ALIAS")
+                keyPassword = env("RELEASE_KEY_PASSWORD") ?: error("нет RELEASE_KEY_PASSWORD")
+            }
+        }
         getByName("debug") {
             if (debugKeystorePath != null) {
                 storeFile = file(debugKeystorePath)
@@ -67,6 +81,7 @@ android {
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            signingConfigs.findByName("release")?.let { signingConfig = it }
             buildConfigField("boolean", "USE_TEST_DC", "false")
         }
         // Debug-сборка на тестовых серверах Telegram (test DC): ставится рядом с основной,
