@@ -92,6 +92,6 @@ jobs:
         run: |
           gh release create "$TAG" rlottie.zip -R "$GITHUB_REPOSITORY" \
             --target "$GITHUB_SHA" \
-            --title "$TAG" \
+            --title "$TAG" --latest=false \
             --notes "rlottie [\`$RLOTTIE_COMMIT\`](https://github.com/Samsung/rlottie/commit/$RLOTTIE_COMMIT), lz4 \`$LZ4_COMMIT\`, JNI $JNI_VERSION, ABI: $ABIS, NDK $ANDROID_NDK_VERSION."
           echo "rlottie.release=$TAG" >> "$GITHUB_STEP_SUMMARY"
