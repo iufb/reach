@@ -123,6 +123,8 @@ import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.foundation.layout.statusBarsPadding
 import io.github.iufb.reach.ui.components.BackPill
 import io.github.iufb.reach.ui.components.BubbleShape
+import io.github.iufb.reach.ui.components.SkeletonCrossfade
+import io.github.iufb.reach.ui.components.rememberSkeletonVisible
 import io.github.iufb.reach.ui.components.GlassScope
 import io.github.iufb.reach.ui.components.PillHeight
 import io.github.iufb.reach.ui.components.PillIconButton
@@ -511,13 +513,18 @@ private fun ChatContent(
         ) {
         Box(Modifier.fillMaxWidth().weight(1f)) {
             val padding = PaddingValues(top = topHeight + 4.dp, bottom = bottomHeight + 4.dp)
-            if (!state.opened || chat == null) {
-                Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
-            } else {
-                MessageList(
-                    chat, state, senders, interactions, onLoadOlder, onLoadNewer, onVisibleMessagesChange,
-                    Modifier.fillMaxSize().glassSource(), padding, threadRoot,
-                )
+            // Пока история не открыта — пузыри-заглушки; шапка и поле ввода уже настоящие
+            SkeletonCrossfade(
+                loading = !state.opened || chat == null,
+                modifier = Modifier.fillMaxSize(),
+                skeleton = { ChatSkeleton(isChannel = chat?.kind == ChatKind.Channel, contentPadding = padding) },
+            ) {
+                if (chat != null) {
+                    MessageList(
+                        chat, state, senders, interactions, onLoadOlder, onLoadNewer, onVisibleMessagesChange,
+                        Modifier.fillMaxSize().glassSource(), padding, threadRoot,
+                    )
+                }
             }
             Column(Modifier.fillMaxWidth().onSizeChanged { topHeight = with(density) { it.height.toDp() } }) {
                 if (selectionBar != null) {
@@ -890,6 +897,8 @@ private fun MessageList(
             .collect { visibleChanged(it) }
     }
     PagingEffects(listState, state, onLoadOlder, onLoadNewer)
+    // С задержкой: в коротком чате история догружается сразу, и заглушки сверху не мигают
+    val loadingOlder = rememberSkeletonVisible(!state.reachedOldest)
     // reverseLayout: индекс 0 — самое новое сообщение, внизу экрана
     LazyColumn(
         state = listState,
@@ -942,11 +951,10 @@ private fun MessageList(
                 }
             }
         }
-        if (!state.reachedOldest) {
-            item(key = "loading") {
-                Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(Modifier.size(24.dp), strokeWidth = 2.dp)
-                }
+        if (loadingOlder) {
+            // Подгрузка старых: пузыри-заглушки над лентой
+            items(LOAD_OLDER_SKELETONS, key = { "loading:$it" }, contentType = { "skeleton" }) { index ->
+                SkeletonBubbleRow(index + 1, isChannel)
             }
         }
     }
@@ -1727,6 +1735,7 @@ private const val MAX_PICKED_PHOTOS = 10
 
 /** Отступ над первым сообщением серии; внутри серии — 2 dp. */
 private val SERIES_GAP = 6.dp
+private const val LOAD_OLDER_SKELETONS = 3
 private val META_GAP = 3.dp
 private val STATUS_ICON = 15.dp
 /** Отступ времени от последнего слова текста. */
