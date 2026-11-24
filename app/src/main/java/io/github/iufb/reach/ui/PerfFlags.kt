@@ -15,7 +15,7 @@ import java.io.File
  * adb shell am force-stop io.github.iufb.reach.testdc
  * ```
  * Ключи: `glass` = `solid` (подложка без размытия везде) | `blur` (живое размытие везде, в т. ч. в чате);
- * `tgs` = `static` (первый кадр) | `hw` (аппаратный рендер Lottie); `tgsfps` = кадров в секунду.
+ * `tgs` = `static` (первый кадр); `tgsfps` = кадров в секунду.
  */
 object PerfFlags {
     @Volatile private var values: Map<String, String> = emptyMap()
