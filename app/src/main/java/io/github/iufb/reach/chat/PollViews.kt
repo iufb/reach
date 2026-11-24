@@ -42,6 +42,10 @@ import io.github.iufb.reach.chats.PollInfo
 import io.github.iufb.reach.chats.PollOptionInfo
 import io.github.iufb.reach.files.TdFile
 import io.github.iufb.reach.ui.components.Avatar
+import io.github.iufb.reach.ui.components.SkeletonBox
+import io.github.iufb.reach.ui.components.SkeletonCircleShape
+import io.github.iufb.reach.ui.components.rememberSkeletonVisible
+import io.github.iufb.reach.ui.components.skeletonFraction
 
 /**
  * Опрос в пузыре. До голоса — варианты-кнопки (один вариант — голос сразу, несколько — галочки и
@@ -204,6 +208,7 @@ internal fun PollVotersDialog(state: PollVoters, onLoadMore: () -> Unit, onOpen:
         onDismissRequest = onDismiss,
         title = { RichTextView(state.option.text, style = MaterialTheme.typography.titleMedium) },
         text = {
+            val skeleton = rememberSkeletonVisible(state.loading)
             LazyColumn {
                 items(state.voters, key = { it.sender.toString() }) { voter ->
                     Row(
@@ -216,7 +221,16 @@ internal fun PollVotersDialog(state: PollVoters, onLoadMore: () -> Unit, onOpen:
                     }
                 }
                 if (state.loading) {
-                    item { Box(Modifier.fillMaxWidth().padding(8.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator() } }
+                    // Заглушки голосовавших — той же раскладки, что строки выше
+                    if (skeleton) {
+                        items(SKELETON_VOTERS, contentType = { "skeleton" }) { index ->
+                            Row(Modifier.fillMaxWidth().padding(vertical = 6.dp), verticalAlignment = Alignment.CenterVertically) {
+                                SkeletonBox(Modifier.size(36.dp), SkeletonCircleShape)
+                                Spacer(Modifier.width(12.dp))
+                                SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(index, 0.3f, 0.6f)).height(14.dp))
+                            }
+                        }
+                    }
                 } else if (state.voters.size < state.totalCount) {
                     item { TextButton(onClick = onLoadMore, modifier = Modifier.fillMaxWidth()) { Text(stringResource(R.string.poll_voters_more)) } }
                 }
@@ -225,3 +239,5 @@ internal fun PollVotersDialog(state: PollVoters, onLoadMore: () -> Unit, onOpen:
         confirmButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.close)) } },
     )
 }
+
+private const val SKELETON_VOTERS = 3

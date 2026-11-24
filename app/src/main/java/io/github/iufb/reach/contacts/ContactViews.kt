@@ -1,11 +1,14 @@
 package io.github.iufb.reach.contacts
 
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +23,9 @@ import androidx.compose.ui.unit.dp
 import io.github.iufb.reach.R
 import io.github.iufb.reach.presence.userStatusText
 import io.github.iufb.reach.ui.components.Avatar
+import io.github.iufb.reach.ui.components.SkeletonBox
+import io.github.iufb.reach.ui.components.SkeletonCircleShape
+import io.github.iufb.reach.ui.components.skeletonFraction
 import io.github.iufb.reach.ui.theme.ReachTheme
 import io.github.iufb.reach.users.User
 import io.github.iufb.reach.users.UserStatus
@@ -80,3 +86,27 @@ fun UserRow(
         }
     }
 }
+
+/** Скелетон [UserRow]: те же отступы и аватар, вместо имени и статуса — полоски. */
+@Composable
+fun SkeletonUserRow(index: Int, modifier: Modifier = Modifier, divider: Boolean = false) {
+    val colors = ReachTheme.colors
+    Column(modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 7.dp), verticalAlignment = Alignment.CenterVertically) {
+            SkeletonBox(Modifier.size(UserRowAvatar), SkeletonCircleShape)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Box(Modifier.height(22.dp), contentAlignment = Alignment.CenterStart) {
+                    SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(index, 0.3f, 0.6f)).height(14.dp))
+                }
+                Box(Modifier.height(20.dp), contentAlignment = Alignment.CenterStart) {
+                    SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(index + 2, 0.2f, 0.35f)).height(10.dp))
+                }
+            }
+        }
+        if (divider) HorizontalDivider(Modifier.padding(start = UserRowTextInset), thickness = 0.5.dp, color = colors.separator)
+    }
+}
+
+/** Сколько строк-заглушек показать в списке людей: на экран. */
+const val SkeletonUserRows = 12
