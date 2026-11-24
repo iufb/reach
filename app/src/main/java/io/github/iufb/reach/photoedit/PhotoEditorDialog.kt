@@ -64,6 +64,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.PathEffect
@@ -163,14 +164,17 @@ fun PhotoEditorDialog(
         fun newText() {
             textEntry = TextEntry(null, "", brush.textColor, DEFAULT_TEXT_SIZE)
         }
+        // Читаем state.edit, а не захваченный edit: ссылку ::editText компилятор запоминает между перекомпозициями
         fun editText(index: Int) {
-            val item = edit.texts.getOrNull(index) ?: return
+            val item = state.edit.texts.getOrNull(index) ?: return
             textEntry = TextEntry(index, item.text, item.color, item.size)
         }
+        // При вводе надписи панели редактора прячутся, как в iOS: остаётся только фото под затемнением
+        val chrome = Modifier.alpha(if (textEntry == null) 1f else 0f)
         Box(Modifier.fillMaxSize()) {
             Column(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) {
                 // Сверху — история правок; «Отмена» и «Готово» внизу, по краям панели инструментов, как в iOS
-                Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Row(chrome.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
                     EditorIcon(R.drawable.ic_undo, stringResource(R.string.photo_edit_undo), enabled = state.canUndo, onClick = state::undo)
                     EditorIcon(R.drawable.ic_redo, stringResource(R.string.photo_edit_redo), enabled = state.canRedo, onClick = state::redo)
                     Spacer(Modifier.weight(1f))
@@ -193,39 +197,41 @@ fun PhotoEditorDialog(
                     onMinSide = { minSide = it },
                     modifier = Modifier.weight(1f).fillMaxWidth(),
                 )
-                when (tool) {
-                    Tool.Crop -> CropTools(oriented, edit, onChange = state::commit)
-                    Tool.Draw -> DrawTools(brush)
-                    Tool.Filter -> FilterTools(orientedBitmap, state)
-                    Tool.Text -> TextTools(
-                        selected = selectedText?.let { edit.texts.getOrNull(it) },
-                        onAdd = ::newText,
-                        onEdit = { selectedText?.let(::editText) },
-                        onDelete = {
-                            selectedText?.let { i -> state.commit(edit.copy(texts = edit.texts.filterIndexed { j, _ -> j != i })) }
+                Column(chrome) {
+                    when (tool) {
+                        Tool.Crop -> CropTools(oriented, edit, onChange = state::commit)
+                        Tool.Draw -> DrawTools(brush)
+                        Tool.Filter -> FilterTools(orientedBitmap, state)
+                        Tool.Text -> TextTools(
+                            selected = selectedText?.let { edit.texts.getOrNull(it) },
+                            onAdd = ::newText,
+                            onEdit = { selectedText?.let(::editText) },
+                            onDelete = {
+                                selectedText?.let { i -> state.commit(edit.copy(texts = edit.texts.filterIndexed { j, _ -> j != i })) }
+                                selectedText = null
+                            },
+                            onColor = { color ->
+                                brush.textColor = color
+                                selectedText?.let { i ->
+                                    state.commit(edit.copy(texts = edit.texts.mapIndexed { j, t -> if (j == i) t.copy(color = color) else t }))
+                                }
+                            },
+                            color = brush.textColor,
+                        )
+                    }
+                    EditorBottomBar(
+                        tool = tool,
+                        onSelect = {
+                            tool = it
                             selectedText = null
+                            // Как в iOS: в «Текст» без надписей сразу открывается ввод
+                            if (it == Tool.Text && edit.texts.isEmpty()) newText()
                         },
-                        onColor = { color ->
-                            brush.textColor = color
-                            selectedText?.let { i ->
-                                state.commit(edit.copy(texts = edit.texts.mapIndexed { j, t -> if (j == i) t.copy(color = color) else t }))
-                            }
-                        },
-                        color = brush.textColor,
+                        onCancel = onCancel,
+                        onDone = { onDone(edit) },
+                        doneEnabled = true,
                     )
                 }
-                EditorBottomBar(
-                    tool = tool,
-                    onSelect = {
-                        tool = it
-                        selectedText = null
-                        // Как в iOS: в «Текст» без надписей сразу открывается ввод
-                        if (it == Tool.Text && edit.texts.isEmpty()) newText()
-                    },
-                    onCancel = onCancel,
-                    onDone = { onDone(edit) },
-                    doneEnabled = true,
-                )
             }
             textEntry?.let { entry ->
                 TextEntryOverlay(
@@ -237,6 +243,7 @@ fun PhotoEditorDialog(
                         brush.textColor = entry.color
                         val text = entry.text.text.trim()
                         val index = entry.index
+                        val edit = state.edit
                         when {
                             // Пустая правка удаляет надпись, как в iOS
                             index != null && text.isEmpty() -> {
