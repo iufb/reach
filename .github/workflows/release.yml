@@ -7,6 +7,8 @@ name: Release
 on:
   push:
     tags: ['v*']
+  # Пробный прогон без публикации: подписанный APK только в артефакт
+  workflow_dispatch:
 
 permissions:
   contents: write
@@ -29,7 +31,7 @@ jobs:
       - name: Tag matches versionName
         run: |
           version=$(sed -nE 's/^ *versionName = "([^"]+)".*/\1/p' app/build.gradle.kts | head -n1)
-          if [ "v$version" != "$GITHUB_REF_NAME" ]; then
+          if [ "$GITHUB_REF_TYPE" = "tag" ] && [ "v$version" != "$GITHUB_REF_NAME" ]; then
             echo "::error::тег $GITHUB_REF_NAME не совпадает с versionName $version в app/build.gradle.kts"
             exit 1
           fi
@@ -71,7 +73,16 @@ jobs:
           cp "$apk" "dist/reach-$VERSION.apk"
           cp app/build/outputs/mapping/release/mapping.txt "dist/reach-$VERSION-mapping.txt"
 
+      - name: Dry-run artifact
+        if: github.ref_type != 'tag'
+        uses: actions/upload-artifact@v7
+        with:
+          name: reach-release-dry-run
+          path: dist/*
+          retention-days: 3
+
       - name: GitHub Release
+        if: github.ref_type == 'tag'
         env:
           GH_TOKEN: ${{ github.token }}
         run: gh release create "$GITHUB_REF_NAME" dist/* --title "Reach $VERSION" --generate-notes --verify-tag
