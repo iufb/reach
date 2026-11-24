@@ -3,18 +3,23 @@ package io.github.iufb.reach.gallery
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyGridScope
 import androidx.compose.foundation.lazy.grid.LazyGridState
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
@@ -26,6 +31,7 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.RectangleShape
 import androidx.compose.ui.platform.LocalUriHandler
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextOverflow
@@ -44,8 +50,11 @@ import io.github.iufb.reach.chats.bodySummary
 import io.github.iufb.reach.files.FileState
 import io.github.iufb.reach.media.AudioState
 import io.github.iufb.reach.ui.components.ActionSheet
+import io.github.iufb.reach.ui.components.DelayedSkeleton
 import io.github.iufb.reach.ui.components.GroupedCorner
 import io.github.iufb.reach.ui.components.SheetAction
+import io.github.iufb.reach.ui.components.SkeletonBox
+import io.github.iufb.reach.ui.components.skeletonFraction
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -99,13 +108,57 @@ fun LazyGridScope.galleryItems(
         }
     }
     if (page.loading) {
-        item(key = "loading", span = { GridItemSpan(maxLineSpan) }) {
-            Box(Modifier.fillMaxWidth().padding(16.dp), contentAlignment = Alignment.Center) {
-                CircularProgressIndicator(color = ReachTheme.colors.accent)
+        val empty = page.messages.isEmpty()
+        when (tab) {
+            // Плитки той же сетки: пустая вкладка — несколько рядов, подгрузка — один ряд
+            GalleryTab.Media, GalleryTab.Gifs -> items(
+                if (empty) SKELETON_MEDIA_EMPTY else SKELETON_MEDIA_MORE,
+                key = { "loading:$it" },
+                contentType = { "skeletonMedia" },
+            ) {
+                DelayedSkeleton { SkeletonBox(Modifier.fillMaxWidth().aspectRatio(1f), RectangleShape) }
+            }
+            else -> {
+                val count = if (empty) SKELETON_ROWS_EMPTY else SKELETON_ROWS_MORE
+                items(
+                    count,
+                    key = { "loading:$it" },
+                    span = { GridItemSpan(maxLineSpan) },
+                    contentType = { "skeletonRow" },
+                ) { index ->
+                    // Подгрузка продолжает карточку: верхние углы скруглены, только если вкладка пуста
+                    DelayedSkeleton { SkeletonMessageRow(index, first = empty && index == 0, last = index == count - 1) }
+                }
             }
         }
     }
 }
+
+/** Скелетон [MessageRow]: та же карточка, значок файла и две полоски. */
+@Composable
+private fun SkeletonMessageRow(index: Int, first: Boolean, last: Boolean) {
+    val shape = RoundedCornerShape(
+        topStart = if (first) GroupedCorner else 0.dp,
+        topEnd = if (first) GroupedCorner else 0.dp,
+        bottomStart = if (last) GroupedCorner else 0.dp,
+        bottomEnd = if (last) GroupedCorner else 0.dp,
+    )
+    Box(Modifier.padding(horizontal = 16.dp).padding(top = if (first) 8.dp else 0.dp).clip(shape).background(ReachTheme.colors.cell)) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp), verticalAlignment = Alignment.CenterVertically) {
+            SkeletonBox(Modifier.size(44.dp), RoundedCornerShape(10.dp))
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(index, 0.4f, 0.75f)).height(12.dp))
+                SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(index + 3, 0.2f, 0.35f)).height(10.dp))
+            }
+        }
+    }
+}
+
+private const val SKELETON_MEDIA_EMPTY = 15
+private const val SKELETON_MEDIA_MORE = 3
+private const val SKELETON_ROWS_EMPTY = 6
+private const val SKELETON_ROWS_MORE = 2
 
 /** Строка файла, ссылки, голосового или трека; первая и последняя скругляют карточку. */
 @Composable
