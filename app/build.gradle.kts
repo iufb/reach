@@ -63,6 +63,10 @@ android {
             }
         }
         getByName("release") {
+            // R8 и сжатие ресурсов (ADR-0014); keep-правила для JNI — в proguard-rules.pro
+            isMinifyEnabled = true
+            isShrinkResources = true
+            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
             buildConfigField("boolean", "USE_TEST_DC", "false")
         }
         // Debug-сборка на тестовых серверах Telegram (test DC): ставится рядом с основной,
@@ -78,6 +82,24 @@ android {
                 buildConfigField("String", name, "\"\"")
             }
         }
+        // Release (R8) на тестовых серверах: ловит поломки R8 до релиза, агент проверяет её на устройстве
+        // (ADR-0014). Тот же id и debug-ключ, что у dctest, — ставится поверх неё и сохраняет вход.
+        create("releaseTestdc") {
+            initWith(getByName("release"))
+            applicationIdSuffix = ".testdc"
+            versionNameSuffix = "-testdc"
+            signingConfig = signingConfigs.getByName("debug")
+            matchingFallbacks += "release"
+            buildConfigField("boolean", "USE_TEST_DC", "true")
+            for (name in listOf("FCM_PROJECT_ID", "FCM_APP_ID", "FCM_API_KEY", "FCM_SENDER_ID")) {
+                buildConfigField("String", name, "\"\"")
+            }
+        }
+    }
+
+    // Имя «Reach Test» и оранжевая иконка — общие у обеих сборок test DC
+    sourceSets {
+        getByName("releaseTestdc").res.srcDirs("src/dctest/res")
     }
 
     buildFeatures {
