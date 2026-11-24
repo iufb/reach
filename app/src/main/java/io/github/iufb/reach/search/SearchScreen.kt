@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
@@ -56,6 +57,10 @@ import io.github.iufb.reach.chats.bodySummary
 import io.github.iufb.reach.chats.chatTitle
 import io.github.iufb.reach.ui.components.ListSectionHeader
 import io.github.iufb.reach.ui.components.SearchField
+import io.github.iufb.reach.ui.components.SkeletonBox
+import io.github.iufb.reach.ui.components.SkeletonCircleShape
+import io.github.iufb.reach.ui.components.rememberSkeletonVisible
+import io.github.iufb.reach.ui.components.skeletonFraction
 import io.github.iufb.reach.ui.format.Dates
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -107,12 +112,20 @@ fun SearchScreen(
                 color = colors.accent,
             )
         }
-        // Полоса загрузки занимает место всегда: список не сдвигается, когда она появляется
+        // Полоса загрузки занимает место всегда: список не сдвигается, когда она появляется.
+        // Пока результатов нет — вместо неё скелетон; полоса — когда уточняется уже найденное
         Box(Modifier.fillMaxWidth().height(2.dp)) {
-            if (results.loading) LinearProgressIndicator(Modifier.fillMaxSize(), color = colors.accent, trackColor = colors.background)
+            if (results.loading && !results.isEmpty) {
+                LinearProgressIndicator(Modifier.fillMaxSize(), color = colors.accent, trackColor = colors.background)
+            }
         }
+        val skeleton = rememberSkeletonVisible(results.isEmpty && results.loading)
         when {
-            results.isEmpty && results.loading -> Unit
+            results.isEmpty && results.loading -> if (skeleton) {
+                LazyColumn(Modifier.fillMaxSize(), userScrollEnabled = false) {
+                    items(SKELETON_RESULTS, contentType = { "skeleton" }) { SkeletonResultRow(it, divider = it < SKELETON_RESULTS - 1) }
+                }
+            }
             results.isEmpty -> Text(
                 stringResource(if (results.isRecent) R.string.search_recent_empty else R.string.search_empty),
                 modifier = Modifier.fillMaxWidth().padding(32.dp),
@@ -173,6 +186,28 @@ private fun RecentRow(chats: List<Chat>, onClick: (Long) -> Unit) {
     }
 }
 
+/** Скелетон [ResultRow]: аватар, полоска названия и полоска подписи. */
+@Composable
+private fun SkeletonResultRow(index: Int, divider: Boolean) {
+    val colors = ReachTheme.colors
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {
+            SkeletonBox(Modifier.size(ROW_AVATAR), SkeletonCircleShape)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Box(Modifier.height(22.dp), contentAlignment = Alignment.CenterStart) {
+                    SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(index, 0.3f, 0.6f)).height(14.dp))
+                }
+                Box(Modifier.height(20.dp), contentAlignment = Alignment.CenterStart) {
+                    SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(index + 2, 0.4f, 0.8f)).height(10.dp))
+                }
+            }
+        }
+        if (divider) HorizontalDivider(Modifier.padding(start = ROW_TEXT_INSET), thickness = 0.5.dp, color = colors.separator)
+    }
+}
+
+private const val SKELETON_RESULTS = 10
 private val RECENT_WIDTH = 76.dp
 private val RECENT_AVATAR = 56.dp
 private val ROW_AVATAR = 40.dp
