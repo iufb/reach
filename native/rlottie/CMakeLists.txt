@@ -19,8 +19,23 @@ FetchContent_Declare(lz4
     GIT_REPOSITORY https://github.com/lz4/lz4.git
     GIT_TAG ${LZ4_COMMIT}
 )
-FetchContent_MakeAvailable(rlottie)
+FetchContent_Populate(rlottie)
 FetchContent_Populate(lz4)
+
+# Без LOTTIE_THREAD растеризатор rlottie — один статический объект на процесс, а мы рисуем
+# из нескольких потоков (падало в SIGSEGV). Делаем его своим у каждого потока.
+set(VRASTER ${rlottie_SOURCE_DIR}/src/vector/vraster.cpp)
+file(READ ${VRASTER} VRASTER_SRC)
+string(REPLACE
+    "    static RleTaskScheduler &instance()\n    {\n        static RleTaskScheduler singleton;\n        return singleton;\n    }\n\n    void stop() {}"
+    "    static RleTaskScheduler &instance()\n    {\n        static thread_local RleTaskScheduler singleton;\n        return singleton;\n    }\n\n    void stop() {}"
+    VRASTER_PATCHED "${VRASTER_SRC}")
+if(VRASTER_PATCHED STREQUAL VRASTER_SRC)
+    message(FATAL_ERROR "vraster.cpp: не нашёл однопоточный RleTaskScheduler — обновите патч")
+endif()
+file(WRITE ${VRASTER} "${VRASTER_PATCHED}")
+
+add_subdirectory(${rlottie_SOURCE_DIR} ${rlottie_BINARY_DIR})
 
 # rlottie как статическая библиотека протаскивает свой version-script в того, кто её линкует,
 # и он спрятал бы JNI-символы. Нам из её интерфейса ничего не нужно.
