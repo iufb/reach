@@ -6,7 +6,6 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.wrapContentSize
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -17,7 +16,6 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.graphicsLayer
-import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.dp
 import com.airbnb.lottie.compose.LottieAnimation
 import com.airbnb.lottie.compose.rememberLottieAnimatable
@@ -40,8 +38,8 @@ internal fun AnimatedEmojiView(emoji: String, animation: TdFile?, replay: Int, m
     Crossfade(composition, modifier.size(EMOJI_SIZE), animationSpec = tween(CROSSFADE_MS), label = "animated-emoji") { ready ->
         Box(Modifier.size(EMOJI_SIZE), contentAlignment = Alignment.Center) {
             if (ready == null) {
-                // В dp, а не sp: заглушка совпадает с анимацией при любом масштабе шрифта
-                Text(emoji, fontSize = with(LocalDensity.current) { FALLBACK_FONT.toSp() })
+                // Рисунок шрифта — того же размера и там же, где лицо анимации: подмены не видно (#372)
+                FittedEmoji(emoji, EMOJI_SIZE, TGS_FACE_FRACTION)
             } else {
                 val animatable = rememberLottieAnimatable()
                 // Элемент ленты создаётся заново при появлении на экране — отсюда и «играть при появлении».
@@ -96,6 +94,6 @@ internal fun rememberReplay(): Pair<Int, () -> Unit> {
 
 private val EMOJI_SIZE = 140.dp
 private val EFFECT_SIZE = 320.dp
-/** Шрифтовой эмодзи с этим кеглем по размеру близок к рисунку анимации в [EMOJI_SIZE]. */
-private val FALLBACK_FONT = 96.dp
+/** Лицо анимированного эмодзи Telegram занимает 399 из 512 px холста TGS. */
+private const val TGS_FACE_FRACTION = 0.78f
 private const val CROSSFADE_MS = 150
