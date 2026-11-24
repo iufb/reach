@@ -5,10 +5,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -26,9 +28,11 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.bodySummary
+import io.github.iufb.reach.ui.components.DelayedSkeleton
 import io.github.iufb.reach.ui.components.GroupedRow
 import io.github.iufb.reach.ui.components.GroupedSection
 import io.github.iufb.reach.ui.components.ListScreen
+import io.github.iufb.reach.ui.components.SkeletonBox
 import io.github.iufb.reach.ui.components.groupedHeader
 import io.github.iufb.reach.ui.components.groupedItems
 import io.github.iufb.reach.ui.format.AppLocale
@@ -117,6 +121,21 @@ private fun MetricTile(metric: Metric, modifier: Modifier) {
     }
 }
 
+/** Заглушка графика той же высоты: линии сетки и блок под кривую. */
+@Composable
+private fun GraphSkeleton() {
+    val colors = ReachTheme.colors
+    DelayedSkeleton(Modifier.fillMaxWidth().height(GRAPH_HEIGHT)) {
+        Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
+            repeat(SKELETON_GRID_LINES) { HorizontalDivider(thickness = 0.5.dp, color = colors.separator) }
+        }
+        SkeletonBox(
+            Modifier.fillMaxWidth().height(GRAPH_HEIGHT * 0.6f).align(Alignment.BottomCenter).padding(bottom = 1.dp),
+            RoundedCornerShape(8.dp),
+        )
+    }
+}
+
 /** График карточкой с подзаголовком над ней. */
 @Composable
 private fun GraphCard(item: GraphItem) {
@@ -124,9 +143,7 @@ private fun GraphCard(item: GraphItem) {
     GroupedSection(header = stringResource(item.title)) {
         Box(Modifier.fillMaxWidth().padding(12.dp)) {
             when (val g = item.state) {
-                GraphState.Loading -> Box(Modifier.fillMaxWidth().height(180.dp), contentAlignment = Alignment.Center) {
-                    CircularProgressIndicator(color = colors.accent)
-                }
+                GraphState.Loading -> GraphSkeleton()
                 is GraphState.Ready -> ChartView(g.chart)
                 is GraphState.Error -> Text(
                     stringResource(R.string.stats_graph_error),
@@ -171,3 +188,6 @@ private fun formatNumber(value: Double): String =
     if (value == value.roundToLong().toDouble()) "%,d".format(AppLocale, value.roundToLong()) else "%.1f".format(AppLocale, value)
 
 private fun formatDate(unix: Int): String = Dates.date(unix.toLong())
+
+private val GRAPH_HEIGHT = 180.dp
+private const val SKELETON_GRID_LINES = 5
