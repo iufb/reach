@@ -69,8 +69,14 @@ private fun shimmerProgress(): State<Float> = produceState(0f) {
 
 /** Заглушка скелетона: прямоугольник, полоска текста или круг (аватар). Цвет — токен `fill`. */
 @Composable
-fun SkeletonBox(modifier: Modifier = Modifier, shape: Shape = SkeletonLineShape, color: Color = ReachTheme.colors.fill) {
-    Box(modifier.shimmer().background(color, shape))
+fun SkeletonBox(
+    modifier: Modifier = Modifier,
+    shape: Shape = SkeletonLineShape,
+    color: Color = ReachTheme.colors.fill,
+    /** Цвет блика; `null` — по теме. */
+    highlight: Color? = null,
+) {
+    Box(modifier.shimmer(highlight).background(color, shape))
 }
 
 /** Скругление полоски текста. */
