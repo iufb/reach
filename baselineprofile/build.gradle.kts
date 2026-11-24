@@ -16,6 +16,14 @@ android {
     }
 
     targetProjectPath = ":app"
+
+    // Плагин заводит nonMinified/benchmark-варианты только для типов сборки, которые есть и здесь:
+    // нужен releaseTestdc (test DC), а не release (боевые серверы)
+    buildTypes {
+        create("releaseTestdc") {
+            matchingFallbacks += "release"
+        }
+    }
 }
 
 // Профиль снимаем на физическом устройстве, не на управляемом эмуляторе
