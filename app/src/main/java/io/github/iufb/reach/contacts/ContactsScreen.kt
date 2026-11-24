@@ -2,6 +2,7 @@ package io.github.iufb.reach.contacts
 
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -54,6 +55,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.navigation.MainTab
 import io.github.iufb.reach.navigation.MainTabBar
+import io.github.iufb.reach.phone.PhoneInput
+import io.github.iufb.reach.phone.PhoneNumberInput
 import io.github.iufb.reach.ui.components.BackPill
 import io.github.iufb.reach.ui.components.GlassScope
 import io.github.iufb.reach.ui.components.GroupedSection
@@ -63,11 +66,11 @@ import io.github.iufb.reach.ui.components.PillIconButton
 import io.github.iufb.reach.ui.components.ReachTopBar
 import io.github.iufb.reach.ui.components.SearchField
 import io.github.iufb.reach.ui.components.SheetHeader
+import io.github.iufb.reach.ui.components.SkeletonFadeMs
 import io.github.iufb.reach.ui.components.TabBarHeight
 import io.github.iufb.reach.ui.components.TopBarHeight
 import io.github.iufb.reach.ui.components.glassSource
-import io.github.iufb.reach.phone.PhoneInput
-import io.github.iufb.reach.phone.PhoneNumberInput
+import io.github.iufb.reach.ui.components.rememberSkeletonVisible
 import io.github.iufb.reach.ui.theme.ReachTheme
 
 /** Вкладка «Контакты»: поиск, список, «+» — добавить по номеру. */
@@ -136,6 +139,7 @@ private fun ContactsList(
     val colors = ReachTheme.colors
     val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val bottom = if (tabBar != null) navBar + TabBarHeight + 16.dp else navBar
+    val skeleton = rememberSkeletonVisible(list == null)
 
     GlassScope {
         Box(Modifier.fillMaxSize().background(colors.background)) {
@@ -157,9 +161,13 @@ private fun ContactsList(
                 if (query.isBlank()) header()
                 val current = list
                 when {
-                    current == null -> item(key = "loading") {
-                        Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) {
-                            CircularProgressIndicator(color = colors.accent)
+                    current == null -> if (skeleton) {
+                        items(SkeletonUserRows, key = { "skeleton:$it" }, contentType = { "skeleton" }) { index ->
+                            SkeletonUserRow(
+                                index,
+                                Modifier.animateItem(fadeInSpec = null, placementSpec = null, fadeOutSpec = tween(SkeletonFadeMs)),
+                                divider = index < SkeletonUserRows - 1,
+                            )
                         }
                     }
                     current.isEmpty() -> item(key = "empty") {
@@ -171,7 +179,12 @@ private fun ContactsList(
                         )
                     }
                     else -> items(current, key = { it.id }) { user ->
-                        UserRow(user, onClick = { viewModel.open(user) }, divider = user != current.last())
+                        UserRow(
+                            user,
+                            onClick = { viewModel.open(user) },
+                            modifier = Modifier.animateItem(fadeInSpec = tween(SkeletonFadeMs), placementSpec = null, fadeOutSpec = null),
+                            divider = user != current.last(),
+                        )
                     }
                 }
             }

@@ -15,10 +15,12 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
@@ -50,6 +52,10 @@ import io.github.iufb.reach.chats.chatTitle
 import io.github.iufb.reach.ui.components.PillHeight
 import io.github.iufb.reach.ui.components.PillTextButton
 import io.github.iufb.reach.ui.components.SearchField
+import io.github.iufb.reach.ui.components.SkeletonBox
+import io.github.iufb.reach.ui.components.SkeletonCircleShape
+import io.github.iufb.reach.ui.components.rememberSkeletonVisible
+import io.github.iufb.reach.ui.components.skeletonFraction
 import io.github.iufb.reach.ui.theme.ReachTheme
 
 /**
@@ -122,8 +128,19 @@ fun ForwardScreen(
                     )
                 }
                 val list = targets
+                val skeleton = rememberSkeletonVisible(list == null)
                 when {
-                    list == null -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) { CircularProgressIndicator() }
+                    list == null -> if (skeleton) {
+                        LazyColumn(
+                            Modifier.fillMaxSize(),
+                            userScrollEnabled = false,
+                            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 16.dp),
+                        ) {
+                            items(SKELETON_TARGETS, contentType = { "skeleton" }) { index ->
+                                SkeletonTargetRow(index, first = index == 0, last = index == SKELETON_TARGETS - 1)
+                            }
+                        }
+                    }
                     list.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
                         Text(stringResource(R.string.forward_empty), color = colors.secondaryLabel)
                     }
@@ -169,6 +186,30 @@ private fun TargetRow(chat: Chat, title: String, first: Boolean, last: Boolean, 
     }
 }
 
+/** Скелетон [TargetRow]: та же ячейка карточки, вместо аватара и названия — заглушки. */
+@Composable
+private fun SkeletonTargetRow(index: Int, first: Boolean, last: Boolean) {
+    val colors = ReachTheme.colors
+    val shape = RoundedCornerShape(
+        topStart = if (first) CARD_CORNER else 0.dp,
+        topEnd = if (first) CARD_CORNER else 0.dp,
+        bottomStart = if (last) CARD_CORNER else 0.dp,
+        bottomEnd = if (last) CARD_CORNER else 0.dp,
+    )
+    Column(Modifier.fillMaxWidth().clip(shape).background(colors.cell)) {
+        Row(
+            Modifier.fillMaxWidth().heightIn(min = PillHeight + 8.dp).padding(horizontal = 12.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            SkeletonBox(Modifier.size(AVATAR), SkeletonCircleShape)
+            Spacer(Modifier.width(12.dp))
+            SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(index, 0.3f, 0.6f)).height(14.dp))
+        }
+        if (!last) HorizontalDivider(Modifier.padding(start = 12.dp + AVATAR + 12.dp), thickness = 0.5.dp, color = colors.separator)
+    }
+}
+
+private const val SKELETON_TARGETS = 10
 private const val SHEET_FRACTION = 0.9f
 private val SHEET_CORNER = 20.dp
 private val CARD_CORNER = 12.dp

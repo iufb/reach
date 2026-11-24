@@ -29,15 +29,19 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.GroupRef
 import io.github.iufb.reach.contacts.ContactPickerSheet
+import io.github.iufb.reach.contacts.SkeletonUserRow
+import io.github.iufb.reach.contacts.SkeletonUserRows
 import io.github.iufb.reach.contacts.UserRow
 import io.github.iufb.reach.contacts.UserRowTextInset
 import io.github.iufb.reach.ui.components.ActionSheet
+import io.github.iufb.reach.ui.components.GroupedRow
 import io.github.iufb.reach.ui.components.ListScreen
 import io.github.iufb.reach.ui.components.PillIconButton
 import io.github.iufb.reach.ui.components.SearchField
 import io.github.iufb.reach.ui.components.SegmentedControl
 import io.github.iufb.reach.ui.components.SheetAction
 import io.github.iufb.reach.ui.components.groupedItems
+import io.github.iufb.reach.ui.components.rememberSkeletonVisible
 import io.github.iufb.reach.ui.theme.ReachTheme
 import io.github.iufb.reach.users.User
 
@@ -77,6 +81,7 @@ fun MembersScreen(
         if (supergroup && rights.canBan) add(MembersFilter.Banned)
     }
 
+    val skeleton = rememberSkeletonVisible(list == null)
     ListScreen(
         title = stringResource(if (viewModel.isChannel) R.string.members_subscribers else R.string.members_title),
         onBack = onBack,
@@ -109,8 +114,13 @@ fun MembersScreen(
         }
         val current = list
         when {
-            current == null -> item(key = "loading") {
-                Box(Modifier.fillMaxWidth().padding(32.dp), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = colors.accent) }
+            current == null -> if (skeleton) {
+                item(key = "gap") { Spacer(Modifier.height(8.dp)) }
+                items(SkeletonUserRows, key = { "skeleton:$it" }, contentType = { "skeleton" }) { index ->
+                    GroupedRow(first = index == 0, last = index == SkeletonUserRows - 1, dividerInset = UserRowTextInset - 16.dp) {
+                        SkeletonUserRow(index)
+                    }
+                }
             }
             current.isEmpty() -> item(key = "empty") {
                 Text(
