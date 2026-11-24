@@ -3,6 +3,7 @@ package io.github.iufb.reach.media
 import android.graphics.Bitmap
 import android.graphics.Paint
 import android.graphics.Rect
+import android.util.Log
 import android.util.LruCache
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -29,6 +30,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.repeatOnLifecycle
 import dagger.hilt.android.EntryPointAccessors
+import io.github.iufb.reach.BuildConfig
 import io.github.iufb.reach.core.rlottie.RLottie
 import io.github.iufb.reach.files.FilesRepository
 import io.github.iufb.reach.files.TdFile
@@ -37,6 +39,8 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.withContext
 import java.io.File
+import java.util.concurrent.atomic.AtomicInteger
+import java.util.concurrent.atomic.AtomicLong
 import java.util.zip.GZIPInputStream
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -111,7 +115,10 @@ internal class TgsFrameCache(private val maxBytes: Int) {
     fun get(key: Key): Frames? = lru.get(key)
 
     fun put(key: Key, frames: Frames) {
-        if (frames.bytes > maxEntryBytes) return
+        if (frames.bytes > maxEntryBytes) {
+            if (BuildConfig.DEBUG) Log.d(TgsStats.TAG, "too big ${key.width}x${key.height}/${key.step}: ${frames.bytes / 1024} KB")
+            return
+        }
         lru.put(key, frames)
         latest.put(key.uniqueId, key)
     }
@@ -123,8 +130,27 @@ internal class TgsFrameCache(private val maxBytes: Int) {
         return bitmap.takeIf { RLottie.decompress(frames.data.first(), it) }
     }
 
+    fun stats(): String = "cache ${lru.size() / 1024} KB in ${lru.snapshot().size}, evicted ${lru.evictionCount()}"
+
     private companion object {
         const val LATEST_KEYS = 512
+    }
+}
+
+/** Счётчики для замеров (#315): в debug раз в 5 с пишет в logcat, тег `TgsStats`. */
+internal object TgsStats {
+    const val TAG = "TgsStats"
+    val rendered = AtomicInteger()
+    val decoded = AtomicInteger()
+    val aborted = AtomicInteger()
+    private val since = AtomicLong(System.nanoTime())
+
+    fun maybeLog(cache: TgsFrameCache) {
+        if (!BuildConfig.DEBUG) return
+        val start = since.get()
+        val now = System.nanoTime()
+        if (now - start < 5_000_000_000L || !since.compareAndSet(start, now)) return
+        Log.d(TAG, "rendered ${rendered.getAndSet(0)} decoded ${decoded.getAndSet(0)} aborted ${aborted.getAndSet(0)} / 5 s; ${cache.stats()}")
     }
 }
 
@@ -284,12 +310,15 @@ private suspend fun play(
             val fromCache = cached
             if (fromCache != null) {
                 check(RLottie.decompress(fromCache[index], target)) { "bad cached frame" }
+                TgsStats.decoded.incrementAndGet()
             } else {
                 check(open().render(index * step, target)) { "render failed" }
+                TgsStats.rendered.incrementAndGet()
                 building?.let { b ->
                     val packed = RLottie.compress(target)
                     buildingBytes += packed?.size ?: Int.MAX_VALUE / 2
                     if (packed == null || buildingBytes > loader.frames.maxEntryBytes) {
+                        TgsStats.aborted.incrementAndGet()
                         building = null
                     } else {
                         b[index] = packed
@@ -308,6 +337,7 @@ private suspend fun play(
             if (wait > 0) delay(wait) else deadline = System.nanoTime() // отстали — не догоняем рывком
             deadline += frameNs
             frames.show(target)
+            TgsStats.maybeLog(loader.frames)
             if (n == 1) withContext(Dispatchers.Main) { onStart() }
 
             when {
