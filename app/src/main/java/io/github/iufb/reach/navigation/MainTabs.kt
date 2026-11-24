@@ -110,6 +110,7 @@ fun MainTabBar(selected: MainTab, onSelect: (MainTab) -> Unit, modifier: Modifie
             onSelect(tab)
         },
         enterAsGlass = enterAsGlass,
+        travelBeforeSelect = true,
     )
 }
 

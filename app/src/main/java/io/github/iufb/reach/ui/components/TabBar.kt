@@ -57,7 +57,9 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.graphics.asComposeRenderEffect
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.graphics.ClipOp
 import androidx.compose.ui.graphics.drawscope.clipPath
+import androidx.compose.ui.graphics.drawscope.scale
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.graphics.painter.Painter
@@ -112,6 +114,12 @@ fun ReachTabBar(
     onDragSelect: (Int) -> Unit = onSelect,
     /** Панель появляется с линзой-пузырём, который гаснет: продолжение перетаскивания с прошлого экрана. */
     enterAsGlass: Boolean = false,
+    /**
+     * Вкладки — разные экраны, и новый собирается заметное время (главный поток занят, анимация стоит).
+     * Тогда по тапу линза сначала доезжает здесь же, а выбор уходит в [onDragSelect] — новый экран
+     * подхватывает её стеклянным пузырём на месте (#371). Иначе [onSelect] сразу.
+     */
+    travelBeforeSelect: Boolean = false,
 ) {
     val colors = ReachTheme.colors
     // Положение и ширина каждой вкладки в ряду: по ним ездит линза
@@ -156,6 +164,18 @@ fun ReachTabBar(
             dim.snapTo(1f)
             dim.animateTo(0f, tween(FILL_DIM_FADE_MS, easing = LinearOutSlowInEasing))
         }
+    }
+
+    /** Только полёт к [target] стеклянным пузырём, до порога [GLASS_FADE_SPAN]; оседает уже новый экран. */
+    suspend fun travel(target: Pair<Float, Float>) = coroutineScope {
+        val left = target.first
+        val right = target.first + target.second
+        val spec = spring<Float>(dampingRatio = LENS_DAMPING, stiffness = LENS_STIFFNESS)
+        launch { lensL.animateTo(left, spec) }
+        launch { lensR.animateTo(right, spec) }
+        moving.animateTo(1f, tween(LENS_LIFT_MS))
+        val near = target.second * GLASS_FADE_SPAN
+        snapshotFlow { maxOf(abs(lensL.value - left), abs(lensR.value - right)) <= near }.first { it }
     }
 
     LaunchedEffect(selected, bounds.toList()) {
@@ -286,11 +306,31 @@ fun ReachTabBar(
                     }
                 },
         ) {
-            TabsRow(items, selected, colors.label, Modifier) { index, tab ->
+            // Обычный ряд — без участка под линзой: там рисуется увеличенный акцентный
+            TabsRow(
+                items,
+                selected,
+                colors.label,
+                Modifier.drawWithContent {
+                    if (lensSpan().second <= 0f) return@drawWithContent drawContent()
+                    val r = lensRect(glassness(), size.height, LENS_GROW_X.toPx(), LENS_GROW_Y.toPx())
+                    val path = Path().apply { addRoundRect(RoundRect(r, CornerRadius(r.height / 2))) }
+                    clipPath(path, ClipOp.Difference) { this@drawWithContent.drawContent() }
+                },
+            ) { index, tab ->
                 tab
                     .onPlaced { if (index < bounds.size) bounds[index] = it.positionInParent().x to it.size.width.toFloat() }
                     .clip(RoundedCornerShape(percent = 50))
-                    .clickable(interactionSource = pressed[index], indication = null, role = Role.Tab) { onSelect(index) }
+                    .clickable(interactionSource = pressed[index], indication = null, role = Role.Tab) {
+                        if (!travelBeforeSelect || index == currentSelected) {
+                            onSelect(index)
+                        } else {
+                            scope.launch {
+                                travel(bounds[index])
+                                currentDragSelect(index)
+                            }
+                        }
+                    }
                     .semantics { this.selected = index == selected }
             }
             // Тот же ряд акцентным цветом, видимый только под линзой
@@ -304,7 +344,9 @@ fun ReachTabBar(
                         if (lensSpan().second <= 0f) return@drawWithContent
                         val r = lensRect(glassness(), size.height, LENS_GROW_X.toPx(), LENS_GROW_Y.toPx())
                         val path = Path().apply { addRoundRect(RoundRect(r, CornerRadius(r.height / 2))) }
-                        clipPath(path) { this@drawWithContent.drawContent() }
+                        // Стекло-лупа: под пузырём вкладки крупнее (на любом Android, без шейдера)
+                        val zoom = 1f + LENS_ZOOM * glassness()
+                        clipPath(path) { scale(zoom, r.center) { this@drawWithContent.drawContent() } }
                     },
             ) { _, tab -> tab }
         }
@@ -392,10 +434,14 @@ half4 main(float2 p) {
 """
 
 private val INNER_PAD = 4.dp
-private val LENS_GROW_X = 10.dp
-private val LENS_GROW_Y = 5.dp
-private const val LENS_DAMPING = 0.9f
-private const val LENS_STIFFNESS = 900f
+// Пузырь заметно больше вкладки и выходит за капсулу сверху и снизу, как на записи iOS (#371)
+private val LENS_GROW_X = 14.dp
+private val LENS_GROW_Y = 9.dp
+/** Мягче 0,9: на месте линза проскакивает и возвращается, как в iOS. */
+private const val LENS_DAMPING = 0.72f
+private const val LENS_STIFFNESS = 700f
+/** Увеличение под стеклянной линзой. */
+private const val LENS_ZOOM = 0.14f
 private const val LENS_LIFT_MS = 60
 private const val LENS_SETTLE_MS = 160
 /** Пузырь начинает сжиматься в заливку, когда до цели остаётся эта доля ширины вкладки. */
