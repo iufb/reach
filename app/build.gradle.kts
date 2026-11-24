@@ -52,8 +52,15 @@ android {
     }
 
     buildTypes {
+        // Debug ставится рядом с release (ADR-0014): свой id, «Reach Dev». Push выключен —
+        // FCM-проект привязан к основному applicationId
         getByName("debug") {
+            applicationIdSuffix = ".debug"
+            versionNameSuffix = "-debug"
             buildConfigField("boolean", "USE_TEST_DC", "false")
+            for (name in listOf("FCM_PROJECT_ID", "FCM_APP_ID", "FCM_API_KEY", "FCM_SENDER_ID")) {
+                buildConfigField("String", name, "\"\"")
+            }
         }
         getByName("release") {
             buildConfigField("boolean", "USE_TEST_DC", "false")

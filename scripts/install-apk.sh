@@ -5,6 +5,7 @@
 #
 # Использование: scripts/install-apk.sh [--testdc] [ветка]
 #   --testdc  поставить сборку на тестовых серверах Telegram («Reach Test», рядом с основной)
+#   без флага — debug-сборка «Reach Dev» (io.github.iufb.reach.debug, ADR-0014)
 set -euo pipefail
 
 artifact=reach-debug
