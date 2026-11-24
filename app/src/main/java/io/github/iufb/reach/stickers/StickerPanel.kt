@@ -54,12 +54,12 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
 import coil3.compose.AsyncImage
+import com.airbnb.lottie.compose.LottieAnimation
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.StickerInfo
-import io.github.iufb.reach.media.TgsImage
-import io.github.iufb.reach.media.TgsPlayback
+import io.github.iufb.reach.media.rememberTgsComposition
 import io.github.iufb.reach.ui.format.AppLocale
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -156,7 +156,7 @@ class StickerPanelViewModel @Inject constructor(
  * Сверху — тренды ([TrendingSection]): строка паков, тап открывает [StickerSetSheet] с кнопкой
  * «Добавить», крестик скрывает секцию до новых трендов.
  *
- * Анимации играют только у ячеек на экране: Lazy-сетка убирает ушедшие (rlottie и декодер WebM
+ * Анимации играют только у ячеек на экране: Lazy-сетка убирает ушедшие (Lottie и декодер WebM
  * останавливаются), а заранее подготовленные ряды за краем получают `animate = false`.
  */
 @Composable
@@ -403,7 +403,10 @@ private fun SetCover(set: StickerSetInfo, modifier: Modifier) {
         thumbnail == null -> set.stickers.firstOrNull()?.let {
             StickerImage(it, modifier, animate = false, emojiStyle = MaterialTheme.typography.titleLarge)
         }
-        thumbnail.isTgs -> TgsImage(thumbnail.file, modifier, playback = TgsPlayback.Still)
+        thumbnail.isTgs -> {
+            val composition = rememberTgsComposition(thumbnail.file)
+            if (composition != null) LottieAnimation(composition, progress = { 0f }, modifier = modifier)
+        }
         else -> AsyncImage(thumbnail.file, set.title, modifier, contentScale = ContentScale.Fit)
     }
 }
