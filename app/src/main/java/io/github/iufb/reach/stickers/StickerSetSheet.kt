@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -28,7 +29,6 @@ import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -61,8 +61,11 @@ import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.StickerInfo
 import io.github.iufb.reach.errors.UserErrors
 import io.github.iufb.reach.ui.components.AccentPillButton
+import io.github.iufb.reach.ui.components.DelayedSkeleton
 import io.github.iufb.reach.ui.components.PillHeight
+import io.github.iufb.reach.ui.components.SkeletonBox
 import io.github.iufb.reach.ui.theme.ReachTheme
+import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
@@ -73,7 +76,6 @@ import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import javax.inject.Inject
 
 /** Что показывает лист пака. */
 sealed interface StickerSetState {
@@ -185,9 +187,7 @@ fun StickerSetSheet(setId: Long, onDismiss: () -> Unit, onSend: ((StickerInfo) -
                     val set = (state as? StickerSetState.Loaded)?.set
                     SheetHeader(set?.title ?: stringResource(R.string.sticker_set), onClose = { close() })
                     when (val current = state) {
-                        StickerSetState.Loading -> Placeholder {
-                            CircularProgressIndicator(color = colors.accent)
-                        }
+                        StickerSetState.Loading -> StickerGridSkeleton()
                         StickerSetState.Failed -> Placeholder {
                             Text(
                                 stringResource(R.string.sticker_set_failed),
@@ -210,7 +210,7 @@ fun StickerSetSheet(setId: Long, onDismiss: () -> Unit, onSend: ((StickerInfo) -
                             InstallButton(current.set, busy, viewModel::toggleInstalled)
                         }
                     }
-                    if (state !is StickerSetState.Loaded) Spacer(Modifier.navigationBarsPadding())
+                    if (state is StickerSetState.Failed) Spacer(Modifier.navigationBarsPadding())
                 }
             }
         }
@@ -252,6 +252,29 @@ private fun SheetHeader(title: String, onClose: () -> Unit) {
 private fun Placeholder(content: @Composable () -> Unit) {
     Box(Modifier.fillMaxWidth().height(PLACEHOLDER_HEIGHT).padding(horizontal = 32.dp), contentAlignment = Alignment.Center) {
         content()
+    }
+}
+
+/** Скелетон набора: ячейки той же сетки и пилюля на месте кнопки «Добавить». */
+@Composable
+private fun StickerGridSkeleton() {
+    DelayedSkeleton {
+        Column {
+            Column(Modifier.fillMaxWidth().padding(GRID_PADDING)) {
+                repeat(SKELETON_ROWS) {
+                    Row(Modifier.fillMaxWidth()) {
+                        repeat(GRID_COLUMNS) {
+                            Box(Modifier.weight(1f).aspectRatio(1f).padding(SKELETON_CELL_PADDING)) {
+                                SkeletonBox(Modifier.fillMaxSize(), RoundedCornerShape(14.dp))
+                            }
+                        }
+                    }
+                }
+            }
+            Box(Modifier.fillMaxWidth().navigationBarsPadding().padding(horizontal = 16.dp, vertical = 8.dp)) {
+                SkeletonBox(Modifier.fillMaxWidth().height(BUTTON_HEIGHT))
+            }
+        }
     }
 }
 
@@ -317,3 +340,5 @@ private val PLACEHOLDER_HEIGHT = 240.dp
 private val BUTTON_HEIGHT = 50.dp
 private const val SHEET_MAX_FRACTION = 0.85f
 private const val GRID_COLUMNS = 5
+private const val SKELETON_ROWS = 3
+private val SKELETON_CELL_PADDING = 8.dp
