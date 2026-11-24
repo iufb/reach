@@ -36,8 +36,8 @@ android {
         applicationId = "io.github.iufb.reach"
         minSdk = 31
         targetSdk = 37
-        versionCode = 9
-        versionName = "0.8.0"
+        versionCode = 10
+        versionName = "0.9.0"
 
         buildConfigField("int", "TD_API_ID", tdApiId.toString())
         buildConfigField("String", "TD_API_HASH", "\"$tdApiHash\"")
