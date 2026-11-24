@@ -41,6 +41,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -71,6 +72,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.abs
 
@@ -113,13 +115,11 @@ fun ReachTabBar(
     // Положение и ширина каждой вкладки в ряду: по ним ездит линза
     val bounds = remember(items.size) { mutableStateListOf(*Array(items.size) { 0f to 0f }) }
     val pressed = remember(items.size) { List(items.size) { MutableInteractionSource() } }
-    // Края линзы едут на разных пружинах: передний убегает к цели, задний догоняет — линза «перетекает»
+    // Края линзы: при движении едут вместе, в покое линза ровно по вкладке
     val lensL = remember { Animatable(0f) }
     val lensR = remember { Animatable(0f) }
     // 0 — линза-заливка на месте, 1 — стеклянный пузырь в движении
     val moving = remember { Animatable(if (enterAsGlass) 1f else 0f) }
-    // Линза в пути к [travelTarget]: стекло гаснет по мере подъезда, без отдельной фазы «осесть»
-    var travelTarget by remember { mutableStateOf<Pair<Float, Float>?>(null) }
     var placed by remember { mutableStateOf(false) }
     // Палец, который тащит линзу: x в координатах ряда вкладок; null — не тащат
     var dragX by remember { mutableStateOf<Float?>(null) }
@@ -128,29 +128,22 @@ fun ReachTabBar(
     val currentDragSelect by rememberUpdatedState(onDragSelect)
 
     /**
-     * Линза перетекает к вкладке [target]: передний край на жёсткой пружине, задний — на мягкой, линза
-     * вытягивается и стягивается на месте. Пузырь поднимается сразу и гаснет вместе с подъездом
-     * ([glassness]) — одно непрерывное движение ~0,4 с, как в Telegram iOS.
+     * Линза едет к вкладке [target], как в Telegram iOS 26 (снято с записи экрана, 240 fps): сразу становится
+     * стеклянным пузырём и едет целиком, резко замедляясь (90 % пути за ~0,1–0,15 с). Почти доехав, пузырь
+     * сжимается обратно в заливку (~0,16 с) — линза ещё доползает, движение не останавливается между фазами.
      */
     suspend fun settle(target: Pair<Float, Float>) = coroutineScope {
         val left = target.first
         val right = target.first + target.second
         if (lensL.value != left || lensR.value != right) {
-            val toRight = left + right > lensL.value + lensR.value
-            val lead = spring<Float>(dampingRatio = LEAD_DAMPING, stiffness = LEAD_STIFFNESS)
-            val trail = spring<Float>(dampingRatio = TRAIL_DAMPING, stiffness = TRAIL_STIFFNESS)
-            travelTarget = target
-            val edges = listOf(
-                launch { lensL.animateTo(left, if (toRight) trail else lead) },
-                launch { lensR.animateTo(right, if (toRight) lead else trail) },
-            )
-            launch { moving.animateTo(1f, tween(LENS_LIFT_MS)) }
-            edges.forEach { it.join() }
-            travelTarget = null
-            moving.snapTo(0f)
-        } else {
-            moving.animateTo(0f, tween(LENS_SETTLE_MS))
+            val spec = spring<Float>(dampingRatio = LENS_DAMPING, stiffness = LENS_STIFFNESS)
+            launch { lensL.animateTo(left, spec) }
+            launch { lensR.animateTo(right, spec) }
+            moving.animateTo(1f, tween(LENS_LIFT_MS))
+            val near = target.second * GLASS_FADE_SPAN
+            snapshotFlow { maxOf(abs(lensL.value - left), abs(lensR.value - right)) <= near }.first { it }
         }
+        moving.animateTo(0f, tween(LENS_SETTLE_MS))
     }
 
     LaunchedEffect(selected, bounds.toList()) {
@@ -189,17 +182,8 @@ fun ReachTabBar(
         else previous?.let { bounds.getOrNull(it) }?.takeIf { it.second > 0f } ?: bounds.getOrNull(selected) ?: (0f to 0f)
     }
 
-    /**
-     * Насколько линза сейчас «стекло»: едет, держат палец или тащат. В пути стекло гаснет по мере того,
-     * как оба края подъезжают к цели: заливка проявляется ровно к остановке.
-     */
-    fun glassness(): Float {
-        if (dragX != null) return 1f
-        val target = travelTarget ?: return maxOf(moving.value, held)
-        val remaining = maxOf(abs(lensL.value - target.first), abs(lensR.value - (target.first + target.second)))
-        val approach = (remaining / (target.second * GLASS_FADE_SPAN)).coerceIn(0f, 1f)
-        return maxOf(minOf(moving.value, approach), held)
-    }
+    /** Насколько линза сейчас «стекло»: едет, держат палец или тащат. */
+    fun glassness(): Float = if (dragX != null) 1f else maxOf(moving.value, held)
 
     /** Линза в координатах ряда вкладок высотой [rowHeight]; [g] — насколько она «стекло». */
     fun lensRect(g: Float, rowHeight: Float, growX: Float, growY: Float): Rect {
@@ -394,16 +378,13 @@ half4 main(float2 p) {
 """
 
 private val INNER_PAD = 4.dp
-private val LENS_GROW_X = 8.dp
-private val LENS_GROW_Y = 8.dp
-// Передний край — быстрый, с лёгким перелётом; задний — мягкий, без перелёта, догоняет
-private const val LEAD_DAMPING = 0.8f
-private const val LEAD_STIFFNESS = 700f
-private const val TRAIL_DAMPING = 1f
-private const val TRAIL_STIFFNESS = 260f
-private const val LENS_LIFT_MS = 90
-private const val LENS_SETTLE_MS = 220
-/** Стекло начинает гаснуть, когда до цели остаётся эта доля ширины вкладки. */
-private const val GLASS_FADE_SPAN = 0.6f
+private val LENS_GROW_X = 10.dp
+private val LENS_GROW_Y = 5.dp
+private const val LENS_DAMPING = 0.9f
+private const val LENS_STIFFNESS = 900f
+private const val LENS_LIFT_MS = 60
+private const val LENS_SETTLE_MS = 160
+/** Пузырь начинает сжиматься в заливку, когда до цели остаётся эта доля ширины вкладки. */
+private const val GLASS_FADE_SPAN = 0.15f
 private const val CAPSULE_SWELL = 0.025f
 private const val GLASS_FILL_ALPHA = 0.3f
