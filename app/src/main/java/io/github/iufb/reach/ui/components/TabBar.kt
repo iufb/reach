@@ -4,6 +4,7 @@ import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
 import android.os.Build
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
@@ -72,6 +73,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.coroutineScope
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -120,6 +122,8 @@ fun ReachTabBar(
     val lensR = remember { Animatable(0f) }
     // 0 — линза-заливка на месте, 1 — стеклянный пузырь в движении
     val moving = remember { Animatable(if (enterAsGlass) 1f else 0f) }
+    // Короткое затемнение заливки после остановки, как в iOS: 1 — темнее всего
+    val dim = remember { Animatable(0f) }
     var placed by remember { mutableStateOf(false) }
     // Палец, который тащит линзу: x в координатах ряда вкладок; null — не тащат
     var dragX by remember { mutableStateOf<Float?>(null) }
@@ -131,11 +135,14 @@ fun ReachTabBar(
      * Линза едет к вкладке [target], как в Telegram iOS 26 (снято с записи экрана, 240 fps): сразу становится
      * стеклянным пузырём и едет целиком, резко замедляясь (90 % пути за ~0,1–0,15 с). Почти доехав, пузырь
      * сжимается обратно в заливку (~0,16 с) — линза ещё доползает, движение не останавливается между фазами.
+     * Через ~0,15 с после этого заливка за кадр темнеет и за ~0,17 с светлеет обратно.
      */
     suspend fun settle(target: Pair<Float, Float>) = coroutineScope {
         val left = target.first
         val right = target.first + target.second
-        if (lensL.value != left || lensR.value != right) {
+        dim.snapTo(0f)
+        val travels = lensL.value != left || lensR.value != right
+        if (travels) {
             val spec = spring<Float>(dampingRatio = LENS_DAMPING, stiffness = LENS_STIFFNESS)
             launch { lensL.animateTo(left, spec) }
             launch { lensR.animateTo(right, spec) }
@@ -144,6 +151,11 @@ fun ReachTabBar(
             snapshotFlow { maxOf(abs(lensL.value - left), abs(lensR.value - right)) <= near }.first { it }
         }
         moving.animateTo(0f, tween(LENS_SETTLE_MS))
+        if (travels) {
+            delay(FILL_DIM_DELAY_MS)
+            dim.snapTo(1f)
+            dim.animateTo(0f, tween(FILL_DIM_FADE_MS, easing = LinearOutSlowInEasing))
+        }
     }
 
     LaunchedEffect(selected, bounds.toList()) {
@@ -213,6 +225,8 @@ fun ReachTabBar(
                 val r = lensRect(g, size.height - pad * 2, LENS_GROW_X.toPx(), LENS_GROW_Y.toPx()).translate(Offset(pad, pad))
                 val corner = CornerRadius(r.height / 2)
                 drawRoundRect(lerp(restFill, glassFill, g), r.topLeft, r.size, corner)
+                val d = dim.value * (1f - g)
+                if (d > 0f) drawRoundRect(Color.Black.copy(alpha = FILL_DIM_ALPHA * d), r.topLeft, r.size, corner)
                 if (g > 0f) {
                     drawRoundRect(edge.copy(alpha = 0.14f * g), r.topLeft, r.size, corner, style = Stroke(width = 1.dp.toPx()))
                     drawRoundRect(
@@ -386,5 +400,9 @@ private const val LENS_LIFT_MS = 60
 private const val LENS_SETTLE_MS = 160
 /** Пузырь начинает сжиматься в заливку, когда до цели остаётся эта доля ширины вкладки. */
 private const val GLASS_FADE_SPAN = 0.15f
+/** Затемнение заливки после остановки: пауза, сила (доля чёрного) и возврат — замерено по записи iOS. */
+private const val FILL_DIM_DELAY_MS = 150L
+private const val FILL_DIM_ALPHA = 0.08f
+private const val FILL_DIM_FADE_MS = 170
 private const val CAPSULE_SWELL = 0.025f
 private const val GLASS_FILL_ALPHA = 0.3f
