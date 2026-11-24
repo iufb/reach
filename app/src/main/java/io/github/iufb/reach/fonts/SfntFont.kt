@@ -31,8 +31,13 @@ data class FontInfo(val kind: FontKind, val name: String?, val postScriptName: S
     val isSfPro: Boolean
         get() = postScriptName?.let { ps -> SF_PRO_PREFIXES.any { ps.startsWith(it) } } == true
 
+    /** Имя для интерфейса: у `SFNS.ttf` семейство «System Font», показываем «SF Pro» (#285). */
+    val displayName: String?
+        get() = if (isSfPro) SF_PRO_NAME else name
+
     private companion object {
         val SF_PRO_PREFIXES = listOf(".SFNS", ".SFUI", "SFPro")
+        const val SF_PRO_NAME = "SF Pro"
     }
 }
 
