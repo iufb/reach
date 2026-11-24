@@ -18,5 +18,4 @@ rootProject.name = "reach"
 
 include(":app")
 include(":core:td")
-include(":core:rlottie")
 include(":baselineprofile")

@@ -135,7 +135,6 @@ android {
 
 dependencies {
     implementation(project(":core:td"))
-    implementation(project(":core:rlottie"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)
@@ -149,6 +148,7 @@ dependencies {
     implementation(libs.firebase.messaging)
     implementation(libs.media3.exoplayer)
     implementation(libs.media3.session)
+    implementation(libs.lottie.compose)
     implementation(libs.haze)
     implementation(libs.haze.blur)
     implementation(libs.camera.camera2)

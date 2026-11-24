@@ -5,7 +5,7 @@ import io.github.iufb.reach.files.toTdFile
 import org.drinkless.tdlib.TdApi
 
 /**
- * Стикер. Статичный WebP рисуется сам ([file]), анимированный TGS — через rlottie,
+ * Стикер. Статичный WebP рисуется сам ([file]), анимированный TGS — через Lottie,
  * видеостикер WebM — своим декодером с альфой (ADR-0008).
  */
 data class StickerInfo(
