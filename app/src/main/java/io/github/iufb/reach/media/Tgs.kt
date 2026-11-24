@@ -162,7 +162,7 @@ internal fun TgsImage(
     val loader = rememberTgsLoader()
     val uniqueId = file?.uniqueId
     // Круг этого файла уже рисовали — первый кадр сразу, без заглушки и мигания (#295)
-    val frames = remember(uniqueId) { FrameHolder(uniqueId?.let(loader.frames::firstFrame)) }
+    val frames = remember(uniqueId) { TgsFrameHolder(uniqueId?.let(loader.frames::firstFrame)) }
     // Пара «файл — JSON»: produceState не сбрасывается при смене ключа, прежний файл не играем ни кадра
     val loaded by produceState<Pair<String, String>?>(null, uniqueId) {
         value = file?.let { f -> loader.load(f)?.let { f.uniqueId to it } }
@@ -226,7 +226,7 @@ internal fun PrefetchTgs(file: TdFile?) {
  * Показываемый кадр. Буферов три: пишем в тот, что показывался два кадра назад, не в рисуемый.
  * Пишется из потока рисования: запись снапшот-состояния из любого потока допустима.
  */
-private class FrameHolder(initial: Bitmap?) {
+private class TgsFrameHolder(initial: Bitmap?) {
     @Volatile var current: Bitmap? = initial
     var tick by mutableIntStateOf(0)
     var shown by mutableStateOf(initial != null)
@@ -249,7 +249,7 @@ private suspend fun play(
     playback: TgsPlayback,
     fps: Int,
     loader: TgsLoader,
-    frames: FrameHolder,
+    frames: TgsFrameHolder,
     onStart: () -> Unit,
 ): Unit = withContext(loader.rendering) {
     // Стикеры квадратные (512×512); больше MAX_SIDE не рисуем — дальше растягивает Canvas
