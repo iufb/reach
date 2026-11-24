@@ -23,9 +23,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.sp
 import coil3.compose.AsyncImage
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import dagger.hilt.android.EntryPointAccessors
 import io.github.iufb.reach.chats.StickerInfo
 import io.github.iufb.reach.chats.toInfo
@@ -126,15 +123,7 @@ internal fun CustomEmojiView(id: Long, fallback: String, modifier: Modifier = Mo
         when {
             sticker == null || !allowed -> placeholder()
             sticker.isWebm -> VideoStickerImage(sticker.file, Modifier.fillMaxSize(), placeholder)
-            sticker.isTgs -> {
-                val composition = rememberTgsComposition(sticker.file)
-                if (composition == null) {
-                    placeholder()
-                } else {
-                    val progress by animateLottieCompositionAsState(composition, iterations = LottieConstants.IterateForever)
-                    LottieAnimation(composition, progress = { progress }, modifier = Modifier.fillMaxSize())
-                }
-            }
+            sticker.isTgs -> TgsImage(sticker.file, Modifier.fillMaxSize(), placeholder = placeholder)
             else -> AsyncImage(sticker.file, fallback, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
         }
     }

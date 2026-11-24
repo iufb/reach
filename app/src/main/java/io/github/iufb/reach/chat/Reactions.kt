@@ -31,13 +31,14 @@ import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.ui.platform.LocalContext
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.rememberLottieAnimatable
 import dagger.hilt.EntryPoint
 import dagger.hilt.InstallIn
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.components.SingletonComponent
-import io.github.iufb.reach.media.rememberTgsComposition
+import io.github.iufb.reach.media.ONE_SHOT_FPS
+import io.github.iufb.reach.media.PrefetchTgs
+import io.github.iufb.reach.media.TgsImage
+import io.github.iufb.reach.media.TgsPlayback
 import kotlinx.coroutines.delay
 
 /** Чипы реакций под содержимым сообщения. [onClick] `null` — чипы не нажимаются. */
@@ -132,18 +133,21 @@ private fun ChipIcon(reaction: Reaction) {
         previous = reaction
         if (reaction.count > before.count || (reaction.isChosen && !before.isChosen)) plays++
     }
-    val composition = rememberTgsComposition(if (plays > 0) rememberReactionAnimations(reaction.key)?.center else null)
     var playing by remember { mutableStateOf(false) }
+    val center = rememberReactionAnimations(reaction.key)?.center
     Box(Modifier.size(20.dp), contentAlignment = Alignment.Center) {
-        if (composition != null && playing) {
-            val animatable = rememberLottieAnimatable()
-            LaunchedEffect(composition, plays) {
-                animatable.animate(composition, iterations = 1)
-                playing = false
-            }
-            LottieAnimation(composition, progress = { animatable.progress }, modifier = Modifier.requiredSize(32.dp))
+        val symbol = @Composable { Text(reactionSymbol(reaction.key), style = MaterialTheme.typography.bodyMedium) }
+        if (playing && center != null) {
+            TgsImage(
+                center,
+                Modifier.requiredSize(32.dp),
+                playback = TgsPlayback.Once(plays),
+                fps = ONE_SHOT_FPS,
+                onEnd = { playing = false },
+                placeholder = symbol,
+            )
         } else {
-            Text(reactionSymbol(reaction.key), style = MaterialTheme.typography.bodyMedium)
+            symbol()
         }
     }
     LaunchedEffect(plays) { if (plays > 0) playing = true }
@@ -152,45 +156,38 @@ private fun ChipIcon(reaction: Reaction) {
 /** Значок в меню: анимация появления один раз, дальше — её последний кадр; без анимации — эмодзи. */
 @Composable
 internal fun PickerIcon(key: ReactionKey) {
-    val composition = rememberTgsComposition(rememberReactionAnimations(key)?.appear)
-    if (composition == null) {
+    TgsImage(
+        rememberReactionAnimations(key)?.appear,
+        Modifier.size(32.dp),
+        playback = TgsPlayback.Once(),
+        fps = ONE_SHOT_FPS,
+    ) {
         Text(reactionSymbol(key), fontSize = 22.sp)
-        return
     }
-    val animatable = rememberLottieAnimatable()
-    LaunchedEffect(composition) { animatable.animate(composition, iterations = 1) }
-    LottieAnimation(composition, progress = { animatable.progress }, modifier = Modifier.size(32.dp))
 }
 
 /**
  * Заранее загружает анимации эффекта и чипа реакции, пока она видна в меню: иначе после выбора
- * эффект ждал загрузки файла и стартовал с задержкой ~1 с (#196). Композиции кешируются по файлу.
+ * эффект ждал загрузки файла и стартовал с задержкой ~1 с (#196). JSON кешируется по файлу.
  */
 @Composable
 internal fun PrefetchReactionAnimations(key: ReactionKey) {
     val animations = rememberReactionAnimations(key)
-    rememberTgsComposition(animations?.effect)
-    rememberTgsComposition(animations?.center)
+    PrefetchTgs(animations?.effect)
+    PrefetchTgs(animations?.center)
 }
 
 /** Эффект своей реакции поверх сообщения; по окончании — [onDone]. Без анимации — сразу [onDone]. */
 @Composable
 internal fun ReactionEffect(key: ReactionKey, onDone: () -> Unit, modifier: Modifier = Modifier) {
     val animations = rememberReactionAnimations(key)
-    val composition = rememberTgsComposition(animations?.effect)
     val done by rememberUpdatedState(onDone)
     // Ничего не загрузилось за разумное время — не держим эффект вечно
     LaunchedEffect(key) {
         delay(EFFECT_TIMEOUT_MS)
         done()
     }
-    if (composition == null) return
-    val animatable = rememberLottieAnimatable()
-    LaunchedEffect(composition) {
-        animatable.animate(composition, iterations = 1)
-        done()
-    }
-    LottieAnimation(composition, progress = { animatable.progress }, modifier = modifier)
+    TgsImage(animations?.effect, modifier, playback = TgsPlayback.Once(), fps = ONE_SHOT_FPS, onEnd = { done() })
 }
 
 private const val EFFECT_TIMEOUT_MS = 5000L

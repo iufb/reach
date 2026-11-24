@@ -115,14 +115,14 @@
 |---|---|---|
 | Единый вид обычных эмодзи на всех устройствах: Noto Color Emoji через `androidx.emoji2:emoji2-bundled` + `setReplaceAll(true)` по умолчанию; Apple Color Emoji, если выбран в Настройки → Шрифт ([ADR-0011](docs/adr/0011-local-apple-fonts.md)) | 🟢 | v0.1 |
 | Пикер эмодзи: категории и порядок из метаданных [noto-emoji](https://github.com/googlefonts/noto-emoji), поиск по словам через `searchEmojis` / `getEmojiCategories` | 🟡 | v0.2 |
-| Большие анимированные эмодзи (TGS через `lottie-compose`, после gunzip) | 🟡 | v0.4 |
+| Большие анимированные эмодзи (TGS через rlottie, после gunzip) | 🟡 | v0.4 |
 | Анимации реакций | 🟡 | v0.4 |
 | Кастомные эмодзи в тексте (`InlineTextContent`) | 🔴 | v0.6 |
 | Интерактивный эффект по тапу на большой эмодзи (`clickAnimatedEmojiMessage`) | 🔴 | v0.6 |
 
 Решения:
 - Официальный набор эмодзи Telegram (в стиле Apple) не копируем: он защищён авторским правом. Используем **Noto Color Emoji** (шрифт под SIL OFL 1.1, ресурсы под Apache 2.0). Около +10 МБ к APK, но эмодзи будут одинаковыми на любом телефоне и не зависят от Google Play Services. Решение в силе для APK: свой шрифт эмодзи (например, Apple Color Emoji для личного использования) владелец добавляет только на устройстве, в репозиторий и сборку он не попадает (ADR-0011).
-- Для TGS начинаем с **lottie-compose** (без JNI). Переход на **rlottie** (C++, как в официальном клиенте) только при проблемах с производительностью, например на кастомных эмодзи в длинных текстах.
+- TGS рисует **rlottie** (C++, как в официальном клиенте) в фоновых потоках с кешем кадров — [ADR-0013](docs/adr/0013-rlottie.md). До #315 был `lottie-compose`.
 
 ### 4.6 Группы и каналы
 | Функция | Сложность | Версия |
@@ -190,7 +190,7 @@
 | Видео / аудио | Media3 (ExoPlayer) — с v0.4 |
 | Камера | CameraX — с v0.6 |
 | Эмодзи | `androidx.emoji2:emoji2-bundled` (Noto Color Emoji) — с v0.1 |
-| Lottie / TGS | `lottie-compose` — с v0.4; rlottie при проблемах с производительностью |
+| Lottie / TGS | rlottie (JNI, собирается в CI) — [ADR-0013](docs/adr/0013-rlottie.md) |
 | Push | Firebase Cloud Messaging — с v0.3 |
 | Telegram | TDLib (Java-интерфейс через JNI) |
 | Min SDK | 31 (Android 12) — [ADR-0004](docs/adr/0004-project-setup.md) |

@@ -9,8 +9,6 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
-import androidx.compose.runtime.derivedStateOf
-import androidx.compose.runtime.remember
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -20,15 +18,12 @@ import androidx.compose.ui.unit.dp
 import coil3.compose.AsyncImage
 import coil3.compose.AsyncImagePainter
 import coil3.compose.rememberAsyncImagePainter
-import com.airbnb.lottie.RenderMode
-import com.airbnb.lottie.compose.LottieAnimation
-import com.airbnb.lottie.compose.LottieConstants
-import com.airbnb.lottie.compose.animateLottieCompositionAsState
 import io.github.iufb.reach.chats.StickerInfo
 import io.github.iufb.reach.media.VideoStickerImage
-import io.github.iufb.reach.media.rememberTgsComposition
+import io.github.iufb.reach.media.DEFAULT_FPS
+import io.github.iufb.reach.media.TgsImage
+import io.github.iufb.reach.media.TgsPlayback
 import io.github.iufb.reach.ui.PerfFlags
-import kotlin.math.floor
 
 /**
  * Картинка стикера с прозрачностью, вписанная в [modifier]: сначала миниатюра (а без неё —
@@ -48,8 +43,6 @@ fun StickerImage(
         val loadStatic = sticker.isStatic && load
         val main = rememberAsyncImagePainter(if (loadStatic) sticker.file else null)
         val state by main.state.collectAsState()
-        val animation = rememberTgsComposition(sticker.file.takeIf { sticker.isTgs && load })
-        val loaded = (loadStatic && state is AsyncImagePainter.State.Success) || animation != null
         val placeholder = @Composable {
             if (sticker.thumbnail != null) {
                 AsyncImage(sticker.thumbnail, sticker.emoji, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
@@ -57,35 +50,24 @@ fun StickerImage(
                 Text(sticker.emoji, style = emojiStyle)
             }
         }
-        if (sticker.isWebm && load && animate) {
+        when {
+            sticker.isTgs && load -> {
+                // Замер #304: tgs=static — первый кадр; tgsfps — частота кадров
+                val playing = animate && PerfFlags["tgs"] != "static"
+                TgsImage(
+                    sticker.file,
+                    Modifier.fillMaxSize(),
+                    playback = if (playing) TgsPlayback.Loop else TgsPlayback.Still,
+                    fps = PerfFlags["tgsfps"]?.toIntOrNull() ?: DEFAULT_FPS,
+                    placeholder = placeholder,
+                )
+            }
             // Видеостикер прозрачный: миниатюру показывает сам, пока нет первого кадра
-            VideoStickerImage(sticker.file, Modifier.fillMaxSize(), placeholder)
-        } else if (!loaded) {
-            placeholder()
+            sticker.isWebm && load && animate -> VideoStickerImage(sticker.file, Modifier.fillMaxSize(), placeholder)
+            loadStatic && state is AsyncImagePainter.State.Success -> {}
+            else -> placeholder()
         }
         if (loadStatic) Image(main, sticker.emoji, Modifier.fillMaxSize(), contentScale = ContentScale.Fit)
-        if (animation != null) {
-            // Замеры #304: tgs=static — первый кадр, tgs=hw — аппаратный рендер, tgsfps — шаг кадров
-            val playing = animate && PerfFlags["tgs"] != "static"
-            val progress by animateLottieCompositionAsState(
-                animation,
-                isPlaying = playing,
-                iterations = LottieConstants.IterateForever,
-            )
-            // Кадры — с шагом 30 fps: ячеек много, а глазу в мелком стикере разницы нет; перерисовка
-            // идёт только при смене шага
-            val fps = PerfFlags["tgsfps"]?.toIntOrNull() ?: STICKER_FPS
-            val steps = (animation.duration / 1000f * fps).coerceAtLeast(1f)
-            val stepped by remember(animation) { derivedStateOf { floor(progress * steps) / steps } }
-            LottieAnimation(
-                animation,
-                progress = { if (playing) stepped else 0f },
-                modifier = Modifier.fillMaxSize(),
-                // Растр в битмап по размеру ячейки: аппаратный рендер путей стикера грузит RenderThread
-                // в разы сильнее (замеры #289)
-                renderMode = if (PerfFlags["tgs"] == "hw") RenderMode.HARDWARE else RenderMode.SOFTWARE,
-            )
-        }
     }
 }
 
@@ -107,4 +89,3 @@ fun StickerCell(sticker: StickerInfo, modifier: Modifier = Modifier, animate: Bo
 }
 
 private val CELL_PADDING = 4.dp
-private const val STICKER_FPS = 30
