@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -47,7 +48,10 @@ import io.github.iufb.reach.ui.components.ListScreen
 import io.github.iufb.reach.ui.components.PillGroup
 import io.github.iufb.reach.ui.components.PillGroupIcon
 import io.github.iufb.reach.ui.components.SheetAction
+import io.github.iufb.reach.ui.components.SkeletonBox
+import io.github.iufb.reach.ui.components.SkeletonCircleShape
 import io.github.iufb.reach.ui.components.TextInputSheet
+import io.github.iufb.reach.ui.components.skeletonFraction
 import io.github.iufb.reach.ui.format.Dates
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.flow.distinctUntilChanged
@@ -92,6 +96,7 @@ fun TopicsScreen(
         snackbar = snackbar,
         loading = list == null,
         state = listState,
+        skeleton = { items(SKELETON_TOPICS, contentType = { "skeleton" }) { SkeletonTopicRow(it) } },
         onTitleClick = { onOpenProfile(viewModel.chatId) },
         actions = {
             PillGroup {
@@ -152,6 +157,30 @@ fun TopicsScreen(
         )
     }
 }
+
+/** Скелетон строки темы: та же раскладка, что у [TopicRow]. */
+@Composable
+private fun SkeletonTopicRow(index: Int) {
+    val colors = ReachTheme.colors
+    Column(Modifier.fillMaxWidth()) {
+        Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {
+            SkeletonBox(Modifier.size(TOPIC_ICON), SkeletonCircleShape)
+            Spacer(Modifier.width(12.dp))
+            Column(Modifier.weight(1f)) {
+                Row(Modifier.height(22.dp), verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) { SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(index, 0.3f, 0.6f)).height(14.dp)) }
+                    SkeletonBox(Modifier.size(width = 30.dp, height = 10.dp))
+                }
+                Box(Modifier.height(20.dp), contentAlignment = Alignment.CenterStart) {
+                    SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(index + 4, 0.55f, 0.9f)).height(12.dp))
+                }
+            }
+        }
+        HorizontalDivider(Modifier.padding(start = 16.dp + TOPIC_ICON + 12.dp), thickness = 0.5.dp, color = colors.separator)
+    }
+}
+
+private const val SKELETON_TOPICS = 12
 
 /** Строка темы как строка чата: значок, название (замок / булавка), время, последнее сообщение, непрочитанные. */
 @OptIn(ExperimentalFoundationApi::class)
