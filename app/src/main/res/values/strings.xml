@@ -372,7 +372,6 @@
     <string name="photo_edit_text_add">Добавить текст</string>
     <string name="photo_edit_text_edit">Изменить</string>
     <string name="photo_edit_text_delete">Удалить</string>
-    <string name="photo_edit_text_hint">Текст</string>
     <string name="photo_edit_tab_filters">Фильтры</string>
     <string name="photo_edit_brightness">Яркость</string>
     <string name="photo_edit_contrast">Контраст</string>
