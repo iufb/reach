@@ -2,9 +2,12 @@ package io.github.iufb.reach.chat
 
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHostState
@@ -15,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
@@ -28,7 +32,9 @@ import io.github.iufb.reach.ui.components.ActionSheet
 import io.github.iufb.reach.ui.components.GroupedSection
 import io.github.iufb.reach.ui.components.ListScreen
 import io.github.iufb.reach.ui.components.SheetAction
+import io.github.iufb.reach.ui.components.SkeletonBox
 import io.github.iufb.reach.ui.components.TextInputSheet
+import io.github.iufb.reach.ui.components.skeletonFraction
 import io.github.iufb.reach.ui.format.Dates
 import io.github.iufb.reach.ui.theme.ReachTheme
 
@@ -57,6 +63,21 @@ fun ScheduledScreen(onBack: () -> Unit, viewModel: ScheduledViewModel = hiltView
         onBack = onBack,
         snackbar = snackbar,
         loading = list == null,
+        skeleton = {
+            items(SKELETON_CARDS, contentType = { "skeleton" }) { index ->
+                GroupedSection {
+                    // Как ScheduledItem: строка даты акцентом, под ней текст
+                    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Box(Modifier.height(18.dp), contentAlignment = Alignment.CenterStart) {
+                            SkeletonBox(Modifier.width(140.dp).height(10.dp))
+                        }
+                        Box(Modifier.height(22.dp), contentAlignment = Alignment.CenterStart) {
+                            SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(index, 0.45f, 0.9f)).height(14.dp))
+                        }
+                    }
+                }
+            }
+        },
     ) {
         if (list.isNullOrEmpty()) {
             item(key = "empty") {
@@ -129,6 +150,8 @@ private fun ScheduledItem(item: ScheduledMessage, onClick: () -> Unit) {
         }
     }
 }
+
+private const val SKELETON_CARDS = 4
 
 @Composable
 private fun scheduleLabel(schedule: Schedule): String = when (schedule) {

@@ -9,18 +9,19 @@ import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.asPaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.navigationBars
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyListScope
 import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.SnackbarHost
@@ -37,7 +38,8 @@ import io.github.iufb.reach.ui.theme.ReachTheme
 
 /**
  * Экран-список Telegram iOS: плавающая стеклянная шапка с «назад», под ней прокручивается [content],
- * снизу запас до жестовой панели. [loading] — вместо списка индикатор по центру.
+ * снизу запас до жестовой панели. [loading] — вместо списка [skeleton] (по умолчанию —
+ * сгруппированные карточки из строк), с задержкой и crossfade, как в [SkeletonCrossfade].
  * Фон по умолчанию — `groupedBackground` (экраны из карточек: настройки, права, ссылки).
  */
 @Composable
@@ -52,29 +54,56 @@ fun ListScreen(
     state: LazyListState = rememberLazyListState(),
     /** Тап по заголовку (профиль чата). */
     onTitleClick: (() -> Unit)? = null,
+    /** Скелетон на время [loading]: те же отступы, что у [content]. */
+    skeleton: LazyListScope.() -> Unit = { groupedSkeleton() },
     content: LazyListScope.() -> Unit,
 ) {
-    val colors = ReachTheme.colors
     GlassScope {
         Box(modifier.fillMaxSize().background(background)) {
-            if (loading) {
-                CircularProgressIndicator(Modifier.align(Alignment.Center), color = colors.accent)
-            } else {
-                LazyColumn(
-                    Modifier.fillMaxSize().glassSource().imePadding(),
-                    state = state,
-                    contentPadding = PaddingValues(
-                        top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + TopBarHeight,
-                        bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp,
-                    ),
-                    content = content,
-                )
+            val padding = PaddingValues(
+                top = WindowInsets.statusBars.asPaddingValues().calculateTopPadding() + TopBarHeight,
+                bottom = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding() + 24.dp,
+            )
+            SkeletonCrossfade(
+                loading = loading,
+                modifier = Modifier.fillMaxSize(),
+                skeleton = {
+                    LazyColumn(Modifier.fillMaxSize().glassSource(), userScrollEnabled = false, contentPadding = padding, content = skeleton)
+                },
+            ) {
+                LazyColumn(Modifier.fillMaxSize().glassSource().imePadding(), state = state, contentPadding = padding, content = content)
             }
             ReachTopBar(title = title, navigation = { BackPill(onBack) }, actions = actions, background = background, onTitleClick = onTitleClick)
             snackbar?.let { SnackbarHost(it, Modifier.align(Alignment.BottomCenter).navigationBarsPadding()) }
         }
     }
 }
+
+/**
+ * Скелетон экрана из карточек: подзаголовки и строки с полосками разной длины.
+ * [sections] — число строк в каждой карточке.
+ */
+fun LazyListScope.groupedSkeleton(sections: List<Int> = listOf(3, 4, 2)) {
+    var seed = 0
+    sections.forEachIndexed { section, rows ->
+        val base = seed
+        item(key = "skeleton:header:$section", contentType = "skeletonHeader") {
+            Box(Modifier.padding(start = 32.dp, top = 16.dp, bottom = 10.dp)) {
+                SkeletonBox(Modifier.width(60.dp + 50.dp * skeletonFraction(base, 0f, 1f)).height(10.dp))
+            }
+        }
+        items(rows, key = { "skeleton:$section:$it" }, contentType = { "skeletonRow" }) { row ->
+            GroupedRow(first = row == 0, last = row == rows - 1) {
+                Box(Modifier.fillMaxWidth().height(SKELETON_ROW_HEIGHT).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
+                    SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(base + row + 1, 0.3f, 0.65f)).height(12.dp))
+                }
+            }
+        }
+        seed += rows + 1
+    }
+}
+
+private val SKELETON_ROW_HEIGHT = 44.dp
 
 /** Подзаголовок карточки в ленивом списке — как `header` у [GroupedSection]. */
 fun LazyListScope.groupedHeader(text: String, key: Any? = null) {
