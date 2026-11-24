@@ -37,14 +37,12 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
@@ -66,6 +64,7 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.graphics.PathEffect
@@ -160,88 +159,119 @@ fun PhotoEditorDialog(
         var tool by remember { mutableStateOf(Tool.Crop) }
         val brush = remember { BrushSettings() }
         var selectedText by remember { mutableStateOf<Int?>(null) }
-        var textDialog by remember { mutableStateOf<TextDialog?>(null) }
-        Column(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) {
-            // Сверху — история правок; «Отмена» и «Готово» внизу, по краям панели инструментов, как в iOS
-            Row(Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
-                EditorIcon(R.drawable.ic_undo, stringResource(R.string.photo_edit_undo), enabled = state.canUndo, onClick = state::undo)
-                EditorIcon(R.drawable.ic_redo, stringResource(R.string.photo_edit_redo), enabled = state.canRedo, onClick = state::redo)
-                Spacer(Modifier.weight(1f))
-                EditorPill(stringResource(R.string.photo_edit_reset), selected = false, enabled = !edit.isEmpty) { state.commit(PhotoEdit.None) }
+        var textEntry by remember { mutableStateOf<TextEntry?>(null) }
+        var minSide by remember { mutableFloatStateOf(0f) }
+        fun newText() {
+            textEntry = TextEntry(null, "", brush.textColor, DEFAULT_TEXT_SIZE)
+        }
+        // Читаем state.edit, а не захваченный edit: ссылку ::editText компилятор запоминает между перекомпозициями
+        fun editText(index: Int) {
+            val item = state.edit.texts.getOrNull(index) ?: return
+            textEntry = TextEntry(index, item.text, item.color, item.size)
+        }
+        // При вводе надписи панели редактора прячутся, как в iOS: остаётся только фото под затемнением
+        val chrome = Modifier.alpha(if (textEntry == null) 1f else 0f)
+        Box(Modifier.fillMaxSize()) {
+            Column(Modifier.fillMaxSize().background(Color.Black).safeDrawingPadding()) {
+                // Сверху — история правок; «Отмена» и «Готово» внизу, по краям панели инструментов, как в iOS
+                Row(chrome.fillMaxWidth().padding(horizontal = 8.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                    EditorIcon(R.drawable.ic_undo, stringResource(R.string.photo_edit_undo), enabled = state.canUndo, onClick = state::undo)
+                    EditorIcon(R.drawable.ic_redo, stringResource(R.string.photo_edit_redo), enabled = state.canRedo, onClick = state::redo)
+                    Spacer(Modifier.weight(1f))
+                    EditorPill(stringResource(R.string.photo_edit_reset), selected = false, enabled = !edit.isEmpty) { state.commit(PhotoEdit.None) }
+                }
+                val bitmap = source
+                if (bitmap == null) {
+                    Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = EDITOR_CONTENT) }
+                    EditorBottomBar(tool, onSelect = {}, onCancel = onCancel, onDone = {}, doneEnabled = false)
+                    return@Column
+                }
+                val orientedBitmap = remember(bitmap, edit.rotation, edit.flipped) { PhotoEditRenderer.orient(bitmap, edit) }
+                val oriented = remember(orientedBitmap) { orientedBitmap.asImageBitmap() }
+                EditorCanvas(
+                    oriented, state, tool, brush,
+                    selectedText = selectedText,
+                    onSelectText = { selectedText = it },
+                    onEditText = ::editText,
+                    hiddenText = textEntry?.index,
+                    onMinSide = { minSide = it },
+                    modifier = Modifier.weight(1f).fillMaxWidth(),
+                )
+                Column(chrome) {
+                    when (tool) {
+                        Tool.Crop -> CropTools(oriented, edit, onChange = state::commit)
+                        Tool.Draw -> DrawTools(brush)
+                        Tool.Filter -> FilterTools(orientedBitmap, state)
+                        Tool.Text -> TextTools(
+                            selected = selectedText?.let { edit.texts.getOrNull(it) },
+                            onAdd = ::newText,
+                            onEdit = { selectedText?.let(::editText) },
+                            onDelete = {
+                                selectedText?.let { i -> state.commit(edit.copy(texts = edit.texts.filterIndexed { j, _ -> j != i })) }
+                                selectedText = null
+                            },
+                            onColor = { color ->
+                                brush.textColor = color
+                                selectedText?.let { i ->
+                                    state.commit(edit.copy(texts = edit.texts.mapIndexed { j, t -> if (j == i) t.copy(color = color) else t }))
+                                }
+                            },
+                            color = brush.textColor,
+                        )
+                    }
+                    EditorBottomBar(
+                        tool = tool,
+                        onSelect = {
+                            tool = it
+                            selectedText = null
+                            // Как в iOS: в «Текст» без надписей сразу открывается ввод
+                            if (it == Tool.Text && edit.texts.isEmpty()) newText()
+                        },
+                        onCancel = onCancel,
+                        onDone = { onDone(edit) },
+                        doneEnabled = true,
+                    )
+                }
             }
-            val bitmap = source
-            if (bitmap == null) {
-                Box(Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) { CircularProgressIndicator(color = EDITOR_CONTENT) }
-                EditorBottomBar(tool, onSelect = {}, onCancel = onCancel, onDone = {}, doneEnabled = false)
-                return@Column
-            }
-            val orientedBitmap = remember(bitmap, edit.rotation, edit.flipped) { PhotoEditRenderer.orient(bitmap, edit) }
-            val oriented = remember(orientedBitmap) { orientedBitmap.asImageBitmap() }
-            EditorCanvas(
-                oriented, state, tool, brush,
-                selectedText = selectedText,
-                onSelectText = { selectedText = it },
-                modifier = Modifier.weight(1f).fillMaxWidth(),
-            )
-            when (tool) {
-                Tool.Crop -> CropTools(oriented, edit, onChange = state::commit)
-                Tool.Draw -> DrawTools(brush)
-                Tool.Filter -> FilterTools(orientedBitmap, state)
-                Tool.Text -> TextTools(
-                    selected = selectedText?.let { edit.texts.getOrNull(it) },
-                    onAdd = { textDialog = TextDialog(null, "") },
-                    onEdit = { selectedText?.let { i -> textDialog = TextDialog(i, edit.texts[i].text) } },
-                    onDelete = {
-                        selectedText?.let { i -> state.commit(edit.copy(texts = edit.texts.filterIndexed { j, _ -> j != i })) }
-                        selectedText = null
-                    },
-                    onColor = { color ->
-                        brush.textColor = color
-                        selectedText?.let { i ->
-                            state.commit(edit.copy(texts = edit.texts.mapIndexed { j, t -> if (j == i) t.copy(color = color) else t }))
+            textEntry?.let { entry ->
+                TextEntryOverlay(
+                    entry = entry,
+                    minSide = minSide,
+                    onCancel = { textEntry = null },
+                    onDone = {
+                        textEntry = null
+                        brush.textColor = entry.color
+                        val text = entry.text.text.trim()
+                        val index = entry.index
+                        val edit = state.edit
+                        when {
+                            // Пустая правка удаляет надпись, как в iOS
+                            index != null && text.isEmpty() -> {
+                                state.commit(edit.copy(texts = edit.texts.filterIndexed { j, _ -> j != index }))
+                                selectedText = null
+                            }
+                            index != null -> state.commit(
+                                edit.copy(texts = edit.texts.mapIndexed { j, t ->
+                                    if (j == index) t.copy(text = text, color = entry.color, size = entry.size) else t
+                                }),
+                            )
+                            text.isNotEmpty() -> {
+                                // Новая надпись — по центру видимой рамки
+                                val crop = edit.crop
+                                val item = TextItem(
+                                    text, NormPoint((crop.left + crop.right) / 2, (crop.top + crop.bottom) / 2),
+                                    entry.size, 0f, entry.color,
+                                )
+                                state.commit(edit.copy(texts = edit.texts + item))
+                                selectedText = edit.texts.size
+                            }
                         }
                     },
-                    color = brush.textColor,
                 )
             }
-            EditorBottomBar(
-                tool = tool,
-                onSelect = {
-                    tool = it
-                    selectedText = null
-                },
-                onCancel = onCancel,
-                onDone = { onDone(edit) },
-                doneEnabled = true,
-            )
-        }
-        textDialog?.let { dialog ->
-            TextInputDialog(
-                initial = dialog.text,
-                onDone = { text ->
-                    textDialog = null
-                    if (text.isBlank()) return@TextInputDialog
-                    val index = dialog.index
-                    if (index == null) {
-                        // Новая надпись — по центру видимой рамки
-                        val crop = edit.crop
-                        val item = TextItem(
-                            text, NormPoint((crop.left + crop.right) / 2, (crop.top + crop.bottom) / 2),
-                            DEFAULT_TEXT_SIZE, 0f, brush.textColor,
-                        )
-                        state.commit(edit.copy(texts = edit.texts + item))
-                        selectedText = edit.texts.size
-                    } else {
-                        state.commit(edit.copy(texts = edit.texts.mapIndexed { j, t -> if (j == index) t.copy(text = text) else t }))
-                    }
-                },
-                onDismiss = { textDialog = null },
-            )
         }
     }
 }
-
-private class TextDialog(val index: Int?, val text: String)
 
 /** Кисть и цвет новых надписей; живут, пока открыт редактор. */
 private class BrushSettings {
@@ -360,6 +390,9 @@ private fun EditorCanvas(
     brush: BrushSettings,
     selectedText: Int?,
     onSelectText: (Int?) -> Unit,
+    onEditText: (Int) -> Unit,
+    hiddenText: Int?,
+    onMinSide: (Float) -> Unit,
     modifier: Modifier,
 ) {
     BoxWithConstraints(modifier.padding(24.dp)) {
@@ -372,6 +405,9 @@ private fun EditorCanvas(
         val oy = (boxH - dh) / 2
         val area = RectF(ox, oy, ox + dw, oy + dh)
         val edit = state.edit
+        val reportMinSide by rememberUpdatedState(onMinSide)
+        SideEffect { reportMinSide(min(dw, dh)) }
+        val editText by rememberUpdatedState(onEditText)
         var drawing by remember { mutableStateOf<BrushStroke?>(null) }
         val currentEdit by rememberUpdatedState(edit)
         val currentBrush by rememberUpdatedState(brush)
@@ -452,7 +488,11 @@ private fun EditorCanvas(
                         state.preview(currentEdit.copy(texts = currentEdit.texts.mapIndexed { j, t -> if (j == index) next else t }))
                         event.changes.forEach { it.consume() }
                     }
-                    if (moved < slop && !started) select(hitText(down.position, currentEdit.texts, ox, oy, dw, dh))
+                    if (moved < slop && !started) {
+                        // Тап по уже выбранной надписи — править текст, как в iOS
+                        val hit = hitText(down.position, currentEdit.texts, ox, oy, dw, dh)
+                        if (hit != null && hit == currentSelected) editText(hit) else select(hit)
+                    }
                 }
             }
         }
@@ -464,8 +504,10 @@ private fun EditorCanvas(
                 dstSize = IntSize(dw.roundToInt(), dh.roundToInt()),
                 colorFilter = colorFilter,
             )
-            drawIntoCanvas { OverlayPainter.draw(it.nativeCanvas, edit, area, extraStroke = drawing) }
-            if (tool == Tool.Text) {
+            // Надпись, которую сейчас правят, видна только в поле ввода
+            val shown = if (hiddenText == null) edit else edit.copy(texts = edit.texts.filterIndexed { j, _ -> j != hiddenText })
+            drawIntoCanvas { OverlayPainter.draw(it.nativeCanvas, shown, area, extraStroke = drawing) }
+            if (tool == Tool.Text && hiddenText == null) {
                 selectedText?.let { i -> edit.texts.getOrNull(i)?.let { drawTextSelection(it, ox, oy, dw, dh) } }
             }
             drawCropShade(edit.crop, ox, oy, dw, dh, frame = tool == Tool.Crop)
@@ -687,24 +729,6 @@ private fun FilterPreset.label(): Int = when (this) {
     FilterPreset.Vivid -> R.string.photo_filter_vivid
 }
 
-@Composable
-private fun TextInputDialog(initial: String, onDone: (String) -> Unit, onDismiss: () -> Unit) {
-    var text by remember { mutableStateOf(initial) }
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        text = {
-            OutlinedTextField(
-                value = text,
-                onValueChange = { text = it },
-                placeholder = { Text(stringResource(R.string.photo_edit_text_hint)) },
-                maxLines = 4,
-            )
-        },
-        confirmButton = { TextButton(onClick = { onDone(text.trim()) }) { Text(stringResource(R.string.photo_edit_done)) } },
-        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } },
-    )
-}
-
 /** Что тянем: угол рамки или всю рамку. */
 private enum class CropTarget { None, Move, TopLeft, TopRight, BottomLeft, BottomRight }
 
@@ -795,7 +819,7 @@ private fun DrawScope.drawCropShade(crop: NormRect, ox: Float, oy: Float, dw: Fl
     }
 }
 
-private val PALETTE = listOf(
+internal val PALETTE = listOf(
     Color.White, Color.Black, Color(0xFFE53935), Color(0xFFFB8C00), Color(0xFFFDD835),
     Color(0xFF43A047), Color(0xFF1E88E5), Color(0xFF8E24AA), Color(0xFFEC407A),
 )
@@ -808,7 +832,7 @@ private const val MIN_BRUSH_WIDTH = 0.003f
 private const val MAX_BRUSH_WIDTH = 0.05f
 /** Высота шрифта надписи — доля меньшей стороны фото. */
 private const val DEFAULT_TEXT_SIZE = 0.08f
-private const val MIN_TEXT_SIZE = 0.02f
-private const val MAX_TEXT_SIZE = 0.4f
+internal const val MIN_TEXT_SIZE = 0.02f
+internal const val MAX_TEXT_SIZE = 0.4f
 private const val TEXT_HIT_SLOP = 24f
 private const val THUMB_SIDE = 160
