@@ -13,7 +13,7 @@ on:
       - native/rlottie/**
 
 env:
-  RLOTTIE_COMMIT: ea06d2f29ba01b8d06c00a838d107f5e484ae59b
+  RLOTTIE_COMMIT: 25648aef19187b3f87f4d9420b8d761453ad4630 # до 480a2ad (vrle: bound the span count…) — с ним пропадают части фигур, #372
   LZ4_COMMIT: ebb370ca83af193212df4dcbadcc5d87bc0de2f0 # v1.10.0
   JNI_VERSION: 2
   ANDROID_NDK_VERSION: 28.2.13676358
