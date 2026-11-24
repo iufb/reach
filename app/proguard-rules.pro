@@ -5,9 +5,6 @@
 # а Client вызывается из JNI. Ничего из пакета нельзя ни переименовать, ни выбросить.
 -keep class org.drinkless.tdlib.** { *; }
 
-# rlottie: JNI-мост с native-методами и обратными вызовами из C++.
--keep class io.github.iufb.reach.core.rlottie.** { *; }
-
 # Любые native-методы: имя в JNI-таблице должно совпасть с именем в классе.
 -keepclasseswithmembernames,includedescriptorclasses class * {
     native <methods>;
