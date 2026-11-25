@@ -84,9 +84,12 @@ internal fun authStepEnter(forward: Boolean): EnterTransition =
     slideInHorizontally(tween(AUTH_STEP_MS, easing = IOS_EASING)) { (it * AUTH_STEP_SHIFT).toInt() * if (forward) 1 else -1 } +
         fadeIn(tween(AUTH_STEP_MS))
 
+/**
+ * Уходящий шаг не гаснет, а только сдвигается: новый проявляется поверх него. Иначе на середине
+ * перехода оба полупрозрачны и сквозь них видно то, что под навигацией.
+ */
 internal fun authStepExit(forward: Boolean): ExitTransition =
-    slideOutHorizontally(tween(AUTH_STEP_MS, easing = IOS_EASING)) { (it * AUTH_STEP_SHIFT).toInt() * if (forward) -1 else 1 } +
-        fadeOut(tween(AUTH_STEP_MS / 2))
+    slideOutHorizontally(tween(AUTH_STEP_MS, easing = IOS_EASING)) { (it * AUTH_STEP_SHIFT).toInt() * if (forward) -1 else 1 }
 
 private const val AUTH_STEP_MS = 320
 private const val AUTH_STEP_SHIFT = 0.25f
