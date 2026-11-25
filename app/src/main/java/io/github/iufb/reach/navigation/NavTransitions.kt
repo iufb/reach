@@ -92,7 +92,8 @@ internal fun authStepEnter(forward: Boolean): EnterTransition =
 
 internal fun authStepExit(forward: Boolean): ExitTransition =
     if (forward) {
-        ExitTransition.KeepUntilTransitionsFinished
+        // Остаётся целиком видимым, пока новый шаг въезжает поверх («затухание» до 1 — ожидание)
+        fadeOut(tween(AUTH_STEP_MS), targetAlpha = 1f)
     } else {
         slideOutHorizontally(tween(AUTH_STEP_MS, easing = IOS_EASING)) { (it * AUTH_STEP_SHIFT).toInt() } + fadeOut(tween(AUTH_STEP_MS))
     }
