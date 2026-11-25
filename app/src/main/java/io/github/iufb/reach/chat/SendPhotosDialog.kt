@@ -134,7 +134,7 @@ internal fun SendPhotosDialog(
                             .semantics { contentDescription = sendDescription },
                         contentAlignment = Alignment.Center,
                     ) {
-                        Icon(painterResource(R.drawable.ic_send), contentDescription = null, Modifier.size(20.dp), tint = colors.onAccent)
+                        Icon(painterResource(R.drawable.ic_send), contentDescription = null, Modifier.size(24.dp), tint = colors.onAccent)
                     }
                 }
             }

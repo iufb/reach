@@ -34,6 +34,13 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
+import androidx.compose.animation.togetherWith
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.CubicBezierEasing
@@ -153,7 +160,10 @@ private val FIELD_CORNER = PillHeight / 2
 private val EXTRAS_CORNER = 20.dp
 /** Значки внутри поля (колокольчик, эмодзи). */
 private val FIELD_ICON = 36.dp
-private val SEND_ICON = 20.dp
+/** Значок «отправить»: рисунок занимает около половины круга, как в Telegram iOS. */
+private val SEND_ICON = 24.dp
+private const val SEND_SWAP_MS = 160
+private const val SEND_SWAP_SCALE = 0.5f
 private const val BAR_IN_MS = 180
 private const val BAR_OUT_MS = 360
 /** Ровнее FastOutSlowIn: сжатие пилюли видно на всём пути, а не за первые кадры. */
@@ -394,15 +404,28 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, em
                         )
                     }
                 }
-                if (showMic) {
-                    GlassCircle(glass = voice!!.state !is RecorderState.Recording) { MicButton(voice, recordingUi) }
-                } else {
-                    SendButton(
-                        enabled = canSend,
-                        onClick = state.onSend,
-                        // Меню — только для набранного текста, не для правки
-                        menu = state.sendMenu?.takeIf { state.editing == null && canSend },
-                    )
+                // Микрофон ↔ «отправить»: старая кнопка сжимается и гаснет, новая вырастает (#373)
+                AnimatedContent(
+                    targetState = showMic,
+                    transitionSpec = {
+                        val enter = scaleIn(tween(SEND_SWAP_MS), initialScale = SEND_SWAP_SCALE) + fadeIn(tween(SEND_SWAP_MS))
+                        val exit = scaleOut(tween(SEND_SWAP_MS), targetScale = SEND_SWAP_SCALE) + fadeOut(tween(SEND_SWAP_MS))
+                        // Большой круг записи, замок и подсказка рисуются за границами кнопки — не обрезать
+                        (enter togetherWith exit).using(SizeTransform(clip = false))
+                    },
+                    contentAlignment = Alignment.Center,
+                    label = "sendSwap",
+                ) { mic ->
+                    if (mic && voice != null) {
+                        GlassCircle(glass = voice.state !is RecorderState.Recording) { MicButton(voice, recordingUi) }
+                    } else {
+                        SendButton(
+                            enabled = canSend,
+                            onClick = state.onSend,
+                            // Меню — только для набранного текста, не для правки
+                            menu = state.sendMenu?.takeIf { state.editing == null && canSend },
+                        )
+                    }
                 }
             }
         }
