@@ -50,6 +50,7 @@ fun ComponentCatalogScreen(onBack: () -> Unit) {
     var alert by remember { mutableStateOf(false) }
     var toggle by remember { mutableStateOf(true) }
     var authStep by remember { mutableStateOf<AuthPreviewStep?>(null) }
+    var skeleton by remember { mutableStateOf<SkeletonShowcase?>(null) }
     GlassScope {
         Box(Modifier.fillMaxSize().background(colors.groupedBackground)) {
             LazyColumn(
@@ -90,6 +91,16 @@ fun ComponentCatalogScreen(onBack: () -> Unit) {
                         GroupedCell("Облачный пароль", onClick = { authStep = AuthPreviewStep.Password })
                         GroupedCell("Регистрация", onClick = { authStep = AuthPreviewStep.Registration })
                         GroupedCell("Весь вход (переходы)", onClick = { authStep = AuthPreviewStep.Flow }, divider = false)
+                    }
+                }
+                item {
+                    GroupedSection(
+                        header = "Скелетоны",
+                        footer = "Во весь экран, без задержки и бесконечно — в обычной работе их видно только при медленной загрузке (#390).",
+                    ) {
+                        SkeletonShowcase.entries.forEachIndexed { index, kind ->
+                            GroupedCell(kind.title, onClick = { skeleton = kind }, divider = index < SkeletonShowcase.entries.size - 1)
+                        }
                     }
                 }
                 item {
@@ -147,6 +158,7 @@ fun ComponentCatalogScreen(onBack: () -> Unit) {
         }
     }
     authStep?.let { AuthPreviewDialog(it) { authStep = null } }
+    skeleton?.let { SkeletonShowcaseDialog(it) { skeleton = null } }
     if (sheet) {
         ActionSheet(
             title = "Удалить чат «Audit Group»?",

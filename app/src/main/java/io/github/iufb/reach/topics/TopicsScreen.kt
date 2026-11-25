@@ -160,7 +160,7 @@ fun TopicsScreen(
 
 /** Скелетон строки темы: та же раскладка, что у [TopicRow]. */
 @Composable
-private fun SkeletonTopicRow(index: Int) {
+internal fun SkeletonTopicRow(index: Int) {
     val colors = ReachTheme.colors
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 9.dp), verticalAlignment = Alignment.CenterVertically) {

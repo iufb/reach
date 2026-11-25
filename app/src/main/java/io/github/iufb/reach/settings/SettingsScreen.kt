@@ -219,7 +219,7 @@ fun SettingsScreen(
 
 /** Скелетон экрана: шапка профиля (аватар, имя, номер) и карточка строк. */
 @Composable
-private fun SettingsSkeleton() {
+internal fun SettingsSkeleton() {
     Column(
         Modifier
             .fillMaxSize()

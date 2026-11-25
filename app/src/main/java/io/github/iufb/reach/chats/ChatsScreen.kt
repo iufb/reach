@@ -508,7 +508,7 @@ private fun ChatRowLayout(
 
 /** Скелетон строки чата: та же раскладка, что у [ChatRow], вместо текста — полоски разной длины. */
 @Composable
-private fun SkeletonChatRow(index: Int, modifier: Modifier = Modifier) {
+internal fun SkeletonChatRow(index: Int, modifier: Modifier = Modifier) {
     ChatRowLayout(
         modifier = modifier,
         avatar = { SkeletonBox(Modifier.size(AVATAR_SIZE), SkeletonCircleShape) },
