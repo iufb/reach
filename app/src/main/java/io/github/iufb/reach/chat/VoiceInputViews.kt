@@ -627,6 +627,8 @@ internal fun RecordingBar(
     modifier: Modifier = Modifier,
     /** Видимость содержимого (не стекла) — пилюля гасит его, пока сжимается в поле ввода. */
     contentAlpha: () -> Float = { 1f },
+    /** `false` — стекло рисует вызывающий (под полем ввода, #384). */
+    drawGlass: Boolean = true,
 ) {
     var last by remember { mutableStateOf(voice.state) }
     if (voice.state !is RecorderState.Idle) last = voice.state
@@ -634,7 +636,7 @@ internal fun RecordingBar(
         // Касания не проходят к полю ввода под пилюлей
         modifier.height(PillHeight).pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false) } },
     ) {
-        Box(Modifier.matchParentSize().glass(RoundedCornerShape(percent = 50)))
+        if (drawGlass) Box(Modifier.matchParentSize().glass(RoundedCornerShape(percent = 50)))
         AnimatedContent(
             targetState = last,
             modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha() },

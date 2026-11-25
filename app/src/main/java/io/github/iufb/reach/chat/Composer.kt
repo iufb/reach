@@ -276,6 +276,22 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, em
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 Box(Modifier.weight(1f)) {
+                    // Рамка пилюли записи: тянется влево поверх скрепки и обратно встаёт ровно на место
+                    // поля (та же высота и скругление) (#384)
+                    val fieldStart = if (hasAttach) PillHeight + 6.dp else 6.dp
+                    val barFrame = Modifier
+                        .align(Alignment.BottomStart)
+                        .fillMaxWidth()
+                        .height(PillHeight)
+                        .padding(end = 6.dp)
+                        .layout { measurable, constraints ->
+                            val inset = (fieldStart.toPx() * (1f - barReveal.value)).roundToInt()
+                            val width = (constraints.maxWidth - inset).coerceAtLeast(0)
+                            val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+                            layout(constraints.maxWidth, placeable.height) { placeable.place(inset, 0) }
+                        }
+                    // Стекло пилюли — под полем: содержимое поля проявляется поверх него, а не из-под
+                    if (barShown && voice != null) Box(barFrame.glass(RoundedCornerShape(percent = 50)))
                     Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                         if (hasAttach && state.onAttach != null) {
                             // Пилюля записи наезжает на скрепку: та гаснет и сжимается под ней
@@ -368,22 +384,12 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, em
                         }
                     }
                     if (barShown && voice != null) {
-                        // Одна пилюля, которая тянется влево поверх скрепки и обратно встаёт ровно на место
-                        // поля (та же высота и скругление); её содержимое гаснет в начале сжатия (#377)
-                        val fieldStart = if (hasAttach) PillHeight + 6.dp else 6.dp
+                        // Содержимое пилюли и блок касаний — поверх поля; гаснет в начале сжатия
                         RecordingBar(
                             voice,
                             recordingUi,
-                            Modifier
-                                .align(Alignment.BottomStart)
-                                .fillMaxWidth()
-                                .padding(end = 6.dp)
-                                .layout { measurable, constraints ->
-                                    val inset = (fieldStart.toPx() * (1f - barReveal.value)).roundToInt()
-                                    val width = (constraints.maxWidth - inset).coerceAtLeast(0)
-                                    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
-                                    layout(constraints.maxWidth, placeable.height) { placeable.place(inset, 0) }
-                                },
+                            barFrame,
+                            drawGlass = false,
                             contentAlpha = { ((barReveal.value - BAR_CONTENT_FROM) / (1f - BAR_CONTENT_FROM)).coerceIn(0f, 1f) },
                         )
                     }
