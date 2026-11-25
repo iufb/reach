@@ -1,9 +1,20 @@
 package io.github.iufb.reach.navigation
 
 import androidx.compose.runtime.Composable
-import androidx.compose.runtime.SideEffect
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.layout.Layout
+import io.github.iufb.reach.ui.components.GlassScope
+import kotlinx.coroutines.delay
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
@@ -12,7 +23,6 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.viewModelScope
-import androidx.navigation.NavController
 import dagger.hilt.android.lifecycle.HiltViewModel
 import io.github.iufb.reach.R
 import io.github.iufb.reach.chats.Chat
@@ -68,27 +78,84 @@ class MainTabsViewModel @Inject constructor(chats: ChatsRepository, users: Users
     }
 }
 
-/** Последняя показанная вкладка: с неё линза приезжает на новый экран-вкладку. */
-private object LastMainTab {
-    var value: MainTab? = null
+/** Экран вкладки внутри [MainTabsHost]: свою копию таббара он не рисует — таббар у хоста один. */
+val LocalInTabsHost = staticCompositionLocalOf { false }
 
-    /** Вкладку выбрали перетаскиванием: новый экран показывает линзу-пузырь уже на месте, и он гаснет. */
-    var dragged = false
+/**
+ * Главные вкладки «Контакты / Чаты / Настройки» в одном месте навигации (#395). Экраны вкладок
+ * собираются один раз и живут дальше: «Чаты» — сразу, остальные — в фоне через [PREWARM_DELAY_MS]
+ * или при первом выборе. Переключение только меняет, какой экран размещён, — без новой
+ * сборки и без паузы главного потока, поэтому содержимое меняется сразу, а линза таббара летит
+ * в это же время (раньше каждая вкладка была отдельным экраном навигации, и сборка нового экрана
+ * останавливала анимацию на 200–450 мс). Таббар один, поверх вкладок, в общем [GlassScope]:
+ * экраны вкладок делят его (`shareParent`), и стекло размывает видимую вкладку.
+ * «Назад» с «Контактов» и «Настроек» — в «Чаты».
+ */
+@Composable
+fun MainTabsHost(
+    chats: @Composable (onSelectTab: (MainTab) -> Unit) -> Unit,
+    contacts: @Composable (onSelectTab: (MainTab) -> Unit) -> Unit,
+    settings: @Composable (onSelectTab: (MainTab) -> Unit) -> Unit,
+) {
+    var selectedName by rememberSaveable { mutableStateOf(MainTab.Chats.name) }
+    val selected = MainTab.valueOf(selectedName)
+    var builtNames by rememberSaveable { mutableStateOf(listOf(MainTab.Chats.name)) }
+    val select: (MainTab) -> Unit = { tab ->
+        if (tab.name !in builtNames) builtNames = builtNames + tab.name
+        selectedName = tab.name
+    }
+    // Остальные вкладки — заранее, когда список чатов уже на экране: первое переключение тоже без паузы
+    LaunchedEffect(Unit) {
+        delay(PREWARM_DELAY_MS)
+        builtNames = MainTab.entries.map { it.name }
+    }
+    BackHandler(enabled = selected != MainTab.Chats) { selectedName = MainTab.Chats.name }
+    CompositionLocalProvider(LocalInTabsHost provides true) {
+        GlassScope {
+            Box(Modifier.fillMaxSize()) {
+                Layout(
+                    content = {
+                        MainTab.entries.forEach { tab ->
+                            Box(Modifier.fillMaxSize()) {
+                                if (tab.name in builtNames) {
+                                    when (tab) {
+                                        MainTab.Chats -> chats(select)
+                                        MainTab.Contacts -> contacts(select)
+                                        MainTab.Settings -> settings(select)
+                                    }
+                                }
+                            }
+                        }
+                    },
+                    modifier = Modifier.fillMaxSize(),
+                ) { measurables, constraints ->
+                    // Измеряются все собранные вкладки — их списки строят строки заранее, — но размещается
+                    // только выбранная: скрытые не рисуются, не получают касаний и не попадают под стекло
+                    val placeables = measurables.map { it.measure(constraints) }
+                    layout(constraints.maxWidth, constraints.maxHeight) { placeables[selected.ordinal].place(0, 0) }
+                }
+                HostTabBar(selected, select, Modifier.align(Alignment.BottomCenter))
+            }
+        }
+    }
 }
 
 /**
- * Tab bar «Контакты / Чаты / Настройки» как в Telegram iOS 26: на «Настройках» — свой аватар. Каждый экран-вкладка
- * рисует его у себя, поэтому при переходе вглубь он уезжает вместе с экраном; линза выбранной вкладки
- * приезжает с прошлой вкладки ([LastMainTab]).
+ * Таббар вкладки. Внутри [MainTabsHost] ничего не рисует — таббар у хоста один; экраны вкладок
+ * оставляют вызов ради отступа снизу под ним.
  */
 @Composable
 fun MainTabBar(selected: MainTab, onSelect: (MainTab) -> Unit, modifier: Modifier = Modifier) {
+    if (LocalInTabsHost.current) return
+    HostTabBar(selected, onSelect, modifier)
+}
+
+/** Tab bar «Контакты / Чаты / Настройки» как в Telegram iOS 26: на «Настройках» — свой аватар. */
+@Composable
+private fun HostTabBar(selected: MainTab, onSelect: (MainTab) -> Unit, modifier: Modifier = Modifier) {
     val viewModel: MainTabsViewModel = hiltViewModel()
     val unread by viewModel.unreadChats.collectAsStateWithLifecycle()
     val me by viewModel.me.collectAsStateWithLifecycle()
-    val previous = remember { LastMainTab.value }
-    val enterAsGlass = remember { LastMainTab.dragged.also { LastMainTab.dragged = false } }
-    SideEffect { LastMainTab.value = selected }
     ReachTabBar(
         items = listOf(
             TabItem(painterResource(R.drawable.ic_tab_contacts), stringResource(R.string.contacts_title)),
@@ -102,32 +169,8 @@ fun MainTabBar(selected: MainTab, onSelect: (MainTab) -> Unit, modifier: Modifie
         selected = selected.ordinal,
         onSelect = { index -> MainTab.entries[index].takeIf { it != selected }?.let(onSelect) },
         modifier = modifier,
-        previous = previous?.ordinal,
-        onDragSelect = { index ->
-            val tab = MainTab.entries[index]
-            LastMainTab.value = tab
-            LastMainTab.dragged = true
-            onSelect(tab)
-        },
-        enterAsGlass = enterAsGlass,
-        travelBeforeSelect = true,
-        // Линза уже стоит на новой вкладке: новый экран показывает её там же, без второго полёта
-        onSettledSelect = { index ->
-            val tab = MainTab.entries[index]
-            LastMainTab.value = tab
-            onSelect(tab)
-        },
     )
 }
 
-/**
- * Переключение вкладки: «Чаты» — корень стека, остальные ложатся поверх него одной записью.
- * «Назад» с любой вкладки возвращает в чаты, повторно вкладка в стек не попадает.
- */
-fun NavController.selectTab(tab: MainTab) {
-    when (tab) {
-        MainTab.Chats -> popBackStack(ChatsRoute(), inclusive = false)
-        MainTab.Contacts -> navigate(ContactsRoute) { popUpTo(ChatsRoute()); launchSingleTop = true }
-        MainTab.Settings -> navigate(SettingsRoute) { popUpTo(ChatsRoute()); launchSingleTop = true }
-    }
-}
+/** Через сколько после появления хоста собрать остальные вкладки в фоне. */
+private const val PREWARM_DELAY_MS = 1_500L

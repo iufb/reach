@@ -34,13 +34,28 @@ import io.github.iufb.reach.ui.theme.ReachTheme
  */
 private val LocalGlass = staticCompositionLocalOf<HazeState?> { null }
 
+/** Есть ли над этим местом [GlassScope] (состояние размытия само по себе `null` у плотного стекла). */
+private val LocalInGlassScope = staticCompositionLocalOf { false }
+
 /**
  * [liveBlur] = false — стекло без живого размытия, плотной подложкой цвета панели (как iOS
  * с «Уменьшением прозрачности»). Живое размытие пересчитывается каждый кадр, пока под стеклом
  * что-то меняется, и на средних устройствах удваивает цену кадра (#304).
  */
 @Composable
-fun GlassScope(liveBlur: Boolean = true, content: @Composable () -> Unit) {
+fun GlassScope(
+    liveBlur: Boolean = true,
+    /**
+     * Внутри другого [GlassScope] не заводить своё, а делить родительское: так экраны вкладок в общем
+     * хосте (#395) размываются под одним таббаром. Без родителя — как обычно, своё.
+     */
+    shareParent: Boolean = false,
+    content: @Composable () -> Unit,
+) {
+    if (shareParent && LocalInGlassScope.current) {
+        content()
+        return
+    }
     // Замеры #304 (только debug): glass=solid / glass=blur переопределяют выбор экрана
     val blur = when (PerfFlags["glass"]) {
         "solid" -> false
@@ -48,7 +63,7 @@ fun GlassScope(liveBlur: Boolean = true, content: @Composable () -> Unit) {
         else -> liveBlur
     }
     val state = if (blur) rememberHazeState() else null
-    CompositionLocalProvider(LocalGlass provides state, content = content)
+    CompositionLocalProvider(LocalGlass provides state, LocalInGlassScope provides true, content = content)
 }
 
 /**

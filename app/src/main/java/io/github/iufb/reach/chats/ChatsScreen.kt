@@ -178,7 +178,8 @@ private fun ChatsContent(
     var headerHeight by remember { mutableStateOf(0.dp) }
     val navBar = WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
     val bottomInset = if (isArchive) navBar else navBar + TabBarHeight + 16.dp
-    GlassScope {
+    // В хосте вкладок — общее стекло с единственным таббаром (#395)
+    GlassScope(shareParent = true) {
         Box(Modifier.fillMaxSize().background(colors.background)) {
             ChatsBody(
                 list, chats, allLoaded, loggingOut, onChatClick, onChatLongClick, onLoadMore,

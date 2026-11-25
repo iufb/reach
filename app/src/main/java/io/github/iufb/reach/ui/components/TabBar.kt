@@ -114,15 +114,6 @@ fun ReachTabBar(
     onDragSelect: (Int) -> Unit = onSelect,
     /** Панель появляется с линзой-пузырём, который гаснет: продолжение перетаскивания с прошлого экрана. */
     enterAsGlass: Boolean = false,
-    /**
-     * Вкладки — разные экраны, и новый собирается заметное время (главный поток занят, анимация стоит).
-     * Тогда по тапу линза здесь же доезжает и оседает в заливку, и только потом выбор уходит
-     * в [onSettledSelect]: новый экран показывает её уже на месте, а его сборка приходится на
-     * неподвижную картинку (#371). Иначе [onSelect] сразу.
-     */
-    travelBeforeSelect: Boolean = false,
-    /** Вкладку выбрали тапом, линза уже на ней в покое (при [travelBeforeSelect]). */
-    onSettledSelect: (Int) -> Unit = onSelect,
 ) {
     val colors = ReachTheme.colors
     // Положение и ширина каждой вкладки в ряду: по ним ездит линза
@@ -141,7 +132,6 @@ fun ReachTabBar(
     val scope = rememberCoroutineScope()
     val currentSelected by rememberUpdatedState(selected)
     val currentDragSelect by rememberUpdatedState(onDragSelect)
-    val currentSettledSelect by rememberUpdatedState(onSettledSelect)
 
     /**
      * Линза едет к вкладке [target], как в Telegram iOS 26 (снято с записи экрана, 240 fps): сразу становится
@@ -313,17 +303,7 @@ fun ReachTabBar(
                 tab
                     .onPlaced { if (index < bounds.size) bounds[index] = it.positionInParent().x to it.size.width.toFloat() }
                     .clip(RoundedCornerShape(percent = 50))
-                    .clickable(interactionSource = pressed[index], indication = null, role = Role.Tab) {
-                        if (!travelBeforeSelect || index == currentSelected) {
-                            onSelect(index)
-                        } else {
-                            scope.launch {
-                                // Затемнение заливки — уже не здесь: экран сейчас сменится
-                                settle(bounds[index], dimAfter = false)
-                                currentSettledSelect(index)
-                            }
-                        }
-                    }
+                    .clickable(interactionSource = pressed[index], indication = null, role = Role.Tab) { onSelect(index) }
                     .semantics { this.selected = index == selected }
             }
             // Тот же ряд акцентным цветом, видимый только под линзой
