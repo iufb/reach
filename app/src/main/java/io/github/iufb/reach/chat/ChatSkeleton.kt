@@ -64,7 +64,8 @@ internal fun ChatSkeleton(isChannel: Boolean, contentPadding: PaddingValues, mod
 internal fun SkeletonBubbleRow(index: Int, isChannel: Boolean, modifier: Modifier = Modifier) {
     val colors = ReachTheme.colors
     val bubble = skeletonBubble(index, isChannel)
-    val fraction = if (isChannel) 1f else skeletonFraction(index, 0.35f, 0.7f) + 0.1f * (bubble.lines - 1)
+    // Пост канала — пузырь пошире обычного, но не на весь экран (#392)
+    val fraction = if (isChannel) skeletonFraction(index, 0.7f, 0.85f) else skeletonFraction(index, 0.35f, 0.7f) + 0.1f * (bubble.lines - 1)
     val base = if (bubble.outgoing) colors.bubbleOutgoing else colors.bubbleIncoming
     // Полупрозрачные поверх обоев: читается как «здесь будут сообщения», а не как сами сообщения
     val glow = Color.White.copy(alpha = if (colors.isDark) 0.12f else 0.8f)
@@ -76,7 +77,7 @@ internal fun SkeletonBubbleRow(index: Int, isChannel: Boolean, modifier: Modifie
     ) {
         SkeletonBox(
             Modifier
-                .then(if (isChannel) Modifier else Modifier.widthIn(max = MAX_BUBBLE))
+                .widthIn(max = if (isChannel) MAX_POST else MAX_BUBBLE)
                 .fillMaxWidth(fraction.coerceAtMost(1f))
                 .height(bubbleHeight(bubble.lines, isChannel)),
             shape = BubbleShape(bubble.outgoing, bubble.tail),
@@ -92,4 +93,5 @@ private const val MIN_ITEM_HEIGHT = 40
 private const val SKELETON_ALPHA = 0.55f
 private val LINE_HEIGHT = 20.dp
 private val MAX_BUBBLE = 320.dp
+private val MAX_POST = 340.dp
 private val SERIES_GAP = 6.dp

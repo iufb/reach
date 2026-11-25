@@ -1300,7 +1300,11 @@ private fun SendingStatus(state: SendingState?, read: Boolean, tint: Color) {
     Icon(painterResource(icon), stringResource(description), Modifier.size(STATUS_ICON), tint = tint)
 }
 
-/** Пост канала: карточка на всю ширину, подпись автора и просмотры внизу. */
+/**
+ * Пост канала как в Telegram iOS (#392): входящий пузырь по ширине содержимого (не на весь экран),
+ * внизу справа подпись автора, 👁 с коротким числом просмотров и время; справа от пузыря — круглая
+ * «Поделиться» (пересылка). В режиме выбора — кружок слева, как у обычных пузырей.
+ */
 @Composable
 private fun ChannelPost(
     message: Message,
@@ -1308,49 +1312,121 @@ private fun ChannelPost(
     album: List<Message>,
     reply: @Composable () -> Unit,
 ) {
-    CompositionLocalProvider(LocalBubbleStyle provides ReachTheme.colors.bubbleStyle(outgoing = false)) {
-    Column(
+    val colors = ReachTheme.colors
+    val selecting = interactions.selection.isNotEmpty()
+    CompositionLocalProvider(LocalBubbleStyle provides colors.bubbleStyle(outgoing = false)) {
+    Row(
         modifier = Modifier
             .fillMaxWidth()
-            .selectionHighlight(message, interactions, highlight = true)
+            .selectionHighlight(message, interactions, highlight = false)
             .swipeToReply(interactions.replyAction(message))
-            .padding(start = 6.dp, end = 6.dp, top = SERIES_GAP)
-            .menuAnchor(message)
-            .clip(BubbleShape(outgoing = false, tail = true))
-            .background(ReachTheme.colors.bubbleIncoming)
-            .messageLongPress(message, interactions)
-            .padding(start = 10.dp + TailWidth, end = 10.dp, top = 8.dp, bottom = 6.dp),
+            .padding(start = 6.dp, end = 6.dp, top = SERIES_GAP),
+        verticalAlignment = Alignment.Bottom,
     ) {
-        reply()
-        if (album.size > 1) AlbumContent(album, interactions) else MessageContent(message, interactions)
-        ReactionChips(message.reactions, onClick = reactionClick(message, interactions))
-        Row(Modifier.fillMaxWidth().padding(top = 4.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            Text(
-                message.authorSignature,
-                modifier = Modifier.weight(1f),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            if (message.viewCount > 0) {
-                Text(
-                    pluralStringResource(R.plurals.views, message.viewCount, message.viewCount),
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                )
-            }
-            Text(
-                messageTimeLabel(message),
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
+        AnimatedVisibility(
+            visible = selecting,
+            modifier = Modifier.align(Alignment.CenterVertically),
+            enter = expandHorizontally() + fadeIn(),
+            exit = shrinkHorizontally() + fadeOut(),
+        ) {
+            SelectionCheck(message.id in interactions.selection)
         }
-        val openComments = interactions.onOpenComments
-        if (message.hasComments && openComments != null && interactions.selection.isEmpty()) {
-            CommentsBar(message, interactions.senders) { openComments(message) }
+        Column(
+            modifier = Modifier
+                .weight(1f, fill = false)
+                .widthIn(max = CHANNEL_POST_MAX)
+                .menuAnchor(message)
+                .clip(BubbleShape(outgoing = false, tail = true))
+                .background(colors.bubbleIncoming)
+                .messageLongPress(message, interactions)
+                .padding(start = 10.dp + TailWidth, end = 10.dp, top = 6.dp, bottom = 5.dp),
+        ) {
+            reply()
+            if (album.size > 1) AlbumContent(album, interactions) else MessageContent(message, interactions)
+            ReactionChips(message.reactions, onClick = reactionClick(message, interactions))
+            PostFooter(message, Modifier.align(Alignment.End).padding(top = 2.dp))
+            val openComments = interactions.onOpenComments
+            if (message.hasComments && openComments != null && !selecting) {
+                CommentsBar(message, interactions.senders) { openComments(message) }
+            }
+        }
+        if (!selecting) {
+            Spacer(Modifier.width(6.dp))
+            ShareButton { interactions.onForward(message) }
         }
     }
     }
 }
+
+/** Подвал поста: подпись автора, 👁 и короткое число просмотров, время — цветом меты пузыря. */
+@Composable
+private fun PostFooter(message: Message, modifier: Modifier = Modifier) {
+    val meta = ReachTheme.colors.bubbleIncomingMeta
+    val style = MaterialTheme.typography.labelSmall
+    Row(modifier, horizontalArrangement = Arrangement.spacedBy(4.dp), verticalAlignment = Alignment.CenterVertically) {
+        if (message.authorSignature.isNotBlank()) {
+            Text(
+                message.authorSignature,
+                modifier = Modifier.widthIn(max = SIGNATURE_MAX),
+                style = style,
+                color = meta,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis,
+            )
+        }
+        if (message.viewCount > 0) {
+            Icon(
+                painterResource(R.drawable.ic_views),
+                contentDescription = pluralStringResource(R.plurals.views, message.viewCount, message.viewCount),
+                modifier = Modifier.size(VIEWS_ICON),
+                tint = meta,
+            )
+            Text(compactCount(message.viewCount), style = style, color = meta)
+        }
+        Text(messageTimeLabel(message), style = style, color = meta)
+    }
+}
+
+/** Круглая «Поделиться» справа от поста, как в Telegram iOS: открывает пересылку. */
+@Composable
+private fun ShareButton(onClick: () -> Unit) {
+    val colors = ReachTheme.colors
+    Box(
+        Modifier
+            .size(SHARE_BUTTON)
+            .clip(CircleShape)
+            .background(colors.serviceBubble)
+            .clickable(onClickLabel = stringResource(R.string.message_action_forward), onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) {
+        Icon(
+            painterResource(R.drawable.ic_share),
+            contentDescription = stringResource(R.string.message_action_forward),
+            modifier = Modifier.size(SHARE_ICON),
+            tint = colors.onServiceBubble,
+        )
+    }
+}
+
+/** Число просмотров коротко, как в Telegram: 999, 1,2K, 15K, 1,5M (дробная часть — одна цифра, без «,0»). */
+internal fun compactCount(n: Int): String {
+    fun short(value: Double, suffix: String): String {
+        val text = if (value < 10) java.text.DecimalFormat("0.#").format(Math.floor(value * 10) / 10) else value.toInt().toString()
+        return text + suffix
+    }
+    return when {
+        n < 1_000 -> n.toString()
+        n < 1_000_000 -> short(n / 1_000.0, "K")
+        else -> short(n / 1_000_000.0, "M")
+    }
+}
+
+/** Пост не шире обычного пузыря с запасом под картинки; справа остаётся место под «Поделиться». */
+private val CHANNEL_POST_MAX = 340.dp
+private val SIGNATURE_MAX = 140.dp
+private val VIEWS_ICON = 13.dp
+private val SHARE_BUTTON = 32.dp
+private val SHARE_ICON = 18.dp
 
 /** «N комментариев» с аватарками последних комментаторов; тап открывает тред. */
 @Composable
