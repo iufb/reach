@@ -443,7 +443,8 @@ private fun ChatRow(
                 isPinned -> Icon(
                     painterResource(R.drawable.ic_pin),
                     contentDescription = stringResource(R.string.chat_pinned),
-                    modifier = Modifier.size(16.dp).rotate(45f),
+                    // Скрепка Fluent уже наклонена — без доворота (#374)
+                    modifier = Modifier.size(16.dp),
                     tint = colors.tertiaryLabel,
                 )
             }
