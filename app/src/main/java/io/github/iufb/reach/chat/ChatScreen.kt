@@ -555,7 +555,9 @@ private fun ChatContent(
             emoji,
             panelAllowed = composerShown,
             canSendStickers = canSendStickers,
-            stickerContent = { if (onSendSticker != null) StickerPanel(onSend = onSendSticker) else StickerTabPlaceholder() },
+            stickerContent = { onSearchFocusChange ->
+                if (onSendSticker != null) StickerPanel(onSend = onSendSticker, onSearchFocusChange = onSearchFocusChange) else StickerTabPlaceholder()
+            },
         )
         }
         MessageMenuOverlay(menuOverlay, interactions.menu, interactions)

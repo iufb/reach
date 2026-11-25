@@ -77,12 +77,12 @@ internal class EmojiPanelState(private val scope: CoroutineScope) {
     /** Доля раскрытия, когда клавиатуры не было: панель выезжает снизу сама. */
     val reveal = Animatable(0f)
 
-    /** Открытая вкладка; помнится между чатами до конца процесса. Поиск есть только у эмодзи. */
+    /** Открытая вкладка; помнится между чатами до конца процесса. Поиск у каждой вкладки свой (#396). */
     var tab: PanelTab
         get() = lastPanelTab.value
         set(value) {
+            if (value != lastPanelTab.value) searching = false
             lastPanelTab.value = value
-            if (value != PanelTab.Emoji) searching = false
         }
 
     /** Высота клавиатуры в пикселях, как её видели в последний раз; 0 — ещё не открывалась. */
@@ -155,7 +155,8 @@ internal fun ChatBottomArea(
     state: EmojiPanelState,
     panelAllowed: Boolean,
     canSendStickers: Boolean,
-    stickerContent: @Composable () -> Unit = { StickerTabPlaceholder() },
+    /** Вкладка «Стикеры»; аргумент — фокус в её поиске (панель ужимается, как у эмодзи, #396). */
+    stickerContent: @Composable (onSearchFocusChange: (Boolean) -> Unit) -> Unit = { StickerTabPlaceholder() },
 ) {
     val ime = WindowInsets.ime
     val nav = WindowInsets.navigationBars
@@ -249,7 +250,11 @@ internal fun ChatBottomArea(
                             )
                         },
                         stickerContent = {
-                            if (canSendStickers) stickerContent() else PanelMessage(stringResource(R.string.stickers_restricted))
+                            if (canSendStickers) {
+                                stickerContent { state.searching = it && state.open }
+                            } else {
+                                PanelMessage(stringResource(R.string.stickers_restricted))
+                            }
                         },
                     )
                 }

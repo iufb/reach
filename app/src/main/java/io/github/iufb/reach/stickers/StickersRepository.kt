@@ -4,11 +4,14 @@ import android.util.Log
 import io.github.iufb.reach.chat.ChatScope
 import io.github.iufb.reach.chat.SendOptions
 import io.github.iufb.reach.chats.StickerInfo
+import io.github.iufb.reach.chats.plainEmojiCount
 import io.github.iufb.reach.chats.toInfo
 import io.github.iufb.reach.core.td.TdClient
 import io.github.iufb.reach.di.ApplicationScope
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.async
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -17,6 +20,7 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.drinkless.tdlib.TdApi
+import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -145,6 +149,39 @@ class StickersRepository @Inject constructor(
     ): TdApi.Message = td.send(stickerMessage(chatId, scope, replyToMessageId, sticker, options))
 
     /** Добавить пак (`changeStickerSet`); список [installed] обновит апдейт. */
+    /**
+     * Поиск в панели стикеров (#396): по эмодзи («😂») или по словам («кот», «cat») на языке системы
+     * и английском. Стикеры — сначала из установленных паков (`getStickers`), затем общие
+     * (`searchStickers`), без повторов; паки — установленные (`searchInstalledStickerSets`), затем
+     * найденные (`searchStickerSets`). Запросы идут параллельно; упавший даёт пустую часть, не ошибку.
+     */
+    suspend fun search(query: String): StickerSearch = coroutineScope {
+        val q = query.trim()
+        if (q.isEmpty()) return@coroutineScope StickerSearch()
+        val type = TdApi.StickerTypeRegular()
+        val languages = listOf(Locale.getDefault().language, "en").distinct().toTypedArray()
+        // Запрос из одних эмодзи ищется по эмодзи, иначе — по словам
+        val byEmoji = plainEmojiCount(q) > 0
+        val installedStickers = async { runCatching { td.send(TdApi.GetStickers(type, q, SEARCH_LIMIT, 0)) }.getOrNull() }
+        val foundStickers = async {
+            runCatching {
+                td.send(TdApi.SearchStickers(type, if (byEmoji) q else "", if (byEmoji) "" else q, languages, 0, SEARCH_LIMIT))
+            }.onFailure { Log.w(TAG, "searchStickers failed", it) }.getOrNull()
+        }
+        val installedSets = async { runCatching { td.send(TdApi.SearchInstalledStickerSets(type, q, SEARCH_SETS_LIMIT)) }.getOrNull() }
+        val foundSets = async {
+            runCatching { td.send(TdApi.SearchStickerSets(type, q)) }.onFailure { Log.w(TAG, "searchStickerSets failed", it) }.getOrNull()
+        }
+        // Ответы TDLib — Java-массивы: в списки
+        val stickers = (installedStickers.await()?.stickers?.toList().orEmpty() + foundStickers.await()?.stickers?.toList().orEmpty())
+            .distinctBy { sticker: TdApi.Sticker -> sticker.sticker.remote?.uniqueId ?: sticker.sticker.id.toString() }
+            .map { sticker -> sticker.toInfo() }
+        val sets = (installedSets.await()?.sets?.toList().orEmpty() + foundSets.await()?.sets?.toList().orEmpty())
+            .distinctBy { set: TdApi.StickerSetInfo -> set.id }
+            .map { set -> set.toModel() }
+        StickerSearch(stickers, sets)
+    }
+
     suspend fun install(setId: Long) = changeInstalled(setId, installed = true)
 
     /** Удалить пак (`changeStickerSet`). */
@@ -248,5 +285,15 @@ class StickersRepository @Inject constructor(
     private companion object {
         const val TAG = "StickersRepository"
         const val TRENDING_PAGE = 20
+        const val SEARCH_LIMIT = 100
+        const val SEARCH_SETS_LIMIT = 20
     }
+}
+
+/** Результат поиска в панели стикеров (#396). */
+data class StickerSearch(
+    val stickers: List<StickerInfo> = emptyList(),
+    val sets: List<StickerSetInfo> = emptyList(),
+) {
+    val isEmpty: Boolean get() = stickers.isEmpty() && sets.isEmpty()
 }

@@ -1,6 +1,22 @@
 package io.github.iufb.reach.stickers
 
 import android.content.Context
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.aspectRatio
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.res.pluralStringResource
+import io.github.iufb.reach.ui.components.DelayedSkeleton
+import io.github.iufb.reach.ui.components.SearchField
+import io.github.iufb.reach.ui.components.SkeletonBox
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.FlowPreview
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.debounce
+import kotlinx.coroutines.flow.mapLatest
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.DragInteraction
@@ -105,6 +121,25 @@ class StickerPanelViewModel @Inject constructor(
             ),
         )
 
+    private val _query = MutableStateFlow("")
+    val query: StateFlow<String> = _query.asStateFlow()
+
+    /** Найденное для запроса (#396): пара «запрос — результат»; `null` — поиска нет. */
+    @OptIn(ExperimentalCoroutinesApi::class, FlowPreview::class)
+    val results: StateFlow<Pair<String, StickerSearch>?> = _query
+        .debounce(SEARCH_DEBOUNCE_MS)
+        .mapLatest { q -> if (q.isBlank()) null else q.trim() to repository.search(q) }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), null)
+
+    fun onQueryChange(value: String) {
+        _query.value = value
+    }
+
+    /** «Добавить» у найденного пака. */
+    fun install(setId: Long) {
+        viewModelScope.launch { runCatching { repository.install(setId) } }
+    }
+
     /** Следующая страница трендов, когда строку долистали до конца. */
     fun loadMoreTrending() {
         viewModelScope.launch { repository.loadMoreTrending() }
@@ -141,6 +176,7 @@ class StickerPanelViewModel @Inject constructor(
 
     private companion object {
         const val STOP_TIMEOUT_MS = 5_000L
+        const val SEARCH_DEBOUNCE_MS = 300L
         const val PREFS = "sticker_panel"
         const val KEY_TRENDING_HIDDEN = "trending_hidden"
     }
@@ -159,11 +195,188 @@ class StickerPanelViewModel @Inject constructor(
  * Анимации играют только у ячеек на экране: Lazy-сетка убирает ушедшие (Lottie и декодер WebM
  * останавливаются), а заранее подготовленные ряды за краем получают `animate = false`.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun StickerPanel(
     onSend: (StickerInfo) -> Unit,
     modifier: Modifier = Modifier,
+    /** Фокус в поиске: открывается клавиатура, и панель ужимается до ряда результатов (как у эмодзи). */
+    onSearchFocusChange: (Boolean) -> Unit = {},
     viewModel: StickerPanelViewModel = hiltViewModel(),
+) {
+    val query by viewModel.query.collectAsStateWithLifecycle()
+    val results by viewModel.results.collectAsStateWithLifecycle()
+    var focused by remember { mutableStateOf(false) }
+    // Ужатый вид — только пока поиск в фокусе И клавиатура на экране: убрали клавиатуру («назад»),
+    // фокус остался, а панель должна вернуться во всю высоту с сеткой и паками
+    val imeVisible = WindowInsets.isImeVisible
+    val compact = focused && imeVisible
+    LaunchedEffect(compact) { onSearchFocusChange(compact) }
+    Column(modifier.fillMaxSize()) {
+        SearchField(
+            query = query,
+            onQueryChange = viewModel::onQueryChange,
+            modifier = Modifier
+                .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 4.dp)
+                .onFocusChanged { focused = it.isFocused },
+            placeholder = stringResource(R.string.stickers_search),
+        )
+        if (query.isBlank()) {
+            StickerBrowse(onSend, Modifier.weight(1f), viewModel)
+        } else {
+            StickerSearchResults(
+                query = query,
+                results = results,
+                compact = compact,
+                onSend = onSend,
+                onInstall = viewModel::install,
+                modifier = Modifier.weight(1f),
+            )
+        }
+    }
+}
+
+/**
+ * Поиск в панели стикеров (#396). Пока поле в фокусе (над клавиатурой) — один ряд найденных стикеров;
+ * клавиатуру убрали — сетка в [COLUMNS] колонок и ниже найденные паки с «Добавить». Тап — отправить,
+ * долгое нажатие — превью; пак — лист пака. Пока ответа нет — скелетон, пусто — «Ничего не нашлось».
+ */
+@Composable
+private fun StickerSearchResults(
+    query: String,
+    results: Pair<String, StickerSearch>?,
+    compact: Boolean,
+    onSend: (StickerInfo) -> Unit,
+    onInstall: (Long) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val colors = ReachTheme.colors
+    var openedSet by remember { mutableStateOf<Long?>(null) }
+    openedSet?.let { StickerSetSheet(it, onDismiss = { openedSet = null }, onSend = onSend) }
+    val preview = rememberStickerPreviewState()
+    StickerPreview(preview, onSend = onSend, onOpenSet = { openedSet = it.setId })
+    // Ответ для другого (прошлого) запроса не показываем — ждём свой
+    val found = results?.takeIf { it.first == query.trim() }?.second
+    when {
+        found == null -> SearchSkeleton(compact, modifier)
+        found.isEmpty -> Box(modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+            Text(stringResource(R.string.emoji_nothing_found), color = colors.secondaryLabel)
+        }
+        compact -> LazyRow(
+            modifier.fillMaxWidth(),
+            contentPadding = PaddingValues(horizontal = 8.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            items(found.stickers, key = { it.file.uniqueId }) { sticker ->
+                StickerCell(
+                    sticker,
+                    Modifier
+                        .size(COMPACT_CELL)
+                        .clip(RoundedCornerShape(10.dp))
+                        .stickerCellGestures(preview, StickerPick(sticker)) { onSend(sticker) },
+                )
+            }
+            // Стикеров нет, а паки нашлись (запрос по названию) — их обложки; тап открывает пак
+            if (found.stickers.isEmpty()) {
+                items(found.sets, key = { "set:${it.id}" }) { set ->
+                    Box(
+                        Modifier
+                            .size(COMPACT_CELL)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { openedSet = set.id },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        SetCover(set, Modifier.size(SET_COVER))
+                    }
+                }
+            }
+        }
+        else -> LazyVerticalGrid(GridCells.Fixed(COLUMNS), modifier.fillMaxSize(), contentPadding = GRID_PADDING) {
+            items(found.stickers, key = { "sticker:${it.file.uniqueId}" }, contentType = { "sticker" }) { sticker ->
+                StickerCell(
+                    sticker,
+                    Modifier
+                        .clip(RoundedCornerShape(10.dp))
+                        .stickerCellGestures(preview, StickerPick(sticker)) { onSend(sticker) },
+                )
+            }
+            if (found.sets.isNotEmpty()) {
+                item(key = "sets-header", span = { GridItemSpan(maxLineSpan) }, contentType = "header") {
+                    SectionTitle(stringResource(R.string.stickers_found_sets))
+                }
+                items(found.sets, key = { "set:${it.id}" }, span = { GridItemSpan(maxLineSpan) }, contentType = { "set" }) { set ->
+                    FoundSetRow(set, onOpen = { openedSet = set.id }, onInstall = { onInstall(set.id) })
+                }
+            }
+        }
+    }
+}
+
+/** Найденный пак: обложка, название, число стикеров и «Добавить» (у добавленного — «Добавлен»). */
+@Composable
+private fun FoundSetRow(set: StickerSetInfo, onOpen: () -> Unit, onInstall: () -> Unit) {
+    val colors = ReachTheme.colors
+    Row(
+        Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .clickable(onClick = onOpen)
+            .padding(horizontal = 8.dp, vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Box(Modifier.size(SET_COVER), contentAlignment = Alignment.Center) { SetCover(set, Modifier.size(SET_COVER)) }
+        Column(Modifier.weight(1f).padding(horizontal = 12.dp)) {
+            Text(set.title, style = MaterialTheme.typography.bodyLarge, color = colors.label, maxLines = 1, overflow = TextOverflow.Ellipsis)
+            Text(
+                pluralStringResource(R.plurals.stickers_count, set.size, set.size),
+                style = MaterialTheme.typography.bodySmall,
+                color = colors.secondaryLabel,
+            )
+        }
+        if (set.isInstalled) {
+            Text(stringResource(R.string.stickers_set_added), style = MaterialTheme.typography.labelLarge, color = colors.secondaryLabel)
+        } else {
+            Text(
+                stringResource(R.string.stickers_set_add_short),
+                modifier = Modifier
+                    .clip(RoundedCornerShape(50))
+                    .background(colors.accent)
+                    .clickable(onClick = onInstall)
+                    .padding(horizontal = 14.dp, vertical = 6.dp),
+                style = MaterialTheme.typography.labelLarge,
+                fontWeight = FontWeight.SemiBold,
+                color = colors.onAccent,
+            )
+        }
+    }
+}
+
+/** Скелетон результатов: ряд (над клавиатурой) или сетка ячеек, проявляется после задержки. */
+@Composable
+private fun SearchSkeleton(compact: Boolean, modifier: Modifier) {
+    DelayedSkeleton(modifier.fillMaxWidth()) {
+        if (compact) {
+            Row(Modifier.padding(horizontal = 8.dp), horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                repeat(SKELETON_ROW_CELLS) { SkeletonBox(Modifier.size(COMPACT_CELL - 8.dp), RoundedCornerShape(12.dp)) }
+            }
+        } else {
+            Column(Modifier.padding(GRID_PADDING), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                repeat(SKELETON_GRID_ROWS) {
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        repeat(COLUMNS) { SkeletonBox(Modifier.weight(1f).aspectRatio(1f), RoundedCornerShape(12.dp)) }
+                    }
+                }
+            }
+        }
+    }
+}
+
+/** Вкладка без поиска: недавние, избранные, паки и тренды. */
+@Composable
+private fun StickerBrowse(
+    onSend: (StickerInfo) -> Unit,
+    modifier: Modifier = Modifier,
+    viewModel: StickerPanelViewModel,
 ) {
     val sectionsState = viewModel.sections.collectAsStateWithLifecycle()
     // Снимок списка на эту композицию: контент Lazy-сетки вычисляется вне композиции, и чтение
@@ -431,6 +644,10 @@ private val ICON_BOX = 38.dp
 private val ICON = 28.dp
 private val TRENDING_CELL = 64.dp
 private val TRENDING_COVER = 52.dp
+private val COMPACT_CELL = 64.dp
+private val SET_COVER = 44.dp
+private const val SKELETON_ROW_CELLS = 5
+private const val SKELETON_GRID_ROWS = 3
 
 /** За сколько паков до конца строки трендов грузить следующую страницу. */
 private const val TRENDING_LOAD_AHEAD = 4

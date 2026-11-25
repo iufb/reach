@@ -427,6 +427,16 @@
     <string name="stickers_favorites">Избранные</string>
     <string name="stickers_trending">Трендовые стикеры</string>
     <string name="stickers_trending_hide">Скрыть трендовые стикеры</string>
+    <string name="stickers_search">Поиск стикеров</string>
+    <string name="stickers_found_sets">Наборы стикеров</string>
+    <string name="stickers_set_add_short">Добавить</string>
+    <string name="stickers_set_added">Добавлен</string>
+    <plurals name="stickers_count">
+        <item quantity="one">%d стикер</item>
+        <item quantity="few">%d стикера</item>
+        <item quantity="many">%d стикеров</item>
+        <item quantity="other">%d стикера</item>
+    </plurals>
     <string name="stickers_empty">Здесь будут ваши стикеры: недавние, избранные и добавленные паки</string>
     <string name="sticker_action_send">Отправить</string>
     <string name="sticker_action_favorite">В избранное</string>
