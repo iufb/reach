@@ -10,6 +10,8 @@ import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.layout.layout
+import kotlin.math.roundToInt
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.size
@@ -152,9 +154,12 @@ private val EXTRAS_CORNER = 20.dp
 /** Значки внутри поля (колокольчик, эмодзи). */
 private val FIELD_ICON = 36.dp
 private val SEND_ICON = 20.dp
-private val BAR_SLIDE = 24.dp
 private const val BAR_IN_MS = 180
-private const val BAR_OUT_MS = 220
+private const val BAR_OUT_MS = 300
+/** Содержимое пилюли записи видно только на последнем отрезке её раскрытия. */
+private const val BAR_CONTENT_FROM = 0.6f
+private const val FIELD_CONTENT_IN_MS = 140
+private const val ATTACH_MIN_SCALE = 0.6f
 private const val GLASS_FADE_MS = 150
 
 /** Сколько последних отданных модели текстов помнит поле, см. [Composer]. */
@@ -244,6 +249,13 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, em
         barReveal.animateTo(if (barTarget) 1f else 0f, tween(if (barTarget) BAR_IN_MS else BAR_OUT_MS, easing = FastOutSlowInEasing))
     }
     val barShown = barTarget || barReveal.isRunning || barReveal.targetValue > 0f
+    // Содержимое поля (текст, плейсхолдер, значки) проявляется, когда пилюля записи уже встала
+    // на место поля и исчезла (#377)
+    val fieldContent = remember { Animatable(1f) }
+    LaunchedEffect(barShown) {
+        if (barShown) fieldContent.snapTo(0f) else fieldContent.animateTo(1f, tween(FIELD_CONTENT_IN_MS))
+    }
+    val hasAttach = state.editing == null && state.onAttach != null
 
     // Telegram iOS: под полем нет панели — стеклянные кнопки и поле-пилюля плавают над лентой.
     // Ответ, правка и превью ссылки — внутри поля, подсказки и оформление — стеклянной карточкой над ним.
@@ -267,20 +279,37 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, em
             }
             Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
                 Box(Modifier.weight(1f)) {
-                    Row(
-                        Modifier.fillMaxWidth().graphicsLayer { alpha = 1f - barReveal.value },
-                        verticalAlignment = Alignment.Bottom,
-                    ) {
-                        if (state.editing == null && state.onAttach != null) {
-                            GlassCircle { AttachButton(state.onAttach) }
+                    Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.Bottom) {
+                        if (hasAttach && state.onAttach != null) {
+                            // Пилюля записи наезжает на скрепку: та гаснет и сжимается под ней
+                            Box(
+                                Modifier.graphicsLayer {
+                                    val k = 1f - barReveal.value
+                                    alpha = k
+                                    scaleX = ATTACH_MIN_SCALE + (1f - ATTACH_MIN_SCALE) * k
+                                    scaleY = scaleX
+                                },
+                            ) {
+                                GlassCircle { AttachButton(state.onAttach) }
+                            }
                         }
-                        Column(Modifier.weight(1f).padding(horizontal = 6.dp).glass(RoundedCornerShape(FIELD_CORNER))) {
+                        Column(
+                            Modifier
+                                .weight(1f)
+                                .padding(horizontal = 6.dp)
+                                // Пока видна пилюля записи, стекло — только у неё: два слоя дали бы плотнее
+                                .graphicsLayer { alpha = if (barShown) 0f else 1f }
+                                .glass(RoundedCornerShape(FIELD_CORNER)),
+                        ) {
                             when {
                                 state.editing != null -> EditBar(state.editing, state.onCancelEdit)
                                 state.replyTo != null -> ReplyBar(state.replyTo, senders, state.onCancelReply)
                             }
                             state.linkPreview?.let { ComposerLinkPreview(it, state.onDismissLinkPreview) }
-                            Row(Modifier.fillMaxWidth().heightIn(min = PillHeight), verticalAlignment = Alignment.Bottom) {
+                            Row(
+                                Modifier.fillMaxWidth().heightIn(min = PillHeight).graphicsLayer { alpha = fieldContent.value },
+                                verticalAlignment = Alignment.Bottom,
+                            ) {
                                 BasicTextField(
                                     value = field,
                                     onValueChange = {
@@ -339,6 +368,9 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, em
                         }
                     }
                     if (barShown && voice != null) {
+                        // Одна пилюля, которая тянется влево поверх скрепки и обратно встаёт ровно на место
+                        // поля (та же высота и скругление); её содержимое гаснет в начале сжатия (#377)
+                        val fieldStart = if (hasAttach) PillHeight + 6.dp else 6.dp
                         RecordingBar(
                             voice,
                             recordingUi,
@@ -346,10 +378,13 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, em
                                 .align(Alignment.BottomStart)
                                 .fillMaxWidth()
                                 .padding(end = 6.dp)
-                                .graphicsLayer {
-                                    alpha = barReveal.value
-                                    translationX = (1f - barReveal.value) * BAR_SLIDE.toPx()
+                                .layout { measurable, constraints ->
+                                    val inset = (fieldStart.toPx() * (1f - barReveal.value)).roundToInt()
+                                    val width = (constraints.maxWidth - inset).coerceAtLeast(0)
+                                    val placeable = measurable.measure(constraints.copy(minWidth = width, maxWidth = width))
+                                    layout(constraints.maxWidth, placeable.height) { placeable.place(inset, 0) }
                                 },
+                            contentAlpha = { ((barReveal.value - BAR_CONTENT_FROM) / (1f - BAR_CONTENT_FROM)).coerceIn(0f, 1f) },
                         )
                     }
                 }
