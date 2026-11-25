@@ -1,14 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fluent UI System Icons «chevron_left» (regular), @fluentui/svg-icons 1.1.347, MIT (assets/licenses/fluentui-icons-MIT.txt). #374 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:autoMirrored="true"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Шеврон «назад» в духе iOS: тонкая линия со скруглёнными концами -->
     <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="2.4"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M15,4.5L7.5,12L15,19.5" />
+        android:fillColor="#FF000000"
+        android:pathData="M 15.53,4.22 C 15.83,4.52 15.83,4.99 15.53,5.28 L 8.81,12 L 15.53,18.72 C 15.6284997211,18.8117829972 15.7004916166,18.9284175214 15.7383865774,19.0576084096 S 15.7786994901,19.3238416224 15.7453855419,19.4542889086 S 15.6442389864,19.7038377593 15.5490383728,19.7990383728 S 15.3347361949,19.9620715936 15.2042889086,19.9953855419 S 14.9367992977,20.0262815383 14.8076084096,19.9883865774 S 14.5617829972,19.8784997211 14.47,19.78 L 7.22,12.53 C 7.12704702012,12.4369312732 7.06019334037,12.3210262959 7.02617535157,12.1939640245 S 6.99215736277,11.9330982469 7.02617535157,11.8060359755 S 7.12704702012,11.5630687268 7.22,11.47 L 14.47,4.22 C 14.77,3.92 15.24,3.92 15.53,4.22" />
 </vector>

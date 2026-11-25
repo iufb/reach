@@ -52,7 +52,6 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.platform.LocalConfiguration
@@ -443,7 +442,8 @@ private fun ChatRow(
                 isPinned -> Icon(
                     painterResource(R.drawable.ic_pin),
                     contentDescription = stringResource(R.string.chat_pinned),
-                    modifier = Modifier.size(16.dp).rotate(45f),
+                    // Скрепка Fluent уже наклонена — без доворота (#374)
+                    modifier = Modifier.size(16.dp),
                     tint = colors.tertiaryLabel,
                 )
             }

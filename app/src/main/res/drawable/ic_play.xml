@@ -1,3 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fluent UI System Icons «play» (filled), @fluentui/svg-icons 1.1.347, MIT (assets/licenses/fluentui-icons-MIT.txt). #374 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -5,5 +7,5 @@
     android:viewportHeight="24">
     <path
         android:fillColor="#FF000000"
-        android:pathData="M8,5v14l11,-7z" />
+        android:pathData="M 5,5.27 C 5,3.57 6.83,2.48 8.33,3.3 L 20.69,10.02 C 21.047160815,10.2127749862 21.3455940078,10.4986446168 21.553542929,10.8471891466 S 21.8713092122,11.5941354375 21.8713092122,12 S 21.7614918501,12.8042663236 21.553542929,13.1528108534 S 21.047160815,13.7872250138 20.69,13.98 L 8.33,20.7 C 7.98766567632,20.8873099622 7.602419228,20.9823782298 7.21224626014,20.9758309962 S 6.44023339488,20.8613435282 6.10437628443,20.6626532857 S 5.49005857707,20.1812750572 5.29645092924,19.8424625872 S 5.00066812107,19.1202273244 5,18.73 Z" />
 </vector>

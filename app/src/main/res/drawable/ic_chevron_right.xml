@@ -1,14 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fluent UI System Icons «chevron_right» (regular), @fluentui/svg-icons 1.1.347, MIT (assets/licenses/fluentui-icons-MIT.txt). #374 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
     android:autoMirrored="true"
     android:viewportWidth="24"
     android:viewportHeight="24">
-    <!-- Шеврон ячейки списка -->
     <path
-        android:strokeColor="#FF000000"
-        android:strokeWidth="2.2"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
-        android:pathData="M9.5,5.5L16,12L9.5,18.5" />
+        android:fillColor="#FF000000"
+        android:pathData="M 8.47,4.22 C 8.17,4.52 8.17,4.99 8.47,5.28 L 15.19,12 L 8.47,18.72 C 8.37150027886,18.8117829972 8.29950838345,18.9284175214 8.2616134226,19.0576084096 S 8.22130050986,19.3238416224 8.25461445813,19.4542889086 S 8.35576101363,19.7038377593 8.45096162718,19.7990383728 S 8.66526380512,19.9620715936 8.79571109136,19.9953855419 S 9.06320070229,20.0262815383 9.19239159044,19.9883865774 S 9.43821700281,19.8784997211 9.53,19.78 L 16.78,12.53 C 17.08,12.23 17.08,11.76 16.78,11.47 L 9.53,4.22 C 9.43693127324,4.12704702012 9.32102629586,4.06019334037 9.19396402449,4.02617535157 S 8.93309824689,3.99215736277 8.80603597551,4.02617535157 S 8.56306872676,4.12704702012 8.47,4.22" />
 </vector>
