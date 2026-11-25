@@ -77,6 +77,8 @@ fun AuthPreviewDialog(step: AuthPreviewStep, onDismiss: () -> Unit) {
 private fun AuthPreviewFlow(onDismiss: () -> Unit) {
     var step by remember { mutableIntStateOf(0) }
     var forward by remember { mutableStateOf(true) }
+    // Номер с шага телефона — на шаге кода, как в настоящем входе (там его отдаёт TDLib)
+    var phone by remember { mutableStateOf(PhoneUiState()) }
     fun go(to: Int) {
         forward = to > step
         step = to
@@ -88,14 +90,16 @@ private fun AuthPreviewFlow(onDismiss: () -> Unit) {
         label = "authFlow",
     ) { shown ->
         when (shown) {
-            0 -> {
-                var state by remember { mutableStateOf(PhoneUiState()) }
-                PhoneContent(state, { state = state.copy(phone = it, error = null) }, { go(1) })
-            }
+            0 -> PhoneContent(phone, { phone = phone.copy(phone = it, error = null) }, { go(1) })
             1 -> {
                 var state by remember { mutableStateOf(CodeUiState()) }
                 CodeContent(
-                    info = AuthState.WaitCode("99966 1 2345", CodeDelivery.TelegramMessage(5), CodeDelivery.Sms(5), RESEND_SECONDS),
+                    info = AuthState.WaitCode(
+                        phone.phone.digits.ifEmpty { "99966 1 2345" },
+                        CodeDelivery.TelegramMessage(5),
+                        CodeDelivery.Sms(5),
+                        RESEND_SECONDS,
+                    ),
                     state = state,
                     onCodeChange = { state = state.copy(code = it, error = null) },
                     onSubmit = { go(2) },

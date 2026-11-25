@@ -13,13 +13,8 @@ import androidx.compose.animation.core.rememberInfiniteTransition
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
-import androidx.compose.foundation.background
-import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.State
@@ -42,6 +37,10 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.rememberTextMeasurer
+import kotlinx.coroutines.delay
 import io.github.iufb.reach.SplashGate
 
 /** Иллюстрация шага входа (#375): синий круг знака Reach и белый символ по смыслу шага. */
@@ -124,74 +123,94 @@ private fun PhoneGlyph() {
     }
 }
 
-/** Сообщение приходит, в нём дважды «печатают», затем всплывает бейдж «1» — код отправлен. */
+/**
+ * Код отправлен: сообщение один раз «приходит» с отскоком, в нём печатают, точки сменяются строками
+ * текста, и на угол пузыря выпрыгивает бейдж «1». Дальше всё стоит, бейдж изредка мягко пульсирует.
+ */
 @Composable
 private fun CodeGlyph() {
+    val arrive = remember { Animatable(0f) }
+    val typing = remember { Animatable(1f) }
+    val badge = remember { Animatable(0f) }
+    LaunchedEffect(Unit) {
+        SplashGate.awaitDismissed()
+        arrive.animateTo(1f, spring(dampingRatio = 0.55f, stiffness = 300f))
+        delay(TYPING_SHOWN_MS)
+        typing.animateTo(0f, tween(TYPING_FADE_MS))
+        badge.animateTo(1f, spring(dampingRatio = 0.42f, stiffness = 420f))
+    }
     val t = rememberInfiniteTransition(label = "code")
-    val arrive = t.loop(CODE_MS) {
-        0f at 0 using FastOutSlowInEasing
-        1.08f at CODE_MS * 9 / 100
-        1f at CODE_MS * 13 / 100
-        1f at CODE_MS * 88 / 100
-        0f at CODE_MS
-    }
     val dots = List(3) { i ->
-        t.loop(CODE_MS) {
-            val lag = i * 4
-            0f at CODE_MS * (15 + lag) / 100
-            1f at CODE_MS * (22 + lag) / 100
-            0f at CODE_MS * (29 + lag) / 100
-            0f at CODE_MS * (36 + lag) / 100
-            1f at CODE_MS * (43 + lag) / 100
-            0f at CODE_MS * (50 + lag) / 100
-        }
+        t.animateFloat(
+            0f,
+            0f,
+            infiniteRepeatable(
+                keyframes {
+                    durationMillis = TYPING_MS
+                    1f at TYPING_MS * 30 / 100
+                    0f at TYPING_MS * 60 / 100
+                },
+                initialStartOffset = StartOffset(i * TYPING_MS / 6),
+            ),
+            label = "dot$i",
+        )
     }
-    val badge = t.loop(CODE_MS) {
-        0f at CODE_MS * 60 / 100
-        1.25f at CODE_MS * 65 / 100
-        1f at CODE_MS * 69 / 100
-        1f at CODE_MS * 88 / 100
-        0f at CODE_MS
+    val pulse = t.animateFloat(
+        1f,
+        1f,
+        infiniteRepeatable(
+            keyframes {
+                durationMillis = PULSE_MS
+                1f at PULSE_MS * 80 / 100
+                1.14f at PULSE_MS * 87 / 100
+                1f at PULSE_MS * 94 / 100
+            },
+        ),
+        label = "pulse",
+    )
+    val measurer = rememberTextMeasurer()
+    val one = remember(measurer) {
+        measurer.measure("1", TextStyle(color = Color.White, fontSize = BADGE_TEXT, fontWeight = FontWeight.Bold))
     }
-    Box {
-        BadgeCanvas { u ->
-            val a = arrive.value
-            val k = a.coerceIn(0f, 1f)
-            translate(0f, (1f - k) * 2.5f * u) {
-                scale(0.7f + 0.3f * a, pivot = Offset(7 * u, 20 * u)) {
-                    val bubble = Color.White.copy(alpha = k)
-                    drawCircle(bubble, radius = 8.8f * u, center = Offset(12 * u, 12 * u))
-                    // Хвостик пузыря слева снизу
-                    drawPath(
-                        Path().apply {
-                            moveTo(5.4f * u, 15.6f * u)
-                            lineTo(3.4f * u, 20.6f * u)
-                            lineTo(8.6f * u, 19.4f * u)
-                            close()
-                        },
-                        bubble,
-                    )
-                    dots.forEachIndexed { i, d ->
-                        val x = (8.3f + 3.7f * i) * u
-                        drawCircle(BRAND_DARK.copy(alpha = k * (0.35f + 0.65f * d.value)), 1.25f * u, Offset(x, (12f - 1.2f * d.value) * u))
+    BadgeCanvas { u ->
+        val a = arrive.value
+        val k = a.coerceIn(0f, 1f)
+        translate(0f, (1f - k) * 3f * u) {
+            scale(0.6f + 0.4f * a, pivot = Offset(7 * u, 20 * u)) {
+                val bubble = Color.White.copy(alpha = k)
+                drawCircle(bubble, radius = 8.6f * u, center = Offset(12 * u, 12.4f * u))
+                // Хвостик пузыря слева снизу
+                drawPath(
+                    Path().apply {
+                        moveTo(5.6f * u, 16f * u)
+                        lineTo(3.6f * u, 20.8f * u)
+                        lineTo(8.8f * u, 19.6f * u)
+                        close()
+                    },
+                    bubble,
+                )
+                val w = typing.value
+                dots.forEachIndexed { i, d ->
+                    val x = (8.4f + 3.6f * i) * u
+                    drawCircle(BRAND_DARK.copy(alpha = k * w * (0.35f + 0.65f * d.value)), 1.2f * u, Offset(x, (12.4f - 1.1f * d.value) * u))
+                }
+                // Пришло: две строки «текста» вместо точек
+                val lines = (1f - w) * k
+                if (lines > 0f) {
+                    drawRoundRect(BRAND_DARK.copy(alpha = lines * 0.9f), Offset(7.6f * u, 10.2f * u), Size(8.8f * u * lines, 1.7f * u), CornerRadius(0.85f * u))
+                    drawRoundRect(BRAND_DARK.copy(alpha = lines * 0.45f), Offset(7.6f * u, 13.2f * u), Size(5.8f * u * lines, 1.7f * u), CornerRadius(0.85f * u))
+                }
+                // Бейдж «1» на правом верхнем углу пузыря; тонкая синяя кайма отделяет его от пузыря
+                val bs = badge.value * pulse.value
+                if (bs > 0f) {
+                    val c = Offset(18.6f * u, 5.6f * u)
+                    scale(bs, pivot = c) {
+                        drawCircle(BRAND_DARK, radius = 4.3f * u, center = c)
+                        drawCircle(BADGE_RED, radius = 3.5f * u, center = c)
+                        drawText(one, topLeft = Offset(c.x - one.size.width / 2f, c.y - one.size.height / 2f))
                     }
                 }
             }
-        }
-        Box(
-            Modifier
-                .align(Alignment.TopEnd)
-                .offset(x = (-8).dp, y = 10.dp)
-                .graphicsLayer {
-                    scaleX = badge.value
-                    scaleY = badge.value
-                }
-                .size(24.dp)
-                .background(BADGE_RED, CircleShape)
-                .border(2.5.dp, BRAND_MID, CircleShape),
-            contentAlignment = Alignment.Center,
-        ) {
-            Text("1", color = Color.White, fontSize = 13.sp, fontWeight = FontWeight.Bold)
         }
     }
 }
@@ -255,10 +274,12 @@ internal val BADGE_SIZE = 104.dp
 private const val GLYPH_SHARE = 0.5f
 private const val POP_FROM = 0.6f
 private const val PHONE_MS = 1_600
-private const val CODE_MS = 3_200
+private const val TYPING_MS = 900
+private const val TYPING_SHOWN_MS = 1_300L
+private const val TYPING_FADE_MS = 220
+private const val PULSE_MS = 3_000
+private val BADGE_TEXT = 10.sp
 private const val LOCK_MS = 2_800
 private val BRAND_LIGHT = Color(0xFF3D9BFF)
 private val BRAND_DARK = Color(0xFF0059E8)
-/** Цвет круга под бейджем «1» — обводка сливается с кругом, как вырез. */
-private val BRAND_MID = Color(0xFF1F7BFF)
 private val BADGE_RED = Color(0xFFFF3B30)
