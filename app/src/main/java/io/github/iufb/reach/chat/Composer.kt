@@ -35,6 +35,7 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.EnterExitState
 import androidx.compose.animation.SizeTransform
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -424,6 +425,8 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, em
                             onClick = state.onSend,
                             // Меню — только для набранного текста, не для правки
                             menu = state.sendMenu?.takeIf { state.editing == null && canSend },
+                            // Уходящая кнопка (текст стёрли) гаснет синей, а не серой «выключенной»
+                            keepAccent = transition.targetState == EnterExitState.PostExit,
                         )
                     }
                 }
@@ -446,7 +449,7 @@ private val FIELD_TEXT_PADDING = 11.dp
 
 /** «Отправить»: тап — отправка, долгое нажатие — меню вариантов ([SendMenu]). */
 @Composable
-private fun SendButton(enabled: Boolean, onClick: () -> Unit, menu: SendMenu?) {
+private fun SendButton(enabled: Boolean, onClick: () -> Unit, menu: SendMenu?, keepAccent: Boolean = false) {
     var open by remember { mutableStateOf(false) }
     var picking by remember { mutableStateOf(false) }
     val haptics = LocalHapticFeedback.current
@@ -458,7 +461,7 @@ private fun SendButton(enabled: Boolean, onClick: () -> Unit, menu: SendMenu?) {
             modifier = Modifier
                 .size(PillHeight)
                 .clip(CircleShape)
-                .background(if (enabled) colors.accent else colors.fill)
+                .background(if (enabled || keepAccent) colors.accent else colors.fill)
                 .combinedClickable(
                     enabled = enabled,
                     role = Role.Button,
@@ -478,7 +481,7 @@ private fun SendButton(enabled: Boolean, onClick: () -> Unit, menu: SendMenu?) {
                 painterResource(R.drawable.ic_send),
                 contentDescription = null,
                 modifier = Modifier.size(SEND_ICON),
-                tint = if (enabled) colors.onAccent else colors.tertiaryLabel,
+                tint = if (enabled || keepAccent) colors.onAccent else colors.tertiaryLabel,
             )
         }
     }
