@@ -92,13 +92,15 @@ internal fun authStepEnter(forward: Boolean): EnterTransition =
 
 internal fun authStepExit(forward: Boolean): ExitTransition =
     if (forward) {
-        // Остаётся целиком видимым, пока новый шаг въезжает поверх («затухание» до 1 — ожидание)
-        fadeOut(tween(AUTH_STEP_MS), targetAlpha = 1f)
+        // Остаётся видимым, пока новый шаг въезжает поверх. Затухание до 1 Compose считает пустым
+        // и убирает шаг сразу — поэтому до незаметных 0,99
+        fadeOut(tween(AUTH_STEP_MS), targetAlpha = KEEP_ALPHA)
     } else {
         slideOutHorizontally(tween(AUTH_STEP_MS, easing = IOS_EASING)) { (it * AUTH_STEP_SHIFT).toInt() } + fadeOut(tween(AUTH_STEP_MS))
     }
 
 private const val AUTH_STEP_MS = 320
+private const val KEEP_ALPHA = 0.99f
 private const val AUTH_STEP_SHIFT = 0.25f
 
 /** Насколько сдвигается нижний экран: треть ширины, как в UINavigationController. */
