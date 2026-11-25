@@ -1,6 +1,9 @@
 package io.github.iufb.reach.stickers
 
 import android.content.Context
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.isImeVisible
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.aspectRatio
 import androidx.compose.foundation.lazy.grid.items
@@ -192,6 +195,7 @@ class StickerPanelViewModel @Inject constructor(
  * Анимации играют только у ячеек на экране: Lazy-сетка убирает ушедшие (Lottie и декодер WebM
  * останавливаются), а заранее подготовленные ряды за краем получают `animate = false`.
  */
+@OptIn(ExperimentalLayoutApi::class)
 @Composable
 fun StickerPanel(
     onSend: (StickerInfo) -> Unit,
@@ -203,16 +207,18 @@ fun StickerPanel(
     val query by viewModel.query.collectAsStateWithLifecycle()
     val results by viewModel.results.collectAsStateWithLifecycle()
     var focused by remember { mutableStateOf(false) }
+    // Ужатый вид — только пока поиск в фокусе И клавиатура на экране: убрали клавиатуру («назад»),
+    // фокус остался, а панель должна вернуться во всю высоту с сеткой и паками
+    val imeVisible = WindowInsets.isImeVisible
+    val compact = focused && imeVisible
+    LaunchedEffect(compact) { onSearchFocusChange(compact) }
     Column(modifier.fillMaxSize()) {
         SearchField(
             query = query,
             onQueryChange = viewModel::onQueryChange,
             modifier = Modifier
                 .padding(start = 12.dp, end = 12.dp, top = 10.dp, bottom = 4.dp)
-                .onFocusChanged {
-                    focused = it.isFocused
-                    onSearchFocusChange(it.isFocused)
-                },
+                .onFocusChanged { focused = it.isFocused },
             placeholder = stringResource(R.string.stickers_search),
         )
         if (query.isBlank()) {
@@ -221,7 +227,7 @@ fun StickerPanel(
             StickerSearchResults(
                 query = query,
                 results = results,
-                compact = focused,
+                compact = compact,
                 onSend = onSend,
                 onInstall = viewModel::install,
                 modifier = Modifier.weight(1f),
