@@ -1,3 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fluent UI System Icons «arrow_trending» (regular), @fluentui/svg-icons 1.1.347, MIT (assets/licenses/fluentui-icons-MIT.txt). #374 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -5,5 +7,5 @@
     android:viewportHeight="24">
     <path
         android:fillColor="#FF000000"
-        android:pathData="M16,6l2.29,2.29 -4.88,4.88 -4,-4L2,16.59 3.41,18l6,-6 4,4 6.3,-6.29L22,12V6z" />
+        android:pathData="M 13.75,5.5 l 7.55,0 l 0.1,0.01 l 0.1,0.03 l 0.06,0.03 q 0.13,0.04 0.22,0.15 l 0.04,0.04 l 0.04,0.06 l 0.06,0.09 l 0.04,0.09 l 0.02,0.06 l 0.01,0.07 l 0.01,0.1 l 0,7.52 a 0.751665,0.751665 0 0,1 -1.5,0.1 l 0,-5.8 l -7.72,7.73 a 0.75,0.75 0 0,1 -0.98,0.07 l -0.08,-0.07 l -2.97,-2.97 l -5.47,5.47 a 0.75,0.75 0 0,1 -1.13,-0.98 l 0.07,-0.08 l 6,-6 a 0.75,0.75 0 0,1 0.98,-0.07 l 0.08,0.07 l 2.97,2.97 L 19.44,7 l -5.7,0 a 0.75,0.75 0 0,1 -0.73,-0.65 l -0.01,-0.1 c 0,-0.38 0.28,-0.7 0.65,-0.74 z" />
 </vector>

@@ -1,3 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Fluent UI System Icons «arrow_forward» (regular), @fluentui/svg-icons 1.1.347, MIT (assets/licenses/fluentui-icons-MIT.txt). #374 -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="24dp"
     android:height="24dp"
@@ -6,5 +8,5 @@
     android:viewportHeight="24">
     <path
         android:fillColor="#FF000000"
-        android:pathData="M14,9V5l7,7 -7,7v-4.1c-5,0 -8.5,1.6 -11,5.1 1,-5 4,-10 11,-11z" />
+        android:pathData="M 14.72,6.28 a 0.75,0.75 0 0,1 1.06,-1.06 l 5,5 c 0.3,0.3 0.3,0.77 0,1.06 l -5,5 a 0.75,0.75 0 1,1 -1.06,-1.06 l 3.72,-3.72 l -7.69,0 a 6.25,6.25 0 0,0 -6.25,6.25 l 0,0.5 a 0.75,0.75 0 0,1 -1.5,0 l 0,-0.5 A 7.75,7.75 0 0,1 10.75,10 l 7.69,0 z" />
 </vector>
