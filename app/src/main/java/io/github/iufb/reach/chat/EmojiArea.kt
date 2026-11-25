@@ -215,13 +215,25 @@ internal fun ChatBottomArea(
                     .clip(RoundedCornerShape(topStart = CORNER, topEnd = CORNER))
                     .background(ReachTheme.colors.cell),
             ) {
-                // Панель — верхняя часть блока; нижнюю (под клавиатурой или полосой) панель не занимает
+                // Панель всегда своей полной высоты, низом над навигационной полосой: клавиатура, выезжая,
+                // закрывает её снизу, а уезжая — открывает, и содержимое не двигается (как в Telegram iOS, #397).
+                // Раньше панель занимала остаток над клавиатурой и сжималась вместе с её подъёмом.
+                // При открытии без клавиатуры блок растёт снизу — панель целиком въезжает за его верхним краем.
                 Box(
                     Modifier.fillMaxWidth().layout { measurable, constraints ->
-                        val insetPx = maxOf(ime.getBottom(this), nav.getBottom(this))
-                        val panelPx = (constraints.maxHeight - insetPx).coerceAtLeast(0)
+                        val blockPx = constraints.maxHeight
+                        val navPx = nav.getBottom(this)
+                        if (state.searching) {
+                            // Поиск: панель ужата до строки результатов над клавиатурой
+                            val insetPx = maxOf(ime.getBottom(this), navPx)
+                            val panelPx = (blockPx - insetPx).coerceAtLeast(0)
+                            val placeable = measurable.measure(constraints.copy(minHeight = panelPx, maxHeight = panelPx))
+                            return@layout layout(placeable.width, panelPx) { placeable.place(0, 0) }
+                        }
+                        val targetPx = state.keyboardPx.takeIf { it > 0 } ?: DEFAULT_HEIGHT.roundToPx()
+                        val panelPx = (targetPx - navPx).coerceAtLeast(0)
                         val placeable = measurable.measure(constraints.copy(minHeight = panelPx, maxHeight = panelPx))
-                        layout(placeable.width, panelPx) { placeable.place(0, 0) }
+                        layout(placeable.width, blockPx) { placeable.place(0, blockPx - navPx - panelPx) }
                     },
                 ) {
                     PanelTabs(
