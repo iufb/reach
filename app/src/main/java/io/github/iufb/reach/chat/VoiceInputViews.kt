@@ -936,8 +936,8 @@ private const val PULSE_ROOM = 1.6f
 private val BIG_ICON = 30.dp
 /** Размер обычной кнопки относительно большого круга — до него круг сжимается в предпрослушивании. */
 private val SEND_SCALE = PillHeight / BIG_CIRCLE
-/** Значок «отправить» в обычной кнопке (20 dp) относительно [BIG_ICON]. */
-private const val SMALL_ICON_RATIO = 20f / 30f
+/** Значок «отправить» в обычной кнопке (24 dp, Composer) относительно [BIG_ICON]. */
+private const val SMALL_ICON_RATIO = 24f / 30f
 private const val CANCEL_SHRINK = 0.2f
 private const val PULSE_BASE = 0.06f
 private const val PULSE_BREATH = 0.06f
