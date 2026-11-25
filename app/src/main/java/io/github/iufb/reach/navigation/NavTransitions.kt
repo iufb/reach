@@ -80,9 +80,11 @@ private fun NavBackStackEntry.isTab(): Boolean = when {
  * Шаг входа появляется со сдвигом на четверть ширины и растворением: вперёд — справа, назад — слева.
  * Общие с каталогом компонентов (AuthPreview), чтобы переход проверялся без выхода из аккаунта.
  */
-internal fun authStepEnter(forward: Boolean): EnterTransition =
-    slideInHorizontally(tween(AUTH_STEP_MS, easing = IOS_EASING)) { (it * AUTH_STEP_SHIFT).toInt() * if (forward) 1 else -1 } +
-        fadeIn(tween(AUTH_STEP_MS))
+internal fun authStepEnter(forward: Boolean): EnterTransition {
+    val slide = slideInHorizontally(tween(AUTH_STEP_MS, easing = IOS_EASING)) { (it * AUTH_STEP_SHIFT).toInt() * if (forward) 1 else -1 }
+    // Назад NavHost кладёт уходящий шаг сверху: нижний не гаснет, иначе сквозь него видно фон окна
+    return if (forward) slide + fadeIn(tween(AUTH_STEP_MS)) else slide
+}
 
 /**
  * Уходящий шаг не гаснет, а только сдвигается: новый проявляется поверх него. Иначе на середине
