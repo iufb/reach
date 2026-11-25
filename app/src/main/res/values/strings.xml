@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Reach (Unofficial)</string>
+    <string name="app_name">Reach</string>
     <string name="error_missing_api_credentials">Сборка без ключей Telegram API.\nСоберите APK в GitHub Actions с секретами APP_ID и APP_HASH.</string>
 
     <!-- Вход -->

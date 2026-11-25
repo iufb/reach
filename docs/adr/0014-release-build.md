@@ -11,7 +11,7 @@
 
 - **Распространение:** подписанный APK в GitHub Release по тегу `v*`. Google Play вне рамок.
 - **applicationId:**
-  - `release` — `io.github.iufb.reach`, «Reach (Unofficial)»;
+  - `release` — `io.github.iufb.reach`, «Reach»;
   - `debug` — `io.github.iufb.reach.debug`, «Reach Dev», с графитовой подложкой иконки;
   - `dctest` — `io.github.iufb.reach.testdc`, «Reach Test», с оранжевой подложкой (не меняется);
   - `releaseTestdc` — как `dctest`, но с R8.
