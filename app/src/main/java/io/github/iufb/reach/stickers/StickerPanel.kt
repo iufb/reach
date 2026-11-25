@@ -276,6 +276,20 @@ private fun StickerSearchResults(
                         .stickerCellGestures(preview, StickerPick(sticker)) { onSend(sticker) },
                 )
             }
+            // Стикеров нет, а паки нашлись (запрос по названию) — их обложки; тап открывает пак
+            if (found.stickers.isEmpty()) {
+                items(found.sets, key = { "set:${it.id}" }) { set ->
+                    Box(
+                        Modifier
+                            .size(COMPACT_CELL)
+                            .clip(RoundedCornerShape(10.dp))
+                            .clickable { openedSet = set.id },
+                        contentAlignment = Alignment.Center,
+                    ) {
+                        SetCover(set, Modifier.size(SET_COVER))
+                    }
+                }
+            }
         }
         else -> LazyVerticalGrid(GridCells.Fixed(COLUMNS), modifier.fillMaxSize(), contentPadding = GRID_PADDING) {
             items(found.stickers, key = { "sticker:${it.file.uniqueId}" }, contentType = { "sticker" }) { sticker ->
