@@ -136,7 +136,7 @@ fun LazyGridScope.galleryItems(
 
 /** Скелетон [MessageRow]: та же карточка, значок файла и две полоски. */
 @Composable
-private fun SkeletonMessageRow(index: Int, first: Boolean, last: Boolean) {
+internal fun SkeletonMessageRow(index: Int, first: Boolean, last: Boolean) {
     val shape = RoundedCornerShape(
         topStart = if (first) GroupedCorner else 0.dp,
         topEnd = if (first) GroupedCorner else 0.dp,

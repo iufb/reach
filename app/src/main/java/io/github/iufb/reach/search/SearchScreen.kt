@@ -188,7 +188,7 @@ private fun RecentRow(chats: List<Chat>, onClick: (Long) -> Unit) {
 
 /** Скелетон [ResultRow]: аватар, полоска названия и полоска подписи. */
 @Composable
-private fun SkeletonResultRow(index: Int, divider: Boolean) {
+internal fun SkeletonResultRow(index: Int, divider: Boolean) {
     val colors = ReachTheme.colors
     Column(Modifier.fillMaxWidth()) {
         Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalAlignment = Alignment.CenterVertically) {

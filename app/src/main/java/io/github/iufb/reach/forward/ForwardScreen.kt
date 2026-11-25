@@ -188,7 +188,7 @@ private fun TargetRow(chat: Chat, title: String, first: Boolean, last: Boolean, 
 
 /** Скелетон [TargetRow]: та же ячейка карточки, вместо аватара и названия — заглушки. */
 @Composable
-private fun SkeletonTargetRow(index: Int, first: Boolean, last: Boolean) {
+internal fun SkeletonTargetRow(index: Int, first: Boolean, last: Boolean) {
     val colors = ReachTheme.colors
     val shape = RoundedCornerShape(
         topStart = if (first) CARD_CORNER else 0.dp,

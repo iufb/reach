@@ -257,7 +257,7 @@ private fun Placeholder(content: @Composable () -> Unit) {
 
 /** Скелетон набора: ячейки той же сетки и пилюля на месте кнопки «Добавить». */
 @Composable
-private fun StickerGridSkeleton() {
+internal fun StickerGridSkeleton() {
     DelayedSkeleton {
         Column {
             Column(Modifier.fillMaxWidth().padding(GRID_PADDING)) {

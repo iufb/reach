@@ -123,7 +123,7 @@ private fun MetricTile(metric: Metric, modifier: Modifier) {
 
 /** Заглушка графика той же высоты: линии сетки и блок под кривую. */
 @Composable
-private fun GraphSkeleton() {
+internal fun GraphSkeleton() {
     val colors = ReachTheme.colors
     DelayedSkeleton(Modifier.fillMaxWidth().height(GRAPH_HEIGHT)) {
         Column(Modifier.fillMaxSize(), verticalArrangement = Arrangement.SpaceBetween) {
