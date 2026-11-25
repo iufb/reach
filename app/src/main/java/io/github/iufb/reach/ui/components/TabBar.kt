@@ -116,10 +116,13 @@ fun ReachTabBar(
     enterAsGlass: Boolean = false,
     /**
      * Вкладки — разные экраны, и новый собирается заметное время (главный поток занят, анимация стоит).
-     * Тогда по тапу линза сначала доезжает здесь же, а выбор уходит в [onDragSelect] — новый экран
-     * подхватывает её стеклянным пузырём на месте (#371). Иначе [onSelect] сразу.
+     * Тогда по тапу линза здесь же доезжает и оседает в заливку, и только потом выбор уходит
+     * в [onSettledSelect]: новый экран показывает её уже на месте, а его сборка приходится на
+     * неподвижную картинку (#371). Иначе [onSelect] сразу.
      */
     travelBeforeSelect: Boolean = false,
+    /** Вкладку выбрали тапом, линза уже на ней в покое (при [travelBeforeSelect]). */
+    onSettledSelect: (Int) -> Unit = onSelect,
 ) {
     val colors = ReachTheme.colors
     // Положение и ширина каждой вкладки в ряду: по ним ездит линза
@@ -138,6 +141,7 @@ fun ReachTabBar(
     val scope = rememberCoroutineScope()
     val currentSelected by rememberUpdatedState(selected)
     val currentDragSelect by rememberUpdatedState(onDragSelect)
+    val currentSettledSelect by rememberUpdatedState(onSettledSelect)
 
     /**
      * Линза едет к вкладке [target], как в Telegram iOS 26 (снято с записи экрана, 240 fps): сразу становится
@@ -145,7 +149,7 @@ fun ReachTabBar(
      * сжимается обратно в заливку (~0,16 с) — линза ещё доползает, движение не останавливается между фазами.
      * Через ~0,15 с после этого заливка за кадр темнеет и за ~0,17 с светлеет обратно.
      */
-    suspend fun settle(target: Pair<Float, Float>) = coroutineScope {
+    suspend fun settle(target: Pair<Float, Float>, dimAfter: Boolean = true) = coroutineScope {
         val left = target.first
         val right = target.first + target.second
         dim.snapTo(0f)
@@ -159,23 +163,11 @@ fun ReachTabBar(
             snapshotFlow { maxOf(abs(lensL.value - left), abs(lensR.value - right)) <= near }.first { it }
         }
         moving.animateTo(0f, tween(LENS_SETTLE_MS))
-        if (travels) {
+        if (travels && dimAfter) {
             delay(FILL_DIM_DELAY_MS)
             dim.snapTo(1f)
             dim.animateTo(0f, tween(FILL_DIM_FADE_MS, easing = LinearOutSlowInEasing))
         }
-    }
-
-    /** Только полёт к [target] стеклянным пузырём, до порога [GLASS_FADE_SPAN]; оседает уже новый экран. */
-    suspend fun travel(target: Pair<Float, Float>) = coroutineScope {
-        val left = target.first
-        val right = target.first + target.second
-        val spec = spring<Float>(dampingRatio = LENS_DAMPING, stiffness = LENS_STIFFNESS)
-        launch { lensL.animateTo(left, spec) }
-        launch { lensR.animateTo(right, spec) }
-        moving.animateTo(1f, tween(LENS_LIFT_MS))
-        val near = target.second * GLASS_FADE_SPAN
-        snapshotFlow { maxOf(abs(lensL.value - left), abs(lensR.value - right)) <= near }.first { it }
     }
 
     LaunchedEffect(selected, bounds.toList()) {
@@ -326,8 +318,9 @@ fun ReachTabBar(
                             onSelect(index)
                         } else {
                             scope.launch {
-                                travel(bounds[index])
-                                currentDragSelect(index)
+                                // Затемнение заливки — уже не здесь: экран сейчас сменится
+                                settle(bounds[index], dimAfter = false)
+                                currentSettledSelect(index)
                             }
                         }
                     }

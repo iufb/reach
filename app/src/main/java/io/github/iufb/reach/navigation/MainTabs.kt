@@ -111,6 +111,12 @@ fun MainTabBar(selected: MainTab, onSelect: (MainTab) -> Unit, modifier: Modifie
         },
         enterAsGlass = enterAsGlass,
         travelBeforeSelect = true,
+        // Линза уже стоит на новой вкладке: новый экран показывает её там же, без второго полёта
+        onSettledSelect = { index ->
+            val tab = MainTab.entries[index]
+            LastMainTab.value = tab
+            onSelect(tab)
+        },
     )
 }
 
