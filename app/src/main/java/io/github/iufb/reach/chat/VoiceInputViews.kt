@@ -621,17 +621,25 @@ private fun ModeHint(visible: Boolean, video: Boolean) {
  * Последнее состояние держится, пока поле ввода прячет пилюлю обратно.
  */
 @Composable
-internal fun RecordingBar(voice: VoiceInput, ui: RecordingUi, modifier: Modifier = Modifier) {
+internal fun RecordingBar(
+    voice: VoiceInput,
+    ui: RecordingUi,
+    modifier: Modifier = Modifier,
+    /** Видимость содержимого (не стекла) — пилюля гасит его, пока сжимается в поле ввода. */
+    contentAlpha: () -> Float = { 1f },
+    /** `false` — стекло рисует вызывающий (под полем ввода, #384). */
+    drawGlass: Boolean = true,
+) {
     var last by remember { mutableStateOf(voice.state) }
     if (voice.state !is RecorderState.Idle) last = voice.state
     Box(
         // Касания не проходят к полю ввода под пилюлей
         modifier.height(PillHeight).pointerInput(Unit) { awaitEachGesture { awaitFirstDown(requireUnconsumed = false) } },
     ) {
-        Box(Modifier.matchParentSize().glass(RoundedCornerShape(percent = 50)))
+        if (drawGlass) Box(Modifier.matchParentSize().glass(RoundedCornerShape(percent = 50)))
         AnimatedContent(
             targetState = last,
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.fillMaxSize().graphicsLayer { alpha = contentAlpha() },
             contentKey = { it is RecorderState.Recorded },
             transitionSpec = { (fadeIn(tween(CONTENT_SWAP_MS)) togetherWith fadeOut(tween(CONTENT_SWAP_MS))).using(SizeTransform(clip = false)) },
             label = "recordingBar",
