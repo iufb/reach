@@ -77,21 +77,25 @@ private fun NavBackStackEntry.isTab(): Boolean = when {
 }
 
 /**
- * Шаг входа появляется со сдвигом на четверть ширины и растворением: вперёд — справа, назад — слева.
+ * Шаги входа (#375): нижний шаг всегда стоит на месте и непрозрачен, двигается только верхний.
+ * Вперёд новый шаг въезжает справа на четверть ширины и проявляется поверх старого; назад верхний
+ * (NavHost при «назад» кладёт уходящий сверху) уезжает вправо и гаснет, открывая предыдущий.
+ * Так на середине перехода сквозь шаги не видно того, что под навигацией.
  * Общие с каталогом компонентов (AuthPreview), чтобы переход проверялся без выхода из аккаунта.
  */
-internal fun authStepEnter(forward: Boolean): EnterTransition {
-    val slide = slideInHorizontally(tween(AUTH_STEP_MS, easing = IOS_EASING)) { (it * AUTH_STEP_SHIFT).toInt() * if (forward) 1 else -1 }
-    // Назад NavHost кладёт уходящий шаг сверху: нижний не гаснет, иначе сквозь него видно фон окна
-    return if (forward) slide + fadeIn(tween(AUTH_STEP_MS)) else slide
-}
+internal fun authStepEnter(forward: Boolean): EnterTransition =
+    if (forward) {
+        slideInHorizontally(tween(AUTH_STEP_MS, easing = IOS_EASING)) { (it * AUTH_STEP_SHIFT).toInt() } + fadeIn(tween(AUTH_STEP_MS))
+    } else {
+        EnterTransition.None
+    }
 
-/**
- * Уходящий шаг не гаснет, а только сдвигается: новый проявляется поверх него. Иначе на середине
- * перехода оба полупрозрачны и сквозь них видно то, что под навигацией.
- */
 internal fun authStepExit(forward: Boolean): ExitTransition =
-    slideOutHorizontally(tween(AUTH_STEP_MS, easing = IOS_EASING)) { (it * AUTH_STEP_SHIFT).toInt() * if (forward) -1 else 1 }
+    if (forward) {
+        ExitTransition.KeepUntilTransitionsFinished
+    } else {
+        slideOutHorizontally(tween(AUTH_STEP_MS, easing = IOS_EASING)) { (it * AUTH_STEP_SHIFT).toInt() } + fadeOut(tween(AUTH_STEP_MS))
+    }
 
 private const val AUTH_STEP_MS = 320
 private const val AUTH_STEP_SHIFT = 0.25f

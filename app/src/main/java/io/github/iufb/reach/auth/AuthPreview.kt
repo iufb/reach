@@ -83,7 +83,8 @@ private fun AuthPreviewFlow(onDismiss: () -> Unit) {
     }
     AnimatedContent(
         targetState = step,
-        transitionSpec = { authStepEnter(forward) togetherWith authStepExit(forward) },
+        // Как в NavHost: вперёд новый шаг сверху, назад уходящий сверху
+        transitionSpec = { (authStepEnter(forward) togetherWith authStepExit(forward)).apply { targetContentZIndex = if (forward) 1f else -1f } },
         label = "authFlow",
     ) { shown ->
         when (shown) {
