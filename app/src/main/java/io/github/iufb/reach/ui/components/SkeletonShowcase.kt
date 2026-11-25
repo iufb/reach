@@ -67,6 +67,8 @@ fun SkeletonShowcaseDialog(kind: SkeletonShowcase, onDismiss: () -> Unit) {
     var dark by remember { mutableStateOf(systemDark) }
     Dialog(onDismissRequest = onDismiss, properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false)) {
         ReachTheme(darkTheme = dark) {
+            // Значки статус-бара под тему витрины, а не системы
+            DialogSystemBars()
             val colors = ReachTheme.colors
             val feed = kind == SkeletonShowcase.ChatFeed || kind == SkeletonShowcase.ChannelFeed
             val background = if (feed) {
