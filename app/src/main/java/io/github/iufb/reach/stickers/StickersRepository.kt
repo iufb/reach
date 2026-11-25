@@ -172,12 +172,13 @@ class StickersRepository @Inject constructor(
         val foundSets = async {
             runCatching { td.send(TdApi.SearchStickerSets(type, q)) }.onFailure { Log.w(TAG, "searchStickerSets failed", it) }.getOrNull()
         }
-        val stickers = (installedStickers.await()?.stickers.orEmpty() + foundStickers.await()?.stickers.orEmpty())
-            .distinctBy { it.sticker.remote?.uniqueId ?: it.sticker.id.toString() }
-            .map { it.toInfo() }
-        val sets = (installedSets.await()?.sets.orEmpty() + foundSets.await()?.sets.orEmpty())
-            .distinctBy { it.id }
-            .map { it.toModel() }
+        // Ответы TDLib — Java-массивы: в списки
+        val stickers = (installedStickers.await()?.stickers?.toList().orEmpty() + foundStickers.await()?.stickers?.toList().orEmpty())
+            .distinctBy { sticker: TdApi.Sticker -> sticker.sticker.remote?.uniqueId ?: sticker.sticker.id.toString() }
+            .map { sticker -> sticker.toInfo() }
+        val sets = (installedSets.await()?.sets?.toList().orEmpty() + foundSets.await()?.sets?.toList().orEmpty())
+            .distinctBy { set: TdApi.StickerSetInfo -> set.id }
+            .map { set -> set.toModel() }
         StickerSearch(stickers, sets)
     }
 
