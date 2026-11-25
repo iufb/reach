@@ -1,4 +1,4 @@
-# Reach (Unofficial)
+# Reach
 
 Неофициальный клиент Telegram для Android на Jetpack Compose + [TDLib](https://github.com/tdlib/td). Подробности в [PRODUCT.md](PRODUCT.md), решения — в [docs/adr](docs/adr).
 

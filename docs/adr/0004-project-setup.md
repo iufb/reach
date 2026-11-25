@@ -9,5 +9,5 @@
 - **minSdk 31 (Android 12).** Сначала был 36: клиент делался для себя. 2026-11-23 владелец решил понизить до 31, чтобы приложение ставилось на Android 12–15 (#298). targetSdk и compileSdk — последний стабильный. Вызовы API новее 31 закрываем проверкой `Build.VERSION.SDK_INT` с рабочим запасным путём, а не `@RequiresApi`. Регрессии ловит lint в CI (`lintDebug`, проверки `NewApi` и `InlinedApi` — ошибки, `ObsoleteSdkInt` — предупреждение). Запуск на API 31 проверяет отдельный workflow `api31-smoke` на эмуляторе.
 - **Модули на старте: `app` и `core:td`.** `TdApi.java` весит несколько мегабайт: в отдельном модуле он не перекомпилируется при каждой правке UI, а граница «TDLib только через `TdClient`» соблюдается компилятором. Остальное пока живёт пакетами внутри `app`, делить начнём с v0.2+.
 - **Тема:** Material 3, следование системной светлой или тёмной теме и dynamic color, с v0.1.
-- **applicationId `io.github.iufb.reach`**, отображаемое имя «Reach (Unofficial)», пока не выбрано финальное название.
+- **applicationId `io.github.iufb.reach`**, отображаемое имя «Reach» (до 0.11 — «Reach (Unofficial)»; пометка нужна только при слове «Telegram» в названии, PRODUCT.md, принцип 1).
 - **Gradle:** Kotlin DSL + version catalog (`libs.versions.toml`).
