@@ -1,5 +1,12 @@
 package io.github.iufb.reach.auth
 
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.AnimationVector1D
+import androidx.compose.animation.core.keyframes
+import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.platform.LocalHapticFeedback
 import android.os.SystemClock
 import android.graphics.drawable.AnimatedVectorDrawable
 import android.widget.ImageView
@@ -105,6 +112,7 @@ internal fun PhoneContent(state: PhoneUiState, onPhoneChange: (PhoneInput) -> Un
     AuthLayout(
         title = stringResource(R.string.auth_phone_title),
         subtitle = stringResource(R.string.auth_phone_subtitle),
+        illustration = AuthIllustration.Phone,
         button = {
             AuthButton(
                 enabled = state.canSubmit && waitLeft == 0,
@@ -153,6 +161,8 @@ internal fun CodeContent(
         title = info?.phoneNumber?.let { PhoneMask.format(PhoneMask.digits(it)) } ?: stringResource(R.string.auth_code_title),
         subtitle = info?.delivery?.let { deliveryText(it) }.orEmpty(),
         button = { AuthButton(enabled = !state.submitting && state.code.isNotEmpty(), submitting = state.submitting, onClick = onSubmit) },
+        illustration = AuthIllustration.Code,
+        error = state.error,
     ) {
         CodeCells(
             code = state.code,
@@ -209,6 +219,8 @@ internal fun PasswordContent(
         title = stringResource(R.string.auth_password_title),
         subtitle = stringResource(R.string.auth_password_subtitle),
         button = { AuthButton(enabled = state.canSubmit, submitting = state.submitting, onClick = onSubmit) },
+        illustration = AuthIllustration.Password,
+        error = state.error,
     ) {
         AuthLineField(
             value = state.password,
@@ -354,9 +366,14 @@ private fun AuthLayout(
     title: String,
     subtitle: String,
     button: (@Composable () -> Unit)? = null,
+    /** Иллюстрация шага вместо знака Reach (#375); `null` — знак. */
+    illustration: AuthIllustration? = null,
+    /** Новая ошибка ввода (не `null`) — поле и иллюстрация встряхиваются, с вибрацией. */
+    error: Any? = null,
     content: @Composable ColumnScope.() -> Unit,
 ) {
     val colors = ReachTheme.colors
+    val shake = rememberShake(error)
     DialogSystemBars()
     Box(Modifier.fillMaxSize().background(colors.background).safeDrawingPadding().imePadding(), contentAlignment = Alignment.TopCenter) {
         Column(Modifier.widthIn(max = MAX_WIDTH).fillMaxSize()) {
@@ -366,7 +383,11 @@ private fun AuthLayout(
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 Spacer(Modifier.height(32.dp))
-                BrandMark()
+                if (illustration != null) {
+                    AuthBadge(illustration, Modifier.graphicsLayer { translationX = shake.value * 0.5f })
+                } else {
+                    BrandMark()
+                }
                 Text(
                     title,
                     modifier = Modifier.padding(top = 8.dp),
@@ -384,11 +405,42 @@ private fun AuthLayout(
                     )
                 }
                 Spacer(Modifier.height(12.dp))
-                content()
+                Column(
+                    Modifier.fillMaxWidth().graphicsLayer { translationX = shake.value },
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp),
+                ) { content() }
             }
             if (button != null) Box(Modifier.fillMaxWidth().padding(horizontal = 24.dp, vertical = 12.dp)) { button() }
         }
     }
+}
+
+/**
+ * Сдвиг для встряски при новой ошибке [error] (неверный код или пароль), px: затухающие колебания
+ * ~0,4 с и вибрация «отказ».
+ */
+@Composable
+private fun rememberShake(error: Any?): Animatable<Float, AnimationVector1D> {
+    val shake = remember { Animatable(0f) }
+    val haptics = LocalHapticFeedback.current
+    val amplitude = with(LocalDensity.current) { SHAKE_DP.toPx() }
+    LaunchedEffect(error) {
+        if (error == null) return@LaunchedEffect
+        haptics.performHapticFeedback(HapticFeedbackType.Reject)
+        shake.snapTo(0f)
+        shake.animateTo(
+            0f,
+            keyframes {
+                durationMillis = SHAKE_MS
+                -amplitude at SHAKE_MS * 1 / 8
+                amplitude at SHAKE_MS * 3 / 8
+                -amplitude * 0.6f at SHAKE_MS * 5 / 8
+                amplitude * 0.3f at SHAKE_MS * 7 / 8
+            },
+        )
+    }
+    return shake
 }
 
 /** Анимация знака играет один раз за запуск: не на каждом шаге входа и не при повороте экрана. */
@@ -637,6 +689,8 @@ private fun resendText(next: CodeDelivery): String = when (next) {
 
 private val MAX_WIDTH = 480.dp
 private val BRAND_SIZE = 88.dp
+private val SHAKE_DP = 10.dp
+private const val SHAKE_MS = 400
 private val FIELD_HEIGHT = 52.dp
 private val CODE_CELL_WIDTH = 44.dp
 private val CODE_CELL_HEIGHT = 56.dp

@@ -88,7 +88,8 @@ fun ComponentCatalogScreen(onBack: () -> Unit) {
                         GroupedCell("Номер телефона", onClick = { authStep = AuthPreviewStep.Phone })
                         GroupedCell("Код подтверждения", onClick = { authStep = AuthPreviewStep.Code })
                         GroupedCell("Облачный пароль", onClick = { authStep = AuthPreviewStep.Password })
-                        GroupedCell("Регистрация", onClick = { authStep = AuthPreviewStep.Registration }, divider = false)
+                        GroupedCell("Регистрация", onClick = { authStep = AuthPreviewStep.Registration })
+                        GroupedCell("Весь вход (переходы)", onClick = { authStep = AuthPreviewStep.Flow }, divider = false)
                     }
                 }
                 item {

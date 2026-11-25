@@ -115,7 +115,25 @@ class MainActivity : ComponentActivity() {
                 return ready
             }
         })
-        splashScreen.setOnExitAnimationListener { splash -> playSplashExit(splash) }
+        splashScreen.setOnExitAnimationListener { splash ->
+            splashHandedOver = true
+            playSplashExit(splash)
+        }
+    }
+
+    /** Система передала сплэш нам ([playSplashExit]): его уход отметит конец нашей анимации. */
+    private var splashHandedOver = false
+
+    /**
+     * Часть прошивок (vivo, Android 12) убирает сплэш сама, не вызывая обработчик ухода, — тогда
+     * [SplashGate] ждал бы запасной таймаут (клавиатура и анимации входа на 3 с позже, #375).
+     * Окно приложения получает фокус после того, как окно сплэша убрано; если к этому моменту
+     * сплэш нам не передали, он уже ушёл.
+     */
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        if (!hasFocus || SplashGate.dismissed.value) return
+        window.decorView.postDelayed({ if (!splashHandedOver) SplashGate.dismissed.value = true }, SPLASH_FOCUS_GRACE_MS)
     }
 
     /** Знак увеличивается и тает, под ним проявляется экран. Анимация знака доигрывает до конца. */
@@ -159,6 +177,8 @@ class MainActivity : ComponentActivity() {
         private const val SPLASH_MAX_HOLD_MS = 2_000L
         private const val SPLASH_ICON_MS = 800L
         private const val SPLASH_EXIT_MS = 300L
+        /** Передача сплэша и фокус окна приходят почти вместе — даём обработчику ухода опередить. */
+        private const val SPLASH_FOCUS_GRACE_MS = 100L
     }
 }
 
