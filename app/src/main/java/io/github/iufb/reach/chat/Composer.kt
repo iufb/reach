@@ -36,7 +36,7 @@ import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.animation.core.Animatable
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.CubicBezierEasing
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.ui.platform.LocalSoftwareKeyboardController
@@ -155,10 +155,13 @@ private val EXTRAS_CORNER = 20.dp
 private val FIELD_ICON = 36.dp
 private val SEND_ICON = 20.dp
 private const val BAR_IN_MS = 180
-private const val BAR_OUT_MS = 300
+private const val BAR_OUT_MS = 360
+/** Ровнее FastOutSlowIn: сжатие пилюли видно на всём пути, а не за первые кадры. */
+private val BAR_EASING = CubicBezierEasing(0.45f, 0f, 0.25f, 1f)
+/** Доля хода пилюли (с конца), на которой проявляется содержимое поля. */
+private const val FIELD_CONTENT_SPAN = 0.35f
 /** Содержимое пилюли записи видно только на последнем отрезке её раскрытия. */
 private const val BAR_CONTENT_FROM = 0.6f
-private const val FIELD_CONTENT_IN_MS = 140
 private const val ATTACH_MIN_SCALE = 0.6f
 private const val GLASS_FADE_MS = 150
 
@@ -246,15 +249,9 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, em
     val barTarget = voice != null && (voice.state !is RecorderState.Idle || recordingUi.cancelling)
     val barReveal = remember { Animatable(0f) }
     LaunchedEffect(barTarget) {
-        barReveal.animateTo(if (barTarget) 1f else 0f, tween(if (barTarget) BAR_IN_MS else BAR_OUT_MS, easing = FastOutSlowInEasing))
+        barReveal.animateTo(if (barTarget) 1f else 0f, tween(if (barTarget) BAR_IN_MS else BAR_OUT_MS, easing = BAR_EASING))
     }
     val barShown = barTarget || barReveal.isRunning || barReveal.targetValue > 0f
-    // Содержимое поля (текст, плейсхолдер, значки) проявляется, когда пилюля записи уже встала
-    // на место поля и исчезла (#377)
-    val fieldContent = remember { Animatable(1f) }
-    LaunchedEffect(barShown) {
-        if (barShown) fieldContent.snapTo(0f) else fieldContent.animateTo(1f, tween(FIELD_CONTENT_IN_MS))
-    }
     val hasAttach = state.editing == null && state.onAttach != null
 
     // Telegram iOS: под полем нет панели — стеклянные кнопки и поле-пилюля плавают над лентой.
@@ -298,8 +295,7 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, em
                                 .weight(1f)
                                 .padding(horizontal = 6.dp)
                                 // Пока видна пилюля записи, стекло — только у неё: два слоя дали бы плотнее
-                                .graphicsLayer { alpha = if (barShown) 0f else 1f }
-                                .glass(RoundedCornerShape(FIELD_CORNER)),
+                                .then(if (barShown) Modifier else Modifier.glass(RoundedCornerShape(FIELD_CORNER))),
                         ) {
                             when {
                                 state.editing != null -> EditBar(state.editing, state.onCancelEdit)
@@ -307,7 +303,11 @@ internal fun Composer(state: ComposerState, senders: Map<Sender, SenderInfo>, em
                             }
                             state.linkPreview?.let { ComposerLinkPreview(it, state.onDismissLinkPreview) }
                             Row(
-                                Modifier.fillMaxWidth().heightIn(min = PillHeight).graphicsLayer { alpha = fieldContent.value },
+                                // Содержимое поля проявляется на последней трети сжатия пилюли — уже поверх неё (#384)
+                                Modifier
+                                    .fillMaxWidth()
+                                    .heightIn(min = PillHeight)
+                                    .graphicsLayer { alpha = (1f - barReveal.value / FIELD_CONTENT_SPAN).coerceIn(0f, 1f) },
                                 verticalAlignment = Alignment.Bottom,
                             ) {
                                 BasicTextField(
