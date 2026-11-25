@@ -65,6 +65,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.runtime.withFrameMillis
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -112,6 +113,7 @@ import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import java.util.Locale
 
@@ -223,8 +225,12 @@ internal class RecordingUi(private val scope: CoroutineScope) {
         trashJob?.cancel()
         trashJob = scope.launch {
             trash.snapTo(0f)
-            trash.animateTo(1f, tween(TRASH_MS, easing = LinearEasing))
+            val drop = launch { trash.animateTo(1f, tween(TRASH_MS, easing = LinearEasing)) }
+            // Микрофон в корзине — поле ввода проявляется, пока корзина закрывается и уходит вниз,
+            // а не после паузы с пустой пилюлей (#377)
+            snapshotFlow { trash.value >= BAR_RELEASE }.first { it }
             cancelling = false
+            drop.join()
         }
     }
 }
@@ -324,8 +330,12 @@ internal fun MicButton(voice: VoiceInput, ui: RecordingUi) {
                         while (true) {
                             val event = awaitPointerEvent()
                             val change = event.changes.firstOrNull { it.id == down.id }
-                            if (change == null) {
-                                ui.springBack()
+                            // Жест забрала система (свайп от нижнего края, «карточка» приложения):
+                            // Compose присылает отпускание уже поглощённым. Это не «отправить» —
+                            // запись отменяется с обычной анимацией корзины (#377)
+                            if (change == null || (!change.pressed && change.isConsumed)) {
+                                haptics.performHapticFeedback(HapticFeedbackType.Reject)
+                                ui.discard(current)
                                 break
                             }
                             if (!change.pressed) {
@@ -940,7 +950,8 @@ private val LOCK_SHADOW = Color.Black.copy(alpha = 0.18f)
 private val BAR_END_INSET = 28.dp
 private val DOT_SLOT = 28.dp
 private val PREVIEW_HEIGHT = 34.dp
-private val MIC_RISE = 44.dp
+/** Микрофон подлетает чуть выше пилюли (её высота — [PillHeight]), а не уходит над полем ввода. */
+private val MIC_RISE = 28.dp
 private val BIN_DROP = 26.dp
 
 private val HINT_MAX_WIDTH = 240.dp
@@ -968,6 +979,8 @@ private const val MIC_TOP = 0.38f
 private const val MIC_IN = 0.72f
 private const val BIN_IN_START = 0.28f
 private const val BIN_IN_END = 0.48f
-private const val BIN_OUT_START = 0.8f
+private const val BIN_OUT_START = 0.76f
+/** С этой доли [TRASH_MS] пилюля уходит и проявляется поле ввода — вместе с уходом корзины. */
+private const val BAR_RELEASE = 0.78f
 private const val WOBBLE_TURNS = 25f
 private const val PLAYED_TO_END = 0.98f
