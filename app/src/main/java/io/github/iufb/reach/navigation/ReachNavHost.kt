@@ -86,9 +86,7 @@ import kotlinx.serialization.Serializable
 @Serializable data object FontRoute
 @Serializable data class ScheduledRoute(val chatId: Long)
 @Serializable data class TopicsRoute(val chatId: Long)
-@Serializable data object ContactsRoute
 @Serializable data object NewMessageRoute
-@Serializable data object SettingsRoute
 @Serializable data object EditProfileRoute
 @Serializable data object ContactSyncRoute
 @Serializable data object BlockedRoute
@@ -164,28 +162,50 @@ fun ReachNavHost(
                 composable<UnsupportedAuthRoute> { UnsupportedAuthScreen(it.toRoute<UnsupportedAuthRoute>().step) }
             }
             navigation<MainGraph>(startDestination = ChatsRoute()) {
-                composable<ChatsRoute> {
-                    ChatsScreen(
-                        onChatClick = { navController.navigate(ChatRoute(it)) },
-                        onOpenArchive = { navController.navigate(ChatsRoute(archive = true)) },
-                        onOpenSearch = { navController.navigate(SearchRoute()) },
-                        onBack = { navController.popBackStack() },
-                        onOpenTopics = { navController.navigate(TopicsRoute(it)) },
-                        onSelectTab = navController::selectTab,
-                        onNewMessage = { navController.navigate(NewMessageRoute) },
-                    )
+                composable<ChatsRoute> { entry ->
+                    val chats: @Composable ((MainTab) -> Unit) -> Unit = { onSelectTab ->
+                        ChatsScreen(
+                            onChatClick = { navController.navigate(ChatRoute(it)) },
+                            onOpenArchive = { navController.navigate(ChatsRoute(archive = true)) },
+                            onOpenSearch = { navController.navigate(SearchRoute()) },
+                            onBack = { navController.popBackStack() },
+                            onOpenTopics = { navController.navigate(TopicsRoute(it)) },
+                            onSelectTab = onSelectTab,
+                            onNewMessage = { navController.navigate(NewMessageRoute) },
+                        )
+                    }
+                    if (entry.toRoute<ChatsRoute>().archive) {
+                        chats {}
+                    } else {
+                        // Корень: все три вкладки в одном хосте, переключение без навигации (#395)
+                        MainTabsHost(
+                            chats = chats,
+                            contacts = { onSelectTab ->
+                                ContactsScreen(
+                                    onSelectTab = onSelectTab,
+                                    onOpenChat = { navController.navigate(ChatRoute(it)) },
+                                )
+                            },
+                            settings = { onSelectTab ->
+                                SettingsScreen(
+                                    onSelectTab = onSelectTab,
+                                    onEditProfile = { navController.navigate(EditProfileRoute) },
+                                    onOpenAutoDownload = { navController.navigate(AutoDownloadRoute) },
+                                    onOpenFont = { navController.navigate(FontRoute) },
+                                    onOpenContactSync = { navController.navigate(ContactSyncRoute) },
+                                    onOpenBlocked = { navController.navigate(BlockedRoute) },
+                                    // Каталог компонентов — только для проверки дизайна в debug-сборках
+                                    onOpenComponents = if (BuildConfig.DEBUG) ({ navController.navigate(ComponentsRoute) }) else null,
+                                )
+                            },
+                        )
+                    }
                 }
                 composable<NewChatRoute> {
                     NewChatScreen(
                         onBack = { navController.popBackStack() },
                         // Созданный чат открывается вместо мастера: «назад» из него — в список
                         onCreated = { navController.navigate(ChatRoute(it)) { popUpTo(ChatsRoute()) } },
-                    )
-                }
-                composable<ContactsRoute> {
-                    ContactsScreen(
-                        onSelectTab = navController::selectTab,
-                        onOpenChat = { navController.navigate(ChatRoute(it)) },
                     )
                 }
                 composable<NewMessageRoute> {
@@ -260,18 +280,6 @@ fun ReachNavHost(
                     StatisticsScreen(
                         onBack = { navController.popBackStack() },
                         onOpenPost = { messageId -> navController.navigate(ChatRoute(chatId, messageId)) },
-                    )
-                }
-                composable<SettingsRoute> {
-                    SettingsScreen(
-                        onSelectTab = navController::selectTab,
-                        onEditProfile = { navController.navigate(EditProfileRoute) },
-                        onOpenAutoDownload = { navController.navigate(AutoDownloadRoute) },
-                        onOpenFont = { navController.navigate(FontRoute) },
-                        onOpenContactSync = { navController.navigate(ContactSyncRoute) },
-                        onOpenBlocked = { navController.navigate(BlockedRoute) },
-                        // Каталог компонентов — только для проверки дизайна в debug-сборках
-                        onOpenComponents = if (BuildConfig.DEBUG) ({ navController.navigate(ComponentsRoute) }) else null,
                     )
                 }
                 composable<EditProfileRoute> { EditProfileScreen(onBack = { navController.popBackStack() }) }

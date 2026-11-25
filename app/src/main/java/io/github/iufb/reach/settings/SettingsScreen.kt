@@ -115,7 +115,8 @@ fun SettingsScreen(
     val collapsed by remember { derivedStateOf { scroll.value > headerBottom - with(density) { topInset.roundToPx() } } }
     val titleAlpha by animateFloatAsState(if (collapsed) 1f else 0f, tween(TITLE_FADE_MS), label = "title")
 
-    GlassScope {
+    // В хосте вкладок — общее стекло с единственным таббаром (#395)
+    GlassScope(shareParent = true) {
         Box(Modifier.fillMaxSize().background(colors.groupedBackground)) {
             val me = profile
             if (loggingOut) {

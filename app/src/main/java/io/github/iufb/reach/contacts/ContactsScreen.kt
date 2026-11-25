@@ -141,7 +141,8 @@ private fun ContactsList(
     val bottom = if (tabBar != null) navBar + TabBarHeight + 16.dp else navBar
     val skeleton = rememberSkeletonVisible(list == null)
 
-    GlassScope {
+    // В хосте вкладок — общее стекло с единственным таббаром (#395)
+    GlassScope(shareParent = true) {
         Box(Modifier.fillMaxSize().background(colors.background)) {
             LazyColumn(
                 Modifier.fillMaxSize().glassSource().imePadding(),

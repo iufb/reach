@@ -69,12 +69,12 @@ private fun NavScope.kind(): Kind = when {
 
 private fun NavBackStackEntry.isAuth(): Boolean = destination.hierarchy.any { it.hasRoute<AuthGraph>() }
 
-/** Корни вкладок нижней панели; архив — тоже ChatsRoute, но он открывается слайдом. */
-private fun NavBackStackEntry.isTab(): Boolean = when {
-    destination.hasRoute<ContactsRoute>() || destination.hasRoute<SettingsRoute>() -> true
-    destination.hasRoute<ChatsRoute>() -> !toRoute<ChatsRoute>().archive
-    else -> false
-}
+/**
+ * Корень вкладок нижней панели: все три вкладки теперь в одном хосте (#395), отдельных экранов
+ * навигации у них нет. Архив — тоже ChatsRoute, но он открывается слайдом.
+ */
+private fun NavBackStackEntry.isTab(): Boolean =
+    destination.hasRoute<ChatsRoute>() && !toRoute<ChatsRoute>().archive
 
 /**
  * Шаги входа (#375): нижний шаг всегда стоит на месте и непрозрачен, двигается только верхний.
