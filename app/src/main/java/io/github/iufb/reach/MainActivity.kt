@@ -47,6 +47,8 @@ import io.github.iufb.reach.fonts.DeviceFonts
 import io.github.iufb.reach.fonts.InterfaceFonts
 import io.github.iufb.reach.navigation.ReachNavHost
 import io.github.iufb.reach.photoedit.OverlayPainter
+import io.github.iufb.reach.ui.format.Dates
+import io.github.iufb.reach.ui.format.withInterfaceLanguage
 import io.github.iufb.reach.ui.theme.ReachTheme
 import javax.inject.Inject
 
@@ -71,6 +73,8 @@ class MainActivity : ComponentActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // 12/24 часа в датах на английском — как в системе (#405); читается при каждом пересоздании
+        Dates.use24Hour = android.text.format.DateFormat.is24HourFormat(this)
         holdSplashUntilAuthKnown()
         OverlayPainter.typeface = interfaceFonts.bold()
         // После пересоздания активити запрос уже выполнен

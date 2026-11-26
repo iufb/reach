@@ -1,11 +1,6 @@
 package io.github.iufb.reach
 
 import android.app.Application
-import android.app.LocaleManager
-import android.content.Context
-import android.content.res.Configuration
-import android.os.Build
-import android.os.LocaleList
 import android.util.Log
 import androidx.emoji2.bundled.BundledEmojiCompatConfig
 import androidx.emoji2.text.EmojiCompat
@@ -26,10 +21,8 @@ import io.github.iufb.reach.media.AutoDownload
 import io.github.iufb.reach.notifications.Notifier
 import io.github.iufb.reach.push.PushRegistrar
 import io.github.iufb.reach.ui.PerfFlags
-import io.github.iufb.reach.ui.format.APP_LANGUAGE
-import io.github.iufb.reach.ui.format.AppLocale
+import io.github.iufb.reach.ui.format.AppLanguages
 import io.github.iufb.reach.users.UsersRepository
-import java.util.Locale
 import javax.inject.Inject
 
 @HiltAndroidApp
@@ -64,7 +57,8 @@ class ReachApp : Application(), SingletonImageLoader.Factory {
     override fun onCreate() {
         super.onCreate()
         PerfFlags.init(this)
-        useInterfaceLanguage()
+        // Язык интерфейса (#405): с Android 13 его применяет система, на Android 12 — мы
+        AppLanguages.applyAtStartup(this)
         // Единые эмодзи (PRODUCT.md §4.5): шрифт Noto из APK вместо системного, на любом устройстве.
         // Compose-текст подхватывает EmojiCompat сам, как только шрифт загружен.
         // Со своим emoji-шрифтом (#254) EmojiCompat не включаем: setReplaceAll заменил бы его эмодзи
@@ -85,31 +79,4 @@ class ReachApp : Application(), SingletonImageLoader.Factory {
             add(TdFileFetcher.Keyer)
         }
         .build()
-
-    /**
-     * Интерфейс только на русском, а системные компоненты (пикеры дат и времени, формат чисел)
-     * берут язык из конфигурации. Назначаем приложению язык интерфейса — система применит его
-     * к конфигурации и к `Locale.getDefault()` и запомнит (#218). Если в «Языке приложения»
-     * системы вернуть «по умолчанию», при следующем запуске язык снова станет русским.
-     */
-    private fun useInterfaceLanguage() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
-            // Android 12: языка приложения в системе нет — язык по умолчанию процесса, а конфигурацию
-            // активити подменяет MainActivity.attachBaseContext ([withInterfaceLanguage])
-            Locale.setDefault(AppLocale)
-            return
-        }
-        val locales = getSystemService(LocaleManager::class.java) ?: return
-        if (locales.applicationLocales.isEmpty) locales.applicationLocales = LocaleList.forLanguageTags(APP_LANGUAGE)
-    }
-}
-
-/**
- * Android 12 (до LocaleManager): контекст с языком интерфейса, чтобы системные компоненты
- * (пикеры дат и времени, формат чисел) были на нём же. С Android 13 язык назначает система.
- */
-fun Context.withInterfaceLanguage(): Context {
-    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) return this
-    val config = Configuration(resources.configuration).apply { setLocales(LocaleList(AppLocale)) }
-    return createConfigurationContext(config)
 }

@@ -94,8 +94,9 @@ class FontViewModel @Inject constructor(private val store: FontStore, applied: D
     val importing: StateFlow<Boolean> = _importing.asStateFlow()
 
     /** Ошибка последнего импорта; пустое сообщение — непредвиденная ошибка (общий текст). */
-    private val _error = MutableStateFlow<String?>(null)
-    val error: StateFlow<String?> = _error.asStateFlow()
+    /** Текст ошибки добавления шрифта (строковый ресурс); `null` — ошибки нет. */
+    private val _error = MutableStateFlow<Int?>(null)
+    val error: StateFlow<Int?> = _error.asStateFlow()
 
     fun select(kind: FontKind, id: String?) {
         when (kind) {
@@ -111,7 +112,7 @@ class FontViewModel @Inject constructor(private val store: FontStore, applied: D
             _error.value = null
             store.import(uri)
                 .onSuccess { select(it.kind, it.id) }
-                .onFailure { _error.value = (it as? FontImportException)?.problem?.message.orEmpty() }
+                .onFailure { _error.value = (it as? FontImportException)?.problem?.text ?: R.string.font_import_failed }
             _importing.value = false
         }
     }
@@ -174,7 +175,7 @@ fun FontScreen(onBack: () -> Unit, viewModel: FontViewModel = hiltViewModel()) {
                 )
                 error?.let {
                     Text(
-                        it.ifEmpty { stringResource(R.string.font_import_failed) },
+                        stringResource(it),
                         modifier = Modifier.padding(horizontal = 32.dp, vertical = 4.dp),
                         style = MaterialTheme.typography.bodySmall,
                         color = colors.destructive,

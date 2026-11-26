@@ -49,6 +49,8 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
+import io.github.iufb.reach.ui.format.AppLanguages
+import androidx.compose.ui.platform.LocalContext
 import io.github.iufb.reach.navigation.MainTab
 import io.github.iufb.reach.navigation.MainTabBar
 import io.github.iufb.reach.ui.components.ActionSheet
@@ -82,6 +84,7 @@ fun SettingsScreen(
     onOpenAutoDownload: () -> Unit,
     /** Настройки → Шрифт. */
     onOpenFont: (() -> Unit)? = null,
+    onOpenLanguage: (() -> Unit)? = null,
     onOpenBlocked: (() -> Unit)? = null,
     onOpenContactSync: (() -> Unit)? = null,
     /** Каталог компонентов дизайна; только в debug-сборках. */
@@ -91,6 +94,8 @@ fun SettingsScreen(
     val profile by viewModel.profile.collectAsStateWithLifecycle()
     val loggingOut by viewModel.loggingOut.collectAsStateWithLifecycle()
     val textFont by viewModel.textFont.collectAsStateWithLifecycle()
+    val context = LocalContext.current
+    val language = languageName(remember(context) { AppLanguages.current(context) })
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
     var photoSheet by rememberSaveable { mutableStateOf(false) }
@@ -164,6 +169,7 @@ fun SettingsScreen(
                                 val rows = buildList {
                                     add(SettingsLink(R.string.autodownload_title, R.drawable.ic_download, CellIconColors.Green, onOpenAutoDownload))
                                     onOpenFont?.let { add(SettingsLink(R.string.font_title, R.drawable.ic_text, CellIconColors.Blue, it, textFont ?: INTER)) }
+                                    onOpenLanguage?.let { add(SettingsLink(R.string.language_title, R.drawable.ic_globe, CellIconColors.Purple, it, language)) }
                                     onOpenBlocked?.let { add(SettingsLink(R.string.blocked_title, R.drawable.ic_lock, CellIconColors.Gray, it)) }
                                     onOpenContactSync?.let { add(SettingsLink(R.string.contact_sync_title, R.drawable.ic_tab_contacts, CellIconColors.Orange, it)) }
                                 }
