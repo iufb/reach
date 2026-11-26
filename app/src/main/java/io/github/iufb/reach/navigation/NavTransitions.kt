@@ -99,13 +99,13 @@ internal fun authStepExit(forward: Boolean): ExitTransition =
         slideOutHorizontally(tween(AUTH_STEP_MS, easing = IOS_EASING)) { (it * AUTH_STEP_SHIFT).toInt() } + fadeOut(tween(AUTH_STEP_MS))
     }
 
-private const val AUTH_STEP_MS = 320
+private const val AUTH_STEP_MS = 270
 private const val KEEP_ALPHA = 0.99f
 private const val AUTH_STEP_SHIFT = 0.25f
 
 /** Насколько сдвигается нижний экран: треть ширины, как в UINavigationController. */
 private const val PARALLAX = 0.3f
-private const val SLIDE_MS = 380
-private const val FADE_MS = 220
+private const val SLIDE_MS = 300
+private const val FADE_MS = 180
 /** Плавное торможение, близкое к переходу UINavigationController: экран заметно едет, а не прыгает. */
 private val IOS_EASING = CubicBezierEasing(0.25f, 0.46f, 0.45f, 0.94f)
