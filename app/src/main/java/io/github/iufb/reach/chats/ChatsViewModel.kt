@@ -13,6 +13,7 @@ import io.github.iufb.reach.push.PushRegistrar
 import io.github.iufb.reach.chat.Sender
 import io.github.iufb.reach.presence.ActivityKind
 import io.github.iufb.reach.presence.PresenceRepository
+import io.github.iufb.reach.users.UsersRepository
 import io.github.iufb.reach.core.td.TdException
 import kotlinx.coroutines.channels.Channel
 import kotlinx.coroutines.flow.Flow
@@ -47,12 +48,17 @@ class ChatsViewModel @Inject constructor(
     private val pushRegistrar: PushRegistrar,
     private val chatsRepository: ChatsRepository,
     presence: PresenceRepository,
+    users: UsersRepository,
     savedStateHandle: SavedStateHandle,
     private val historyPrefetch: HistoryPrefetch,
 ) : ViewModel() {
 
     /** Кто что делает в чатах: «печатает…» вместо последнего сообщения. */
     val activities: StateFlow<Map<Long, Map<Sender, ActivityKind>>> = presence.activities
+
+    /** Пользователи «в сети»: зелёная точка на аватаре в личных чатах. */
+    val onlineUsers: StateFlow<Set<Long>> = users.online
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(STOP_TIMEOUT_MS), emptySet())
 
     private val isArchive = savedStateHandle.toRoute<ChatsRoute>().archive
 

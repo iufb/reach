@@ -6,6 +6,11 @@ import io.github.iufb.reach.files.TdFile
 import io.github.iufb.reach.files.toTdFile
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.CoroutineStart
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.transformLatest
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -43,6 +48,23 @@ class UsersRepository @Inject constructor(td: TdClient, @ApplicationScope scope:
     private val _users = MutableStateFlow<Map<Long, User>>(emptyMap())
     val users: StateFlow<Map<Long, User>> = _users.asStateFlow()
 
+    /**
+     * Кто сейчас «в сети». Статус гаснет по `expires`, даже если `UpdateUserStatus` не пришёл:
+     * поток сам пересчитывается к ближайшему истечению. Меняется, только когда меняется набор.
+     */
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val online: Flow<Set<Long>> = _users.transformLatest { all ->
+        while (true) {
+            val now = System.currentTimeMillis() / 1000
+            val expiries = all.values.mapNotNull { user ->
+                (user.status as? UserStatus.Online)?.expires?.toLong()?.takeIf { it > now }?.let { user.id to it }
+            }
+            emit(expiries.mapTo(HashSet()) { it.first })
+            val next = expiries.minOfOrNull { it.second } ?: break
+            delay((next - now) * 1000 + EXPIRY_SLACK_MS)
+        }
+    }.distinctUntilChanged()
+
     init {
         scope.launch(start = CoroutineStart.UNDISPATCHED) {
             td.updates.collect { update ->
@@ -71,3 +93,6 @@ private fun TdApi.User.toModel() = User(
     status = status.toModel(),
     isContact = isContact,
 )
+
+/** Запас после `expires`: статус гаснет, когда сервер его уже точно не продлил. */
+private const val EXPIRY_SLACK_MS = 500L

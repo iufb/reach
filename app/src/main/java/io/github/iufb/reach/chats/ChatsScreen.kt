@@ -76,6 +76,7 @@ import io.github.iufb.reach.navigation.MainTab
 import io.github.iufb.reach.navigation.MainTabBar
 import io.github.iufb.reach.presence.ActivityKind
 import io.github.iufb.reach.presence.activityText
+import io.github.iufb.reach.ui.components.OnlineAvatar
 import io.github.iufb.reach.ui.components.BackPill
 import io.github.iufb.reach.ui.components.GlassScope
 import io.github.iufb.reach.ui.components.PillGroup
@@ -116,6 +117,7 @@ fun ChatsScreen(
     val allLoaded by viewModel.allLoaded.collectAsStateWithLifecycle()
     val loggingOut by viewModel.loggingOut.collectAsStateWithLifecycle()
     val activities by viewModel.activities.collectAsStateWithLifecycle()
+    val online by viewModel.onlineUsers.collectAsStateWithLifecycle()
     val menuChat by viewModel.menuChat.collectAsStateWithLifecycle()
     val archive by viewModel.archive.collectAsStateWithLifecycle()
     val list by viewModel.list.collectAsStateWithLifecycle()
@@ -126,6 +128,7 @@ fun ChatsScreen(
     LaunchedEffect(viewModel) { viewModel.openChat.collect { openChat(it) } }
     ChatsContent(
         list, chats, allLoaded, loggingOut, openForumAware, viewModel::loadMore, viewModel::logOut, activities,
+        online = online,
         onChatLongClick = viewModel::openMenu,
         snackbar = snackbar,
         archive = archive,
@@ -158,6 +161,8 @@ private fun ChatsContent(
     onLoadMore: () -> Unit,
     onLogOut: () -> Unit,
     activities: Map<Long, Map<Sender, ActivityKind>> = emptyMap(),
+    /** Собеседники «в сети»: зелёная точка на аватаре. */
+    online: Set<Long> = emptySet(),
     onChatLongClick: (Long) -> Unit = {},
     snackbar: SnackbarHostState = remember { SnackbarHostState() },
     archive: ArchiveSummary? = null,
@@ -184,7 +189,7 @@ private fun ChatsContent(
             ChatsBody(
                 list, chats, allLoaded, loggingOut, onChatClick, onChatLongClick, onLoadMore,
                 PaddingValues(top = headerHeight, bottom = bottomInset),
-                activities, archive, onOpenArchive,
+                activities, online, archive, onOpenArchive,
                 header = {
                     if (!isArchive) {
                         SearchButton(onOpenSearch, Modifier.padding(horizontal = 16.dp, vertical = 6.dp))
@@ -276,6 +281,7 @@ private fun ChatsBody(
     onLoadMore: () -> Unit,
     padding: PaddingValues,
     activities: Map<Long, Map<Sender, ActivityKind>>,
+    online: Set<Long>,
     archive: ArchiveSummary?,
     onOpenArchive: () -> Unit,
     header: @Composable () -> Unit,
@@ -297,7 +303,7 @@ private fun ChatsBody(
         }
         // Своё состояние прокрутки у каждой вкладки
         else -> key(list) {
-            ChatList(list, chats, allLoaded, onChatClick, onChatLongClick, onLoadMore, padding, activities, archive, onOpenArchive, header)
+            ChatList(list, chats, allLoaded, onChatClick, onChatLongClick, onLoadMore, padding, activities, online, archive, onOpenArchive, header)
         }
     }
 }
@@ -313,6 +319,7 @@ private fun ChatList(
     onLoadMore: () -> Unit,
     padding: PaddingValues,
     activities: Map<Long, Map<Sender, ActivityKind>>,
+    online: Set<Long>,
     archive: ArchiveSummary?,
     onOpenArchive: () -> Unit,
     header: @Composable () -> Unit,
@@ -341,6 +348,7 @@ private fun ChatList(
                 chat,
                 isPinned = chat.positions[list]?.isPinned == true,
                 activity = activities[chat.id]?.let { activityText(it, withNames = false) { "" } },
+                online = !chat.isSavedMessages && chat.userId?.let { it in online } == true,
                 onClick = { onChatClick(chat.id) },
                 onLongClick = { onChatLongClick(chat.id) },
                 // Строки проявляются поверх уходящего скелетона
@@ -384,6 +392,7 @@ private fun ChatRow(
     chat: Chat,
     isPinned: Boolean,
     activity: String?,
+    online: Boolean,
     onClick: () -> Unit,
     onLongClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -391,7 +400,7 @@ private fun ChatRow(
     val colors = ReachTheme.colors
     ChatRowLayout(
         modifier = modifier,
-        avatar = { ChatAvatar(chat, size = AVATAR_SIZE) },
+        avatar = { OnlineAvatar(online, AVATAR_SIZE, colors.background) { ChatAvatar(chat, size = AVATAR_SIZE) } },
         onClick = onClick,
         onLongClick = onLongClick,
         title = {
