@@ -8,7 +8,6 @@ import androidx.annotation.StringRes
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.WindowInsets
@@ -21,7 +20,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
@@ -39,7 +37,6 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.onPlaced
 import androidx.compose.ui.layout.positionInParent
@@ -136,7 +133,6 @@ fun SettingsScreen(
                         ) {
                             ProfileHeader(
                                 me,
-                                onPhoto = pickOrEditPhoto,
                                 modifier = Modifier.onPlaced { headerBottom = (it.positionInParent().y + it.size.height).toInt() },
                             )
                             GroupedSection {
@@ -247,16 +243,18 @@ internal fun SettingsSkeleton() {
     }
 }
 
-/** Аватар (тап — сменить или удалить фото), имя и строка «номер • @username», по центру. */
+/**
+ * Аватар, имя и строка «номер • @username», по центру. Фото меняется строкой «Изменить фото» под шапкой
+ * и на экране «Изменить профиль», как в Telegram iOS; тап по аватару там открывает просмотр фото (#403).
+ */
 @Composable
-private fun ProfileHeader(me: MyProfile, onPhoto: () -> Unit, modifier: Modifier = Modifier) {
+private fun ProfileHeader(me: MyProfile, modifier: Modifier = Modifier) {
     val colors = ReachTheme.colors
     Column(modifier.fillMaxWidth().padding(bottom = 12.dp), horizontalAlignment = Alignment.CenterHorizontally) {
         Avatar(
             me.user.fullName,
             me.user.photo,
             me.user.accentColorId,
-            modifier = Modifier.clip(CircleShape).clickable(onClickLabel = stringResource(R.string.settings_photo_change), onClick = onPhoto),
             size = AVATAR,
         )
         Text(
