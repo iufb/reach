@@ -544,8 +544,6 @@
     <string name="service_payment">Payment</string>
     <string name="service_other">Service message</string>
     <string name="settings_title">Settings</string>
-    <string name="settings_name">Name</string>
-    <string name="settings_bio_empty">Add a few words about yourself</string>
     <string name="settings_username_empty">Not set</string>
     <string name="settings_photo_change">Choose Photo</string>
     <string name="settings_photo_edit">Change Profile Photo</string>

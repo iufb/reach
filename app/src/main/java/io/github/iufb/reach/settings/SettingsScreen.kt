@@ -150,31 +150,21 @@ fun SettingsScreen(
                                     divider = false,
                                 )
                             }
-                            GroupedSection {
-                                GroupedCell(stringResource(R.string.settings_name), onClick = onEditProfile, value = me.user.fullName)
-                                GroupedCell(
-                                    stringResource(R.string.profile_username),
-                                    onClick = onEditProfile,
-                                    value = if (me.user.username.isBlank()) stringResource(R.string.settings_username_empty) else "@${me.user.username}",
-                                )
-                                GroupedCell(
-                                    stringResource(R.string.profile_bio),
-                                    onClick = onEditProfile,
-                                    subtitle = me.bio.ifBlank { stringResource(R.string.settings_bio_empty) },
-                                )
-                                // Номер виден, но не меняется: смена номера — вне скоупа
-                                GroupedCell(stringResource(R.string.profile_phone), value = "+${me.user.phoneNumber}", divider = false)
-                            }
-                            GroupedSection {
-                                val rows = buildList {
-                                    add(SettingsLink(R.string.autodownload_title, R.drawable.ic_download, CellIconColors.Green, onOpenAutoDownload))
-                                    onOpenFont?.let { add(SettingsLink(R.string.font_title, R.drawable.ic_text, CellIconColors.Blue, it, textFont ?: INTER)) }
-                                    onOpenLanguage?.let { add(SettingsLink(R.string.language_title, R.drawable.ic_globe, CellIconColors.Purple, it, language)) }
-                                    onOpenBlocked?.let { add(SettingsLink(R.string.blocked_title, R.drawable.ic_lock, CellIconColors.Gray, it)) }
-                                    onOpenContactSync?.let { add(SettingsLink(R.string.contact_sync_title, R.drawable.ic_tab_contacts, CellIconColors.Orange, it)) }
-                                }
-                                rows.forEachIndexed { index, row -> LinkCell(row, divider = index < rows.lastIndex) }
-                            }
+                            // Имя, username и bio — в шапке и на экране «Изменить» (кнопка в баре), без повтора строками (#426)
+                            LinkSection(
+                                listOfNotNull(
+                                    SettingsLink(R.string.autodownload_title, R.drawable.ic_download, CellIconColors.Green, onOpenAutoDownload),
+                                    onOpenFont?.let { SettingsLink(R.string.font_title, R.drawable.ic_text, CellIconColors.Blue, it, textFont ?: INTER) },
+                                    onOpenLanguage?.let { SettingsLink(R.string.language_title, R.drawable.ic_globe, CellIconColors.Purple, it, language) },
+                                ),
+                            )
+                            // Приватность
+                            LinkSection(
+                                listOfNotNull(
+                                    onOpenBlocked?.let { SettingsLink(R.string.blocked_title, R.drawable.ic_lock, CellIconColors.Gray, it) },
+                                    onOpenContactSync?.let { SettingsLink(R.string.contact_sync_title, R.drawable.ic_tab_contacts, CellIconColors.Orange, it) },
+                                ),
+                            )
                             onOpenComponents?.let {
                                 GroupedSection { LinkCell(SettingsLink(R.string.components_catalog, R.drawable.ic_select, CellIconColors.Purple, it), divider = false) }
                             }
@@ -237,9 +227,9 @@ internal fun SettingsSkeleton() {
                 SkeletonBox(Modifier.size(width = 200.dp, height = 12.dp))
             }
         }
-        repeat(2) { section ->
+        SKELETON_SECTIONS.forEachIndexed { section, rows ->
             GroupedSection {
-                repeat(if (section == 0) 1 else 4) { row ->
+                repeat(rows) { row ->
                     Box(Modifier.fillMaxWidth().height(44.dp).padding(horizontal = 16.dp), contentAlignment = Alignment.CenterStart) {
                         SkeletonBox(Modifier.fillMaxWidth(skeletonFraction(section * 5 + row, 0.3f, 0.6f)).height(12.dp))
                     }
@@ -291,6 +281,13 @@ private class SettingsLink(
     val value: String? = null,
 )
 
+/** Группа ссылок; пустая группа не рисуется. */
+@Composable
+private fun LinkSection(links: List<SettingsLink>) {
+    if (links.isEmpty()) return
+    GroupedSection { links.forEachIndexed { index, link -> LinkCell(link, divider = index < links.lastIndex) } }
+}
+
 @Composable
 private fun LinkCell(link: SettingsLink, divider: Boolean) {
     GroupedCell(
@@ -303,6 +300,8 @@ private fun LinkCell(link: SettingsLink, divider: Boolean) {
 }
 
 private val HEADER_TOP = 8.dp
+/** Строк в карточках скелетона: «Изменить фото», общие разделы, приватность. */
+private val SKELETON_SECTIONS = listOf(1, 3, 2)
 /** Стандартный текстовый шрифт, когда свой не выбран. */
 private const val INTER = "Inter"
 private val AVATAR = 100.dp
