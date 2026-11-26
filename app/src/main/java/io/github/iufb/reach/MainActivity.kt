@@ -2,6 +2,7 @@ package io.github.iufb.reach
 
 import android.Manifest
 import android.content.Context
+import android.content.res.Configuration
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
@@ -48,6 +49,8 @@ import io.github.iufb.reach.fonts.InterfaceFonts
 import io.github.iufb.reach.navigation.ReachNavHost
 import io.github.iufb.reach.photoedit.OverlayPainter
 import io.github.iufb.reach.ui.format.Dates
+import io.github.iufb.reach.ui.format.AppLanguages
+import io.github.iufb.reach.ui.format.InterfaceLanguage
 import io.github.iufb.reach.ui.format.withInterfaceLanguage
 import io.github.iufb.reach.ui.theme.ReachTheme
 import javax.inject.Inject
@@ -86,21 +89,29 @@ class MainActivity : ComponentActivity() {
         }
         enableEdgeToEdge()
         setContent {
-            ReachTheme(textFont = interfaceFonts.text, fonts = deviceFonts) {
-                if (hasApiCredentials()) {
-                    val openChatId by openChatRequest.collectAsStateWithLifecycle()
-                    val openLink by openLinkRequest.collectAsStateWithLifecycle()
-                    ReachRoot(
-                        openChatId,
-                        onOpenChatHandled = { openChatRequest.value = null },
-                        openLink = openLink,
-                        onOpenLinkHandled = { openLinkRequest.value = null },
-                    )
-                } else {
-                    MissingCredentialsScreen()
+            InterfaceLanguage {
+                ReachTheme(textFont = interfaceFonts.text, fonts = deviceFonts) {
+                    if (hasApiCredentials()) {
+                        val openChatId by openChatRequest.collectAsStateWithLifecycle()
+                        val openLink by openLinkRequest.collectAsStateWithLifecycle()
+                        ReachRoot(
+                            openChatId,
+                            onOpenChatHandled = { openChatRequest.value = null },
+                            openLink = openLink,
+                            onOpenLinkHandled = { openLinkRequest.value = null },
+                        )
+                    } else {
+                        MissingCredentialsScreen()
+                    }
                 }
             }
         }
+    }
+
+    /** Смена языка приходит сюда, а не пересозданием активити (`configChanges`, #430). */
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) AppLanguages.changed() else AppLanguages.reapplyLegacy(this)
     }
 
     /**
