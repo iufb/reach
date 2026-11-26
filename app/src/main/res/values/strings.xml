@@ -379,6 +379,8 @@
     <string name="attach">Attach</string>
     <string name="attach_photo">Photo</string>
     <string name="attach_file">File</string>
+    <string name="attach_camera">Camera</string>
+    <string name="attach_camera_take">Take Photo</string>
     <string name="attach_recents">Recents</string>
     <string name="attach_gallery">Gallery</string>
     <string name="attach_send_count">Send %1$d</string>
