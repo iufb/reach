@@ -52,6 +52,8 @@ class PhotoCamera(private val context: Context) {
     private var provider: ProcessCameraProvider? = null
     private var owner: LifecycleOwner? = null
     private var camera: Camera? = null
+    private var cellView: PreviewView? = null
+    private var fullView: PreviewView? = null
 
     /** Открыть камеру на [owner]; куда показывать превью — [attach]. */
     suspend fun open(owner: LifecycleOwner) {
@@ -60,8 +62,24 @@ class PhotoCamera(private val context: Context) {
         bind(cameraProvider)
     }
 
-    /** Показывать превью в [view] (ячейка сетки или весь экран). */
-    fun attach(view: PreviewView) {
+    /**
+     * Показывать превью в [view]: [full] — камера на весь экран, иначе ячейка сетки. Пока открыт весь
+     * экран, превью идёт только туда, даже если ячейка сетки пересоздастся позже (ленивая сетка
+     * собирает свои элементы уже после остального экрана).
+     */
+    fun attach(view: PreviewView, full: Boolean) {
+        if (full) fullView = view else cellView = view
+        route()
+    }
+
+    /** Весь экран закрыт: превью снова в ячейке. */
+    fun leaveFull() {
+        fullView = null
+        route()
+    }
+
+    private fun route() {
+        val view = fullView ?: cellView ?: return
         preview.setSurfaceProvider(view.surfaceProvider)
         capture.targetRotation = view.display?.rotation ?: Surface.ROTATION_0
     }
@@ -106,6 +124,8 @@ class PhotoCamera(private val context: Context) {
         provider?.unbind(preview, capture)
         camera = null
         owner = null
+        cellView = null
+        fullView = null
         flash = false
         capture.flashMode = ImageCapture.FLASH_MODE_OFF
     }

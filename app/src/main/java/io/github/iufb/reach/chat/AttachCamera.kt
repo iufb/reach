@@ -58,7 +58,6 @@ internal fun CameraCell(
     camera: PhotoCamera,
     granted: Boolean,
     onClick: () -> Unit,
-    onPreviewView: (PreviewView) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Box(
@@ -68,7 +67,7 @@ internal fun CameraCell(
     ) {
         if (granted) {
             AndroidView(
-                factory = { context -> cameraPreviewView(context).also { camera.attach(it); onPreviewView(it) } },
+                factory = { context -> cameraPreviewView(context).also { camera.attach(it, full = false) } },
                 modifier = Modifier.fillMaxSize(),
             )
         }
@@ -119,7 +118,7 @@ internal fun FullScreenCamera(
             .clickable(remember { androidx.compose.foundation.interaction.MutableInteractionSource() }, indication = null) {},
     ) {
         AndroidView(
-            factory = { context -> cameraPreviewView(context).also(camera::attach) },
+            factory = { context -> cameraPreviewView(context).also { camera.attach(it, full = true) } },
             modifier = Modifier.fillMaxSize(),
         )
         Box(Modifier.fillMaxSize().graphicsLayer { alpha = progress.value }) {

@@ -80,7 +80,6 @@ import androidx.compose.ui.layout.boundsInWindow
 import androidx.compose.ui.geometry.Rect
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.foundation.lazy.grid.GridItemSpan
-import androidx.camera.view.PreviewView
 import android.util.Log
 import io.github.iufb.reach.ui.components.AccentPillButton
 import io.github.iufb.reach.ui.components.GlassScope
@@ -180,7 +179,6 @@ internal fun AttachSheet(actions: AttachActions, onDismiss: () -> Unit) {
     var cameraGranted by remember { mutableStateOf(context.cameraGranted()) }
     var cameraFull by remember { mutableStateOf(false) }
     var cameraFrom by remember { mutableStateOf(Rect.Zero) }
-    var cellPreview by remember { mutableStateOf<PreviewView?>(null) }
     val requestCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
         cameraGranted = granted
         if (granted) cameraFull = true
@@ -199,7 +197,6 @@ internal fun AttachSheet(actions: AttachActions, onDismiss: () -> Unit) {
             camera,
             cameraGranted,
             onClick = openCamera,
-            onPreviewView = { cellPreview = it },
             modifier = modifier.onGloballyPositioned { cameraFrom = it.boundsInWindow() },
         )
     }
@@ -270,7 +267,7 @@ internal fun AttachSheet(actions: AttachActions, onDismiss: () -> Unit) {
                     from = cameraFrom,
                     onClosed = {
                         cameraFull = false
-                        cellPreview?.let(camera::attach)
+                        camera.leaveFull()
                     },
                     onShot = { file -> close { actions.onSendPhotos(listOf(Uri.fromFile(file))) } },
                 )
