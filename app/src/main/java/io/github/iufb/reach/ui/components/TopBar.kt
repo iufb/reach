@@ -1,5 +1,17 @@
 package io.github.iufb.reach.ui.components
 
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.SizeTransform
+import androidx.compose.animation.animateContentSize
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.snap
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.slideInVertically
+import androidx.compose.animation.slideOutVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,6 +33,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import io.github.iufb.reach.ui.theme.ReachTheme
 
@@ -79,6 +92,9 @@ fun ReachTopBar(
                 .widthIn(max = 240.dp)
                 .then(if (titlePill) Modifier.glass(RoundedCornerShape(percent = 50)) else Modifier)
                 .then(if (onTitleClick != null) Modifier.clickable(onClick = onTitleClick) else Modifier)
+                // Пилюля плавно меняет ширину, когда статус сменяется на «печатает…» и обратно (#413):
+                // стекло снаружи, поэтому рисуется по текущей, а не по конечной ширине
+                .then(if (titlePill) Modifier.animateContentSize(PILL_RESIZE, alignment = Alignment.Center) else Modifier)
                 .padding(horizontal = if (titlePill) 20.dp else 0.dp, vertical = if (titlePill) 4.dp else 0.dp)
             Column(titleModifier, horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
@@ -88,14 +104,22 @@ fun ReachTopBar(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis,
                 )
-                if (subtitle != null) {
-                    Text(
-                        subtitle,
-                        style = MaterialTheme.typography.labelMedium,
-                        color = colors.secondaryLabel,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                    )
+                if (titlePill) {
+                    // Старый статус уходит вверх и гаснет, новый приходит снизу; ширину ведёт пилюля
+                    AnimatedContent(
+                        targetState = subtitle,
+                        transitionSpec = {
+                            (fadeIn(tween(SUBTITLE_IN_MS, delayMillis = SUBTITLE_OUT_MS / 2)) + slideInVertically(tween(SUBTITLE_IN_MS)) { it / 2 }) togetherWith
+                                (fadeOut(tween(SUBTITLE_OUT_MS)) + slideOutVertically(tween(SUBTITLE_OUT_MS)) { -it / 2 }) using
+                                SizeTransform(clip = false) { _, _ -> snap() }
+                        },
+                        contentAlignment = Alignment.Center,
+                        label = "subtitle",
+                    ) { text ->
+                        if (text != null) Subtitle(text)
+                    }
+                } else if (subtitle != null) {
+                    Subtitle(subtitle)
                 }
             }
         }
@@ -104,3 +128,19 @@ fun ReachTopBar(
         }
     }
 }
+
+@Composable
+private fun Subtitle(text: String) {
+    Text(
+        text,
+        style = MaterialTheme.typography.labelMedium,
+        color = ReachTheme.colors.secondaryLabel,
+        maxLines = 1,
+        overflow = TextOverflow.Ellipsis,
+    )
+}
+
+/** Ширина пилюли: без перелёта за край, ~0,25 с; новая цель подхватывается с текущей ширины. */
+private val PILL_RESIZE = spring<IntSize>(dampingRatio = Spring.DampingRatioNoBouncy, stiffness = Spring.StiffnessMediumLow)
+private const val SUBTITLE_IN_MS = 220
+private const val SUBTITLE_OUT_MS = 140
