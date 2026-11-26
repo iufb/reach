@@ -56,10 +56,12 @@ fun LanguageScreen(onBack: () -> Unit) {
             ) {
                 GroupedSection {
                     AppLanguage.entries.forEachIndexed { index, language ->
+                        val name = languageName(language)
                         GroupedCell(
-                            languageName(language),
+                            name,
                             onClick = { if (language != current && activity != null) AppLanguages.set(activity, language) },
-                            subtitle = languageSubtitle(language),
+                            // «English / English», «Русский / Русский» — подпись не нужна
+                            subtitle = languageSubtitle(language).takeIf { it != name },
                             chevron = false,
                             divider = index < AppLanguage.entries.lastIndex,
                             trailing = {
@@ -94,7 +96,7 @@ internal fun languageName(language: AppLanguage): String = when (language) {
 }
 
 @Composable
-private fun languageSubtitle(language: AppLanguage): String? = when (language) {
+private fun languageSubtitle(language: AppLanguage): String = when (language) {
     AppLanguage.System -> stringResource(R.string.language_system_hint)
     AppLanguage.English -> stringResource(R.string.language_english)
     AppLanguage.Russian -> stringResource(R.string.language_russian)
