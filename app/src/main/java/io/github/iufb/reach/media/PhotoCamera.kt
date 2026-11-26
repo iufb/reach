@@ -1,6 +1,7 @@
 package io.github.iufb.reach.media
 
 import android.content.Context
+import android.graphics.Bitmap
 import android.util.Log
 import android.view.Surface
 import androidx.camera.core.Camera
@@ -16,6 +17,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.Observer
 import kotlinx.coroutines.suspendCancellableCoroutine
 import java.io.File
 import java.util.UUID
@@ -78,10 +80,30 @@ class PhotoCamera(private val context: Context) {
         route()
     }
 
+    /**
+     * Последний кадр прошлого превью, пока новое не пошло: при переносе превью в другой `PreviewView`
+     * CameraX перезапускает поток (~0,3–0,5 с), и без стоп-кадра ячейка и раскрывающаяся камера
+     * были бы чёрными. Экраны рисуют его поверх превью.
+     */
+    var frozen by mutableStateOf<Bitmap?>(null)
+        private set
+
+    private var shownView: PreviewView? = null
+    private val streaming = Observer<PreviewView.StreamState> { state ->
+        if (state == PreviewView.StreamState.STREAMING) frozen = null
+    }
+
     private fun route() {
         val view = fullView ?: cellView ?: return
+        if (view === shownView) return
+        shownView?.let { old ->
+            frozen = old.bitmap ?: frozen
+            old.previewStreamState.removeObserver(streaming)
+        }
+        shownView = view
         preview.setSurfaceProvider(view.surfaceProvider)
         capture.targetRotation = view.display?.rotation ?: Surface.ROTATION_0
+        view.previewStreamState.observeForever(streaming)
     }
 
     fun flip() {
@@ -126,6 +148,9 @@ class PhotoCamera(private val context: Context) {
         owner = null
         cellView = null
         fullView = null
+        shownView?.previewStreamState?.removeObserver(streaming)
+        shownView = null
+        frozen = null
         flash = false
         capture.flashMode = ImageCapture.FLASH_MODE_OFF
     }
