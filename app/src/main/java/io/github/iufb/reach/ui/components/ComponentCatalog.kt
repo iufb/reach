@@ -3,6 +3,7 @@ package io.github.iufb.reach.ui.components
 import android.content.res.Configuration
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -118,6 +119,20 @@ fun ComponentCatalogScreen(onBack: () -> Unit) {
                         ) {
                             AccentPillButton("Открыть", {}, compact = true)
                             AccentPillButton("Action sheet", { sheet = true })
+                        }
+                    }
+                }
+                item {
+                    var online by remember { mutableStateOf(true) }
+                    GroupedSection(header = "Аватар «в сети»", footer = "Тап — включить или выключить точку.") {
+                        Row(
+                            Modifier.fillMaxWidth().clickable { online = !online }.padding(16.dp),
+                            horizontalArrangement = Arrangement.spacedBy(16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            listOf(60.dp, 44.dp, 32.dp).forEach { size ->
+                                OnlineAvatar(online, size, ReachTheme.colors.cell) { Avatar("Reach Peer", null, 3, size = size) }
+                            }
                         }
                     }
                 }

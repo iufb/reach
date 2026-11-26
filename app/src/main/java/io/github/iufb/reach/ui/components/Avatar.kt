@@ -1,5 +1,11 @@
 package io.github.iufb.reach.ui.components
 
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
+import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.size
@@ -85,3 +91,39 @@ private fun placeholderColor(accentColorId: Int): Color =
 private fun AvatarPreview() {
     Avatar(title = "Анна Петрова", photo = null, accentColorId = 2)
 }
+
+/**
+ * Аватар [content] размера [size] с зелёной точкой «в сети» внизу справа, как в Telegram iOS: точка
+ * лежит на краю круга, обведена цветом фона [ring]. Появляется и гаснет масштабом с прозрачностью.
+ */
+@Composable
+fun OnlineAvatar(online: Boolean, size: Dp, ring: Color, modifier: Modifier = Modifier, content: @Composable () -> Unit) {
+    val shown by animateFloatAsState(if (online) 1f else 0f, spring(dampingRatio = 0.6f, stiffness = Spring.StiffnessMediumLow), label = "online")
+    Box(modifier.size(size)) {
+        content()
+        if (shown > 0f) {
+            val dot = size * ONLINE_DOT_FRACTION
+            Box(
+                Modifier
+                    .align(Alignment.BottomEnd)
+                    .offset(x = size * ONLINE_DOT_INSET, y = size * ONLINE_DOT_INSET)
+                    .size(dot)
+                    .graphicsLayer {
+                        scaleX = shown
+                        scaleY = shown
+                        alpha = shown.coerceIn(0f, 1f)
+                    }
+                    .background(ring, CircleShape)
+                    .padding(dot * ONLINE_RING_FRACTION)
+                    .background(OnlineGreen, CircleShape),
+            )
+        }
+    }
+}
+
+/** Зелёный «в сети» — системный зелёный iOS, одинаковый в светлой и тёмной теме. */
+val OnlineGreen = Color(0xFF34C759)
+// Замер по Mobbin (Telegram iOS, аватар 60 pt): точка с обводкой ~16 pt, обводка ~2,5 pt, сдвиг внутрь круга
+private const val ONLINE_DOT_FRACTION = 0.27f
+private const val ONLINE_RING_FRACTION = 0.16f
+private const val ONLINE_DOT_INSET = -0.02f
