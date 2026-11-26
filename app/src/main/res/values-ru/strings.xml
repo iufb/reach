@@ -589,8 +589,6 @@
     <string name="service_payment">Платёж</string>
     <string name="service_other">Служебное сообщение</string>
     <string name="settings_title">Настройки</string>
-    <string name="settings_name">Имя</string>
-    <string name="settings_bio_empty">Расскажите о себе</string>
     <string name="settings_username_empty">Не задан</string>
     <string name="settings_photo_change">Выбрать фото</string>
     <string name="settings_photo_edit">Изменить фото</string>
