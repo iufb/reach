@@ -410,6 +410,8 @@
     <string name="attach">Прикрепить</string>
     <string name="attach_photo">Фото</string>
     <string name="attach_file">Файл</string>
+    <string name="attach_camera">Камера</string>
+    <string name="attach_camera_take">Сделать снимок</string>
     <string name="attach_recents">Недавние</string>
     <string name="attach_gallery">Галерея</string>
     <string name="attach_send_count">Отправить %1$d</string>

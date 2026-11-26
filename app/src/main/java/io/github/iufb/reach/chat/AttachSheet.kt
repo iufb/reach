@@ -73,6 +73,15 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import coil3.compose.AsyncImage
 import io.github.iufb.reach.R
+import io.github.iufb.reach.media.PhotoCamera
+import androidx.lifecycle.compose.LocalLifecycleOwner
+import androidx.compose.ui.layout.onGloballyPositioned
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.geometry.Rect
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.foundation.lazy.grid.GridItemSpan
+import androidx.camera.view.PreviewView
+import android.util.Log
 import io.github.iufb.reach.ui.components.AccentPillButton
 import io.github.iufb.reach.ui.components.GlassScope
 import io.github.iufb.reach.ui.components.PillHeight
@@ -165,6 +174,36 @@ internal fun AttachSheet(actions: AttachActions, onDismiss: () -> Unit) {
     }
     val picked = remember { mutableStateListOf<Uri>() }
 
+    // Камера в первой ячейке (#421): открывается, когда шторка доехала, и отпускается при закрытии
+    val lifecycleOwner = LocalLifecycleOwner.current
+    val camera = remember { PhotoCamera(context) }
+    var cameraGranted by remember { mutableStateOf(context.cameraGranted()) }
+    var cameraFull by remember { mutableStateOf(false) }
+    var cameraFrom by remember { mutableStateOf(Rect.Zero) }
+    var cellPreview by remember { mutableStateOf<PreviewView?>(null) }
+    val requestCamera = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        cameraGranted = granted
+        if (granted) cameraFull = true
+    }
+    val sheetOpen = shown.isIdle && shown.currentState && !closing
+    LaunchedEffect(cameraGranted, sheetOpen) {
+        if (cameraGranted && sheetOpen) runCatching { camera.open(lifecycleOwner) }.onFailure { Log.w("AttachSheet", "camera failed", it) }
+    }
+    LaunchedEffect(closing) { if (closing) camera.close() }
+    DisposableEffect(camera) { onDispose { camera.close() } }
+    val openCamera = {
+        if (cameraGranted) cameraFull = true else requestCamera.launch(Manifest.permission.CAMERA)
+    }
+    val cameraCell: @Composable (Modifier) -> Unit = { modifier ->
+        CameraCell(
+            camera,
+            cameraGranted,
+            onClick = openCamera,
+            onPreviewView = { cellPreview = it },
+            modifier = modifier.onGloballyPositioned { cameraFrom = it.boundsInWindow() },
+        )
+    }
+
     Dialog(
         onDismissRequest = { close() },
         properties = DialogProperties(usePlatformDefaultWidth = false, decorFitsSystemWindows = false),
@@ -189,14 +228,16 @@ internal fun AttachSheet(actions: AttachActions, onDismiss: () -> Unit) {
                             if (access == PhotoAccess.Partial) PartialAccessRow(onChange = askAccess)
                             val bottomInset = TabBarHeight + BOTTOM_EXTRA + WindowInsets.navigationBars.asPaddingValues().calculateBottomPadding()
                             when {
-                                access == PhotoAccess.None -> NoAccess(onAllow = askAccess, onSystem = { close(actions.onSystemPicker) })
+                                access == PhotoAccess.None -> NoAccess(
+                                    onAllow = askAccess,
+                                    onSystem = { close(actions.onSystemPicker) },
+                                    onCamera = openCamera,
+                                )
                                 photos == null -> Unit
-                                photos.orEmpty().isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                                    Text(stringResource(R.string.attach_photos_empty), color = colors.secondaryLabel)
-                                }
                                 else -> PhotoGrid(
                                     photos.orEmpty(),
                                     picked,
+                                    cameraCell = cameraCell,
                                     bottomPadding = bottomInset,
                                     onToggle = { uri ->
                                         if (uri in picked) picked.remove(uri) else if (picked.size < actions.maxPhotos) picked.add(uri)
@@ -223,9 +264,22 @@ internal fun AttachSheet(actions: AttachActions, onDismiss: () -> Unit) {
                     }
                 }
             }
+            if (cameraFull) {
+                FullScreenCamera(
+                    camera,
+                    from = cameraFrom,
+                    onClosed = {
+                        cameraFull = false
+                        cellPreview?.let(camera::attach)
+                    },
+                    onShot = { file -> close { actions.onSendPhotos(listOf(Uri.fromFile(file))) } },
+                )
+            }
         }
     }
 }
+
+private fun Context.cameraGranted() = checkSelfPermission(Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
 
 @Composable
 private fun SheetHeader(onClose: () -> Unit) {
@@ -263,7 +317,7 @@ private fun PartialAccessRow(onChange: () -> Unit) {
 }
 
 @Composable
-private fun NoAccess(onAllow: () -> Unit, onSystem: () -> Unit) {
+private fun NoAccess(onAllow: () -> Unit, onSystem: () -> Unit, onCamera: () -> Unit) {
     val colors = ReachTheme.colors
     Column(
         Modifier.fillMaxSize().padding(horizontal = 32.dp).padding(bottom = TabBarHeight),
@@ -288,11 +342,24 @@ private fun NoAccess(onAllow: () -> Unit, onSystem: () -> Unit) {
         AccentPillButton(stringResource(R.string.attach_access_allow), onClick = onAllow)
         Spacer(Modifier.height(12.dp))
         PillTextButton(stringResource(R.string.attach_access_system), onClick = onSystem)
+        Spacer(Modifier.height(12.dp))
+        PillTextButton(stringResource(R.string.attach_camera_take), onClick = onCamera)
     }
 }
 
 @Composable
-private fun PhotoGrid(photos: List<Uri>, picked: List<Uri>, bottomPadding: androidx.compose.ui.unit.Dp, onToggle: (Uri) -> Unit) {
+private fun PhotoGrid(
+    photos: List<Uri>,
+    picked: List<Uri>,
+    cameraCell: @Composable (Modifier) -> Unit,
+    bottomPadding: androidx.compose.ui.unit.Dp,
+    onToggle: (Uri) -> Unit,
+) {
+    @Composable
+    fun cell(uri: Uri, modifier: Modifier = Modifier) {
+        val number = picked.indexOf(uri).takeIf { it >= 0 }?.plus(1)
+        PhotoCell(uri, number, modifier) { onToggle(uri) }
+    }
     LazyVerticalGrid(
         columns = GridCells.Fixed(GRID_COLUMNS),
         modifier = Modifier.fillMaxSize().glassSource(),
@@ -300,20 +367,27 @@ private fun PhotoGrid(photos: List<Uri>, picked: List<Uri>, bottomPadding: andro
         horizontalArrangement = Arrangement.spacedBy(GRID_GAP),
         verticalArrangement = Arrangement.spacedBy(GRID_GAP),
     ) {
-        items(photos, key = { it.toString() }) { uri ->
-            val number = picked.indexOf(uri).takeIf { it >= 0 }?.plus(1)
-            PhotoCell(uri, number) { onToggle(uri) }
+        // Как в Telegram iOS: камера 2×2 слева, справа — два первых фото столбиком
+        item(key = "camera", span = { GridItemSpan(maxLineSpan) }) {
+            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(GRID_GAP)) {
+                cameraCell(Modifier.weight(2f).aspectRatio(1f))
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(GRID_GAP)) {
+                    photos.getOrNull(0)?.let { cell(it) }
+                    photos.getOrNull(1)?.let { cell(it) }
+                }
+            }
         }
+        items(photos.drop(2), key = { it.toString() }) { uri -> cell(uri) }
     }
 }
 
 /** Миниатюра с кружком выбора в углу; [number] — порядковый номер среди отмеченных. */
 @Composable
-private fun PhotoCell(uri: Uri, number: Int?, onClick: () -> Unit) {
+private fun PhotoCell(uri: Uri, number: Int?, modifier: Modifier = Modifier, onClick: () -> Unit) {
     val colors = ReachTheme.colors
     val description = stringResource(R.string.attach_photo_select)
     Box(
-        Modifier
+        modifier
             .aspectRatio(1f)
             .background(colors.fill)
             .semantics {
