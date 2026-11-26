@@ -1,6 +1,6 @@
 package io.github.iufb.reach.chat
 
-import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.animate
 import androidx.compose.foundation.background
 import io.github.iufb.reach.ui.theme.ReachTheme
 import androidx.compose.ui.semantics.semantics
@@ -27,7 +27,12 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.Job
 import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -162,11 +167,15 @@ private fun QuoteStrip(name: String, text: String, modifier: Modifier = Modifier
     }
 }
 
-/** Свайп сообщения влево начинает ответ; [onReply] `null` — свайп выключен. */
+/**
+ * Свайп сообщения влево начинает ответ; [onReply] `null` — свайп выключен.
+ * Смещение пишется синхронно в каждой дельте: поздняя дельта не может перебить возврат на место (#424).
+ */
 @Composable
 internal fun Modifier.swipeToReply(onReply: (() -> Unit)?): Modifier {
     if (onReply == null) return this
-    val offset = remember { Animatable(0f) }
+    val offset = remember { mutableFloatStateOf(0f) }
+    var settle by remember { mutableStateOf<Job?>(null) }
     val scope = rememberCoroutineScope()
     val haptics = LocalHapticFeedback.current
     val threshold = with(LocalDensity.current) { SWIPE_THRESHOLD.toPx() }
@@ -174,17 +183,20 @@ internal fun Modifier.swipeToReply(onReply: (() -> Unit)?): Modifier {
         .draggable(
             orientation = Orientation.Horizontal,
             state = rememberDraggableState { delta ->
-                scope.launch { offset.snapTo((offset.value + delta).coerceIn(-threshold * 1.5f, 0f)) }
+                offset.floatValue = (offset.floatValue + delta).coerceIn(-threshold * 1.5f, 0f)
             },
+            onDragStarted = { settle?.cancel() },
             onDragStopped = {
-                if (offset.value <= -threshold) {
+                if (offset.floatValue <= -threshold) {
                     haptics.performHapticFeedback(HapticFeedbackType.LongPress)
                     onReply()
                 }
-                offset.animateTo(0f)
+                // В своём скоупе: возврат доигрывает, даже если жест или узел draggable перезапустились
+                settle?.cancel()
+                settle = scope.launch { animate(offset.floatValue, 0f) { value, _ -> offset.floatValue = value } }
             },
         )
-        .offset { IntOffset(offset.value.roundToInt(), 0) }
+        .offset { IntOffset(offset.floatValue.roundToInt(), 0) }
 }
 
 private val SWIPE_THRESHOLD = 64.dp
