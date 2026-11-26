@@ -2,16 +2,23 @@ package io.github.iufb.reach.navigation
 
 import androidx.compose.runtime.Composable
 import androidx.activity.compose.BackHandler
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.Layout
+import androidx.compose.ui.semantics.clearAndSetSemantics
 import io.github.iufb.reach.ui.components.GlassScope
 import kotlinx.coroutines.delay
 import androidx.compose.runtime.getValue
@@ -84,10 +91,11 @@ val LocalInTabsHost = staticCompositionLocalOf { false }
 /**
  * Главные вкладки «Контакты / Чаты / Настройки» в одном месте навигации (#395). Экраны вкладок
  * собираются один раз и живут дальше: «Чаты» — сразу, остальные — в фоне через [PREWARM_DELAY_MS]
- * или при первом выборе. Переключение только меняет, какой экран размещён, — без новой
- * сборки и без паузы главного потока, поэтому содержимое меняется сразу, а линза таббара летит
- * в это же время (раньше каждая вкладка была отдельным экраном навигации, и сборка нового экрана
- * останавливала анимацию на 200–450 мс). Таббар один, поверх вкладок, в общем [GlassScope]:
+ * или при первом выборе. Скрытые вкладки размещены за правым краем экрана: они уже нарисованы, и
+ * при переключении их не надо ни собирать, ни рисовать с нуля — первый кадр новой вкладки дешёвый,
+ * линза таббара летит без замирания (#404; раньше скрытые не размещались, и первая отрисовка
+ * вкладки останавливала анимацию на 150–200 мс). Содержимое меняется быстрым кроссфейдом, как в
+ * Telegram iOS 26: новая вкладка проявляется поверх старой за [CONTENT_FADE_MS]. Таббар один, поверх вкладок, в общем [GlassScope]:
  * экраны вкладок делят его (`shareParent`), и стекло размывает видимую вкладку.
  * «Назад» с «Контактов» и «Настроек» — в «Чаты».
  */
@@ -100,23 +108,48 @@ fun MainTabsHost(
     var selectedName by rememberSaveable { mutableStateOf(MainTab.Chats.name) }
     val selected = MainTab.valueOf(selectedName)
     var builtNames by rememberSaveable { mutableStateOf(listOf(MainTab.Chats.name)) }
+    // Видимость каждой вкладки: 1 — выбранная, 0 — за краем экрана; между ними — кроссфейд
+    val shown = remember { MainTab.entries.map { Animatable(if (it.name == selectedName) 1f else 0f) } }
+    // Вкладка, с которой уходим: во время кроссфейда она остаётся на экране под новой
+    var leaving by remember { mutableStateOf<MainTab?>(null) }
+    val scope = rememberCoroutineScope()
     val select: (MainTab) -> Unit = { tab ->
         if (tab.name !in builtNames) builtNames = builtNames + tab.name
-        selectedName = tab.name
+        val from = MainTab.valueOf(selectedName)
+        if (tab != from) {
+            selectedName = tab.name
+            leaving = from
+            scope.launch {
+                // Новая проявляется поверх старой; старая исчезает, когда новая уже непрозрачна
+                MainTab.entries.forEach { if (it != tab && it != from) shown[it.ordinal].snapTo(0f) }
+                shown[tab.ordinal].snapTo(0f)
+                shown[tab.ordinal].animateTo(1f, tween(CONTENT_FADE_MS, easing = LinearEasing))
+                if (MainTab.valueOf(selectedName) == tab) {
+                    shown[from.ordinal].snapTo(0f)
+                    leaving = null
+                }
+            }
+        }
     }
     // Остальные вкладки — заранее, когда список чатов уже на экране: первое переключение тоже без паузы
     LaunchedEffect(Unit) {
         delay(PREWARM_DELAY_MS)
         builtNames = MainTab.entries.map { it.name }
     }
-    BackHandler(enabled = selected != MainTab.Chats) { selectedName = MainTab.Chats.name }
+    BackHandler(enabled = selected != MainTab.Chats) { select(MainTab.Chats) }
     CompositionLocalProvider(LocalInTabsHost provides true) {
         GlassScope {
             Box(Modifier.fillMaxSize()) {
                 Layout(
                     content = {
                         MainTab.entries.forEach { tab ->
-                            Box(Modifier.fillMaxSize()) {
+                            Box(
+                                Modifier
+                                    .fillMaxSize()
+                                    .graphicsLayer { alpha = shown[tab.ordinal].value }
+                                    // Ушедшая за край вкладка не видна TalkBack
+                                    .then(if (tab == selected) Modifier else Modifier.clearAndSetSemantics {}),
+                            ) {
                                 if (tab.name in builtNames) {
                                     when (tab) {
                                         MainTab.Chats -> chats(select)
@@ -129,10 +162,16 @@ fun MainTabsHost(
                     },
                     modifier = Modifier.fillMaxSize(),
                 ) { measurables, constraints ->
-                    // Измеряются все собранные вкладки — их списки строят строки заранее, — но размещается
-                    // только выбранная: скрытые не рисуются, не получают касаний и не попадают под стекло
+                    // Размещаются все собранные вкладки. Скрытые — за правым краем: нарисованы заранее, но не
+                    // видны, не получают касаний и не попадают под стекло таббара. Выбранная — сверху
                     val placeables = measurables.map { it.measure(constraints) }
-                    layout(constraints.maxWidth, constraints.maxHeight) { placeables[selected.ordinal].place(0, 0) }
+                    layout(constraints.maxWidth, constraints.maxHeight) {
+                        val onScreen = listOfNotNull(leaving, selected)
+                        MainTab.entries.forEach { tab ->
+                            if (tab !in onScreen) placeables[tab.ordinal].place(constraints.maxWidth, 0)
+                        }
+                        onScreen.forEach { placeables[it.ordinal].place(0, 0) }
+                    }
                 }
                 HostTabBar(selected, select, Modifier.align(Alignment.BottomCenter))
             }
@@ -171,6 +210,9 @@ private fun HostTabBar(selected: MainTab, onSelect: (MainTab) -> Unit, modifier:
         modifier = modifier,
     )
 }
+
+/** Кроссфейд содержимого при смене вкладки — по записи Telegram iOS 26 (#404). */
+private const val CONTENT_FADE_MS = 100
 
 /** Через сколько после появления хоста собрать остальные вкладки в фоне. */
 private const val PREWARM_DELAY_MS = 1_500L
