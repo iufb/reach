@@ -228,6 +228,12 @@ async def dispatch(client: TelegramClient, a) -> None:
     elif c == "typing":
         async with client.action(await peer(client, a.peer), a.action):
             await asyncio.sleep(a.seconds)
+    elif c == "online":
+        await client(functions.account.UpdateStatusRequest(offline=False))
+        print("в сети")
+        await asyncio.sleep(a.seconds)
+        await client(functions.account.UpdateStatusRequest(offline=True))
+        print("не в сети")
     elif c == "config":
         from telethon.tl.functions.help import GetConfigRequest
         cfg = await client(GetConfigRequest())
@@ -315,6 +321,8 @@ def main() -> None:
     s = sub.add_parser("typing", help="статус «печатает» на N секунд")
     s.add_argument("peer"); s.add_argument("--action", default="typing"); s.add_argument("--seconds", type=float, default=5)
     s = sub.add_parser("history"); s.add_argument("peer"); s.add_argument("-n", type=int, default=10)
+    s = sub.add_parser("online", help="побыть «в сети» N секунд, потом выйти из сети")
+    s.add_argument("--seconds", type=float, default=10)
     sub.add_parser("config", help="лимиты сервера: время на правку и удаление")
     s = sub.add_parser("chats"); s.add_argument("-n", type=int, default=20)
 

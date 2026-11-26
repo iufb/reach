@@ -33,6 +33,8 @@ data class User(
     val status: UserStatus = UserStatus.Unknown,
     /** В контактах текущего пользователя. */
     val isContact: Boolean = false,
+    /** Бот или служебный аккаунт Telegram: «в сети» у них всегда, точку не показываем. */
+    val isBotOrService: Boolean = false,
 ) {
     /** Пустое имя у удалённых аккаунтов. */
     val fullName: String get() = listOf(firstName, lastName).filter { it.isNotBlank() }.joinToString(" ")
@@ -57,6 +59,7 @@ class UsersRepository @Inject constructor(td: TdClient, @ApplicationScope scope:
         while (true) {
             val now = System.currentTimeMillis() / 1000
             val expiries = all.values.mapNotNull { user ->
+                if (user.isBotOrService) return@mapNotNull null
                 (user.status as? UserStatus.Online)?.expires?.toLong()?.takeIf { it > now }?.let { user.id to it }
             }
             emit(expiries.mapTo(HashSet()) { it.first })
@@ -92,7 +95,11 @@ private fun TdApi.User.toModel() = User(
     phoneNumber = phoneNumber,
     status = status.toModel(),
     isContact = isContact,
+    isBotOrService = type is TdApi.UserTypeBot || isSupport || id == SERVICE_NOTIFICATIONS_ID,
 )
+
+/** «Telegram» — служебные уведомления (коды входа и т. п.). */
+private const val SERVICE_NOTIFICATIONS_ID = 777000L
 
 /** Запас после `expires`: статус гаснет, когда сервер его уже точно не продлил. */
 private const val EXPIRY_SLACK_MS = 500L
