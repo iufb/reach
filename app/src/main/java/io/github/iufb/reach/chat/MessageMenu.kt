@@ -1,5 +1,6 @@
 package io.github.iufb.reach.chat
 
+import androidx.annotation.StringRes
 import io.github.iufb.reach.chats.ContentKind
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.RichText
@@ -104,5 +105,6 @@ private val CAPTIONED = setOf(
 /** Итог «Установить как шрифт»: шрифт добавлен или ошибка ([message] `null` — общий текст). */
 sealed interface FontNotice {
     data class Added(val font: LocalFont) : FontNotice
-    data class Failed(val message: String?) : FontNotice
+    /** [message] — строковый ресурс с причиной; `null` — общая ошибка. */
+    data class Failed(@StringRes val message: Int?) : FontNotice
 }

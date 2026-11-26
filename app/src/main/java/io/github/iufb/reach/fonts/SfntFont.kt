@@ -1,20 +1,22 @@
 package io.github.iufb.reach.fonts
 
+import androidx.annotation.StringRes
+import io.github.iufb.reach.R
 import java.io.File
 import java.io.RandomAccessFile
 
 /** Для чего годится шрифт: основной текст или эмодзи. */
 enum class FontKind { Text, Emoji }
 
-/** Почему файл не подходит как шрифт. [message] показывается пользователю. */
-enum class FontProblem(val message: String) {
-    Empty("Файл пустой"),
-    Truncated("Файл обрезан или повреждён"),
-    Collection("Это коллекция шрифтов (.ttc), нужен отдельный .ttf или .otf"),
-    NotFont("Это не шрифт TrueType/OpenType"),
-    Sbix("Это sbix-шрифт с Mac, нужен CBDT-вариант (tools/fonts)"),
-    NoGlyphs("В шрифте нет глифов"),
-    Broken("Android не смог загрузить этот шрифт"),
+/** Почему файл не подходит как шрифт. [text] показывается пользователю, [message] — для логов. */
+enum class FontProblem(@StringRes val text: Int, val message: String) {
+    Empty(R.string.font_problem_empty, "empty file"),
+    Truncated(R.string.font_problem_truncated, "truncated or corrupted"),
+    Collection(R.string.font_problem_collection, "font collection (.ttc)"),
+    NotFont(R.string.font_problem_not_font, "not a TrueType/OpenType font"),
+    Sbix(R.string.font_problem_sbix, "sbix font"),
+    NoGlyphs(R.string.font_problem_no_glyphs, "no glyphs"),
+    Broken(R.string.font_problem_broken, "Android could not load the font"),
 }
 
 class FontImportException(val problem: FontProblem) : Exception(problem.message)

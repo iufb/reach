@@ -855,7 +855,7 @@ class ChatViewModel @Inject constructor(
             } else {
                 fontStore.import(java.io.File(path)).fold(
                     onSuccess = { FontNotice.Added(it) },
-                    onFailure = { FontNotice.Failed((it as? FontImportException)?.problem?.message) },
+                    onFailure = { FontNotice.Failed((it as? FontImportException)?.problem?.text) },
                 )
             }
         }

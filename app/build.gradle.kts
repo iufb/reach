@@ -123,10 +123,11 @@ android {
         buildConfig = true
     }
 
-    // Lint в CI ловит вызовы API новее minSdk (ADR-0004). Остальные проверки пока выключены.
+    // Lint в CI ловит вызовы API новее minSdk (ADR-0004) и строки, которых нет на одном из языков
+    // интерфейса (#405). Остальные проверки пока выключены.
     lint {
-        checkOnly += setOf("NewApi", "InlinedApi", "ObsoleteSdkInt")
-        error += setOf("NewApi", "InlinedApi")
+        checkOnly += setOf("NewApi", "InlinedApi", "ObsoleteSdkInt", "MissingTranslation", "ExtraTranslation", "MissingQuantity")
+        error += setOf("NewApi", "InlinedApi", "MissingTranslation", "ExtraTranslation", "MissingQuantity")
         warning += "ObsoleteSdkInt"
         abortOnError = true
         checkDependencies = true

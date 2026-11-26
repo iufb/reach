@@ -587,7 +587,7 @@ private fun fontToast(notice: FontNotice, onOpen: (() -> Unit)?): ChatToastData 
         actionLabel = onOpen?.let { stringResource(R.string.font_toast_open) },
         onAction = onOpen,
     )
-    is FontNotice.Failed -> ChatToastData(notice.message ?: stringResource(R.string.font_toast_failed), icon = R.drawable.ic_text)
+    is FontNotice.Failed -> ChatToastData(stringResource(notice.message ?: R.string.font_toast_failed), icon = R.drawable.ic_text)
 }
 
 /** Тост Telegram iOS под шапкой: стеклянная пилюля со значком; появляется и уходит плавно. */
