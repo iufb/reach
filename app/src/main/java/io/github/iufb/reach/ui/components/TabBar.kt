@@ -4,6 +4,7 @@ import android.graphics.RenderEffect
 import android.graphics.RuntimeShader
 import android.os.Build
 import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
 import androidx.compose.animation.core.LinearOutSlowInEasing
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
@@ -37,6 +38,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -75,7 +77,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.iufb.reach.ui.theme.ReachTheme
 import kotlinx.coroutines.coroutineScope
-import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlin.math.abs
@@ -126,6 +127,9 @@ fun ReachTabBar(
     val moving = remember { Animatable(if (enterAsGlass) 1f else 0f) }
     // Короткое затемнение заливки после остановки, как в iOS: 1 — темнее всего
     val dim = remember { Animatable(0f) }
+    // Значок выбранной вкладки при посадке линзы: сжимается и отпрыгивает обратно (#404)
+    val iconScale = remember { Animatable(1f) }
+    var bouncing by remember { mutableIntStateOf(-1) }
     var placed by remember { mutableStateOf(false) }
     // Палец, который тащит линзу: x в координатах ряда вкладок; null — не тащат
     var dragX by remember { mutableStateOf<Float?>(null) }
@@ -134,12 +138,28 @@ fun ReachTabBar(
     val currentDragSelect by rememberUpdatedState(onDragSelect)
 
     /**
+     * Посадка на вкладку [index], как на записи iOS (#404): значок за ~0,1 с сжимается и пружиной
+     * отпрыгивает обратно; в самой сжатой точке заливка коротко темнеет и за ~0,17 с светлеет.
+     * Затемнение нарастает за пару кадров, а не скачком — скачок за кадр выглядел как мигание.
+     */
+    suspend fun land(index: Int) = coroutineScope {
+        bouncing = index
+        iconScale.snapTo(1f)
+        iconScale.animateTo(ICON_SQUASH, tween(ICON_SQUASH_MS, easing = FastOutSlowInEasing))
+        launch {
+            dim.animateTo(1f, tween(FILL_DIM_IN_MS))
+            dim.animateTo(0f, tween(FILL_DIM_FADE_MS, easing = LinearOutSlowInEasing))
+        }
+        iconScale.animateTo(1f, spring(dampingRatio = ICON_DAMPING, stiffness = ICON_STIFFNESS))
+    }
+
+    /**
      * Линза едет к вкладке [target], как в Telegram iOS 26 (снято с записи экрана, 240 fps): сразу становится
      * стеклянным пузырём и едет целиком, резко замедляясь (90 % пути за ~0,1–0,15 с). Почти доехав, пузырь
      * сжимается обратно в заливку (~0,16 с) — линза ещё доползает, движение не останавливается между фазами.
-     * Через ~0,15 с после этого заливка за кадр темнеет и за ~0,17 с светлеет обратно.
+     * В это же время значок вкладки делает [land].
      */
-    suspend fun settle(target: Pair<Float, Float>, dimAfter: Boolean = true) = coroutineScope {
+    suspend fun settle(target: Pair<Float, Float>, index: Int, landAfter: Boolean = true) = coroutineScope {
         val left = target.first
         val right = target.first + target.second
         dim.snapTo(0f)
@@ -152,12 +172,8 @@ fun ReachTabBar(
             val near = target.second * GLASS_FADE_SPAN
             snapshotFlow { maxOf(abs(lensL.value - left), abs(lensR.value - right)) <= near }.first { it }
         }
+        if (travels && landAfter) launch { land(index) }
         moving.animateTo(0f, tween(LENS_SETTLE_MS))
-        if (travels && dimAfter) {
-            delay(FILL_DIM_DELAY_MS)
-            dim.snapTo(1f)
-            dim.animateTo(0f, tween(FILL_DIM_FADE_MS, easing = LinearOutSlowInEasing))
-        }
     }
 
     LaunchedEffect(selected, bounds.toList()) {
@@ -169,7 +185,7 @@ fun ReachTabBar(
             lensR.snapTo(from.first + from.second)
             placed = true
         }
-        settle(target)
+        settle(target, selected)
     }
     val anyPressed = pressed.map { it.collectIsPressedAsState().value }.any { it }
     val held by animateFloatAsState(if (anyPressed) 1f else 0f, spring(dampingRatio = 0.7f), label = "lensHeld")
@@ -270,7 +286,7 @@ fun ReachTabBar(
                             lensL.snapTo(left)
                             lensR.snapTo(left + w)
                             dragX = null
-                            if (index != currentSelected) currentDragSelect(index) else settle(bounds[index])
+                            if (index != currentSelected) currentDragSelect(index) else settle(bounds[index], index)
                         }
                     }
                 }
@@ -289,10 +305,12 @@ fun ReachTabBar(
                 },
         ) {
             // Обычный ряд — без участка под линзой: там рисуется увеличенный акцентный
+            val iconScaleOf = { index: Int -> if (index == bouncing) iconScale.value else 1f }
             TabsRow(
                 items,
                 selected,
                 colors.label,
+                iconScaleOf,
                 Modifier.drawWithContent {
                     if (lensSpan().second <= 0f) return@drawWithContent drawContent()
                     val r = lensRect(glassness(), size.height, LENS_GROW_X.toPx(), LENS_GROW_Y.toPx())
@@ -311,6 +329,7 @@ fun ReachTabBar(
                 items,
                 selected,
                 colors.accent,
+                iconScaleOf,
                 Modifier
                     .clearAndSetSemantics {}
                     .drawWithContent {
@@ -326,12 +345,16 @@ fun ReachTabBar(
     }
 }
 
-/** Ряд вкладок одного цвета; [tabModifier] навешивает на вкладку клик и замер. */
+/**
+ * Ряд вкладок одного цвета; [tabModifier] навешивает на вкладку клик и замер. [iconScale] читается
+ * только при отрисовке: анимация значка не пересобирает ряд.
+ */
 @Composable
 private fun TabsRow(
     items: List<TabItem>,
     selected: Int,
     tint: Color,
+    iconScale: (Int) -> Float,
     modifier: Modifier,
     tabModifier: (Int, Modifier) -> Modifier,
 ) {
@@ -342,7 +365,13 @@ private fun TabsRow(
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
             ) {
-                Box {
+                Box(
+                    Modifier.graphicsLayer {
+                        val s = iconScale(index)
+                        scaleX = s
+                        scaleY = s
+                    },
+                ) {
                     val image = item.image
                     if (image != null) {
                         Box(Modifier.size(26.dp).clip(CircleShape)) { image() }
@@ -420,8 +449,13 @@ private const val LENS_SETTLE_MS = 160
 /** Пузырь начинает сжиматься в заливку, когда до цели остаётся эта доля ширины вкладки. */
 private const val GLASS_FADE_SPAN = 0.15f
 /** Затемнение заливки после остановки: пауза, сила (доля чёрного) и возврат — замерено по записи iOS. */
-private const val FILL_DIM_DELAY_MS = 150L
+private const val FILL_DIM_IN_MS = 50
 private const val FILL_DIM_ALPHA = 0.08f
 private const val FILL_DIM_FADE_MS = 170
+/** Значок при посадке линзы: насколько сжимается, за сколько, и пружина обратно (запись iOS, #404). */
+private const val ICON_SQUASH = 0.8f
+private const val ICON_SQUASH_MS = 100
+private const val ICON_DAMPING = 0.45f
+private const val ICON_STIFFNESS = 700f
 private const val CAPSULE_SWELL = 0.025f
 private const val GLASS_FILL_ALPHA = 0.3f
