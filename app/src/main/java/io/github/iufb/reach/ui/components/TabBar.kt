@@ -72,7 +72,10 @@ import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.semantics.clearAndSetSemantics
 import androidx.compose.ui.semantics.selected
 import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.text.PlatformTextStyle
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.LineHeightStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.iufb.reach.ui.theme.ReachTheme
@@ -404,11 +407,18 @@ private fun Badge(count: Int, modifier: Modifier) {
             .padding(horizontal = 5.dp),
         contentAlignment = Alignment.Center,
     ) {
+        // Своя высота строки, обрезанная по глифам: общий стиль даёт строку выше кружка 18 dp,
+        // и цифра съезжала вниз
         Text(
             if (count > 99) "99+" else count.toString(),
             color = Color.White,
-            fontSize = 11.sp,
-            fontWeight = FontWeight.SemiBold,
+            style = TextStyle(
+                fontSize = 11.sp,
+                lineHeight = 11.sp,
+                fontWeight = FontWeight.SemiBold,
+                platformStyle = PlatformTextStyle(includeFontPadding = false),
+                lineHeightStyle = LineHeightStyle(LineHeightStyle.Alignment.Center, LineHeightStyle.Trim.Both),
+            ),
         )
     }
 }
