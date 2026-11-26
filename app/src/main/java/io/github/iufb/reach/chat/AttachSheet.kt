@@ -190,7 +190,13 @@ internal fun AttachSheet(actions: AttachActions, onDismiss: () -> Unit) {
     LaunchedEffect(closing) { if (closing) camera.close() }
     DisposableEffect(camera) { onDispose { camera.close() } }
     val openCamera = {
-        if (cameraGranted) cameraFull = true else requestCamera.launch(Manifest.permission.CAMERA)
+        if (cameraGranted) {
+            // Стоп-кадр берём до перехода: иначе ячейка на кадр чернеет, пока камера переключается
+            camera.freeze()
+            cameraFull = true
+        } else {
+            requestCamera.launch(Manifest.permission.CAMERA)
+        }
     }
     val cameraCell: @Composable (Modifier) -> Unit = { modifier ->
         CameraCell(

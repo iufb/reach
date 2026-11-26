@@ -89,6 +89,11 @@ class PhotoCamera(private val context: Context) {
         private set
 
     private var shownView: PreviewView? = null
+
+    /** Запомнить текущий кадр заранее — до того, как превью уйдёт с экрана (тап по ячейке). */
+    fun freeze() {
+        frozen = shownView?.bitmap ?: frozen
+    }
     private val streaming = Observer<PreviewView.StreamState> { state ->
         if (state == PreviewView.StreamState.STREAMING) frozen = null
     }
