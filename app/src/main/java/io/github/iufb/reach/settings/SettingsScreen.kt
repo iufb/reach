@@ -95,7 +95,7 @@ fun SettingsScreen(
     val loggingOut by viewModel.loggingOut.collectAsStateWithLifecycle()
     val textFont by viewModel.textFont.collectAsStateWithLifecycle()
     val context = LocalContext.current
-    val language = languageName(remember(context) { AppLanguages.current(context) })
+    val language = languageName(remember(context, AppLanguages.revision.intValue) { AppLanguages.current(context) })
     val snackbar = remember { SnackbarHostState() }
     LaunchedEffect(viewModel) { viewModel.errors.collect { snackbar.showSnackbar(it) } }
     var photoSheet by rememberSaveable { mutableStateOf(false) }

@@ -41,7 +41,8 @@ import io.github.iufb.reach.ui.theme.ReachTheme
 fun LanguageScreen(onBack: () -> Unit) {
     val context = LocalContext.current
     val activity = LocalActivity.current
-    val current = remember { AppLanguages.current(context) }
+    // Галочка переезжает, когда язык применён (#430)
+    val current = remember(AppLanguages.revision.intValue) { AppLanguages.current(context) }
     val colors = ReachTheme.colors
     GlassScope {
         Box(Modifier.fillMaxSize().background(colors.groupedBackground)) {

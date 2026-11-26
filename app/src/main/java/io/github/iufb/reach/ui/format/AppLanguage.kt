@@ -7,6 +7,12 @@ import android.content.res.Configuration
 import android.content.res.Resources
 import android.os.Build
 import android.os.LocaleList
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import java.util.Locale
 
 /**
@@ -19,8 +25,14 @@ enum class AppLanguage(val tag: String?) {
     Russian("ru"),
 }
 
-/** Локаль интерфейса сейчас: дат, чисел, заглавных букв. Только русская или английская. */
-val AppLocale: Locale get() = interfaceLocale(Locale.getDefault())
+/**
+ * Локаль интерфейса сейчас: дат, чисел, заглавных букв. Только русская или английская.
+ * Читает [AppLanguages.revision]: композиция, отформатировавшая дату, перерисуется при смене языка.
+ */
+val AppLocale: Locale get() {
+    AppLanguages.revision.intValue
+    return interfaceLocale(Locale.getDefault())
+}
 
 private val RU: Locale = Locale.forLanguageTag("ru")
 private val EN: Locale = Locale.forLanguageTag("en")
@@ -29,11 +41,21 @@ private fun interfaceLocale(locale: Locale): Locale = if (locale.language == RU.
 
 /**
  * Где хранится выбранный язык. С Android 13 — «Язык приложения» в системе ([LocaleManager]): система
- * сама применяет его к конфигурации и к `Locale.getDefault()` и пересоздаёт активити. На Android 12
- * его нет — язык лежит в своих настройках, конфигурацию активити подменяет
- * [withInterfaceLanguage], а приложения — [applyAtStartup].
+ * сама применяет его к конфигурации и к `Locale.getDefault()`. На Android 12 его нет — язык лежит в
+ * своих настройках, конфигурацию активити подменяет [withInterfaceLanguage], а приложения — [applyAtStartup].
+ *
+ * Активити при смене языка не пересоздаётся (`configChanges="locale|layoutDirection"`, #430): строки
+ * меняются на месте, когда растёт [revision].
  */
 object AppLanguages {
+
+    /** Растёт при каждой смене языка; корень Compose и [AppLocale] читают его, чтобы перерисоваться. */
+    val revision = mutableIntStateOf(0)
+
+    /** Язык применён к ресурсам: перерисовать интерфейс. */
+    fun changed() {
+        revision.intValue++
+    }
 
     fun current(context: Context): AppLanguage {
         val tag = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -44,7 +66,10 @@ object AppLanguages {
         return AppLanguage.entries.firstOrNull { it.tag != null && it.tag == tag } ?: AppLanguage.System
     }
 
-    /** Выбрать язык; активити пересоздаётся на нём. */
+    /**
+     * Выбрать язык без пересоздания активити. С Android 13 система пришлёт активити новую конфигурацию
+     * (`onConfigurationChanged` → [changed]); на Android 12 ресурсы обновляются здесь же.
+     */
     fun set(activity: Activity, language: AppLanguage) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             val locales = language.tag?.let(LocaleList::forLanguageTags) ?: LocaleList.getEmptyLocaleList()
@@ -52,8 +77,18 @@ object AppLanguages {
             return
         }
         prefs(activity).edit().apply { if (language.tag == null) remove(KEY) else putString(KEY, language.tag) }.apply()
+        reapplyLegacy(activity)
+    }
+
+    /**
+     * Android 12: выбранный язык — в ресурсы приложения и активити, затем перерисовка. Зовётся и при
+     * смене языка системы: иначе она перебьёт выбранный в приложении.
+     */
+    fun reapplyLegacy(activity: Activity) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) return
         applyAtStartup(activity.applicationContext)
-        activity.recreate()
+        activity.resources.setLocale(legacyLocale(activity))
+        changed()
     }
 
     /**
@@ -64,10 +99,13 @@ object AppLanguages {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) return
         val locale = legacyLocale(context)
         Locale.setDefault(locale)
-        val resources = context.resources
-        val config = Configuration(resources.configuration).apply { setLocales(LocaleList(locale)) }
+        context.resources.setLocale(locale)
+    }
+
+    private fun Resources.setLocale(locale: Locale) {
+        val config = Configuration(configuration).apply { setLocales(LocaleList(locale)) }
         @Suppress("DEPRECATION")
-        resources.updateConfiguration(config, resources.displayMetrics)
+        updateConfiguration(config, displayMetrics)
     }
 
     /** Android 12: выбранный язык или язык системы. */
@@ -89,4 +127,23 @@ fun Context.withInterfaceLanguage(): Context {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) return this
     val config = Configuration(resources.configuration).apply { setLocales(LocaleList(AppLanguages.legacyLocale(this@withInterfaceLanguage))) }
     return createConfigurationContext(config)
+}
+
+/**
+ * Корень интерфейса на выбранном языке. При смене языка ([AppLanguages.revision]) отдаёт новую
+ * [LocalConfiguration]: `stringResource` и `pluralStringResource` читают её и перерисовываются
+ * на месте, без пересоздания активити (#430). На Android 12 в ней ещё и подменяется локаль: система
+ * о выбранном в приложении языке не знает.
+ */
+@Composable
+fun InterfaceLanguage(content: @Composable () -> Unit) {
+    val revision = AppLanguages.revision.intValue
+    val context = LocalContext.current
+    val base = LocalConfiguration.current
+    val configuration = remember(base, revision) {
+        Configuration(base).apply {
+            if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) setLocales(LocaleList(AppLanguages.legacyLocale(context)))
+        }
+    }
+    CompositionLocalProvider(LocalConfiguration provides configuration, content = content)
 }
