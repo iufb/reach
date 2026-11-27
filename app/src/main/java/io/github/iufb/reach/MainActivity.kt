@@ -5,7 +5,13 @@ import android.content.Context
 import android.content.res.Configuration
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.app.NotificationManager
+import android.net.Uri
 import android.os.Build
+import android.provider.Settings
+import androidx.core.content.edit
+import io.github.iufb.reach.ui.components.IosAlert
+import io.github.iufb.reach.ui.components.SheetAction
 import android.os.Bundle
 import android.os.SystemClock
 import android.view.View
@@ -21,6 +27,11 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import io.github.iufb.reach.calls.CallManager
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import io.github.iufb.reach.auth.AuthState
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.first
@@ -69,6 +80,8 @@ class MainActivity : ComponentActivity() {
     /** Тап по уведомлению звонка: открыть экран звонка (#409). */
     private val openCallRequest = MutableStateFlow(false)
 
+    @Inject lateinit var calls: CallManager
+
     @Inject lateinit var interfaceFonts: InterfaceFonts
 
     override fun attachBaseContext(newBase: Context) {
@@ -89,8 +102,9 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) {
             openChatRequest.value = intent.chatIdExtra()
             openLinkRequest.value = intent.linkData()
-            openCallRequest.value = intent.action == ACTION_OPEN_CALL
+            handleCallIntent(intent)
         }
+        showOverLockScreenDuringCalls()
         enableEdgeToEdge()
         setContent {
             InterfaceLanguage {
@@ -186,7 +200,30 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         intent.chatIdExtra()?.let { openChatRequest.value = it }
         intent.linkData()?.let { openLinkRequest.value = it }
-        if (intent.action == ACTION_OPEN_CALL) openCallRequest.value = true
+        handleCallIntent(intent)
+    }
+
+    /** Тап по уведомлению звонка или «Ответить» в нём (#410). Без микрофона ответ — с экрана звонка. */
+    private fun handleCallIntent(intent: Intent) {
+        when (intent.action) {
+            ACTION_OPEN_CALL -> openCallRequest.value = true
+            ACTION_ANSWER_CALL -> {
+                if (ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+                    calls.accept()
+                }
+                openCallRequest.value = true
+            }
+        }
+    }
+
+    /** Пока есть звонок, экран звонка виден поверх блокировки и будит экран (full-screen intent входящего). */
+    private fun showOverLockScreenDuringCalls() {
+        lifecycleScope.launch {
+            calls.call.map { it != null && !it.isEnded }.distinctUntilChanged().collect { active ->
+                setShowWhenLocked(active)
+                setTurnScreenOn(active)
+            }
+        }
     }
 
     private fun Intent.linkData(): String? = data?.takeIf { action == Intent.ACTION_VIEW }?.toString()
@@ -199,6 +236,9 @@ class MainActivity : ComponentActivity() {
 
         /** Открыть экран текущего звонка: тап по уведомлению звонка. */
         const val ACTION_OPEN_CALL = "io.github.iufb.reach.action.OPEN_CALL"
+
+        /** «Ответить» во входящем уведомлении. */
+        const val ACTION_ANSWER_CALL = "io.github.iufb.reach.action.ANSWER_CALL"
 
         private const val SPLASH_MAX_HOLD_MS = 2_000L
         private const val SPLASH_ICON_MS = 800L
@@ -219,7 +259,10 @@ private fun ReachRoot(
     viewModel: AppViewModel = hiltViewModel(),
 ) {
     val authState by viewModel.authState.collectAsStateWithLifecycle()
-    if (authState == AuthState.Ready) NotificationPermissionRequest()
+    if (authState == AuthState.Ready) {
+        NotificationPermissionRequest()
+        FullScreenIntentRequest()
+    }
     ReachNavHost(authState, openChatId, onOpenChatHandled, openLink, onOpenLinkHandled, openCall, onOpenCallHandled)
 }
 
@@ -240,6 +283,45 @@ private fun NotificationPermissionRequest() {
         }
     }
 }
+
+/**
+ * Android 14+: экран входящего звонка поверх блокировки (full-screen intent) вне Google Play
+ * может быть выключен. Один раз предлагаем включить в настройках (#410).
+ */
+@Composable
+private fun FullScreenIntentRequest() {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.UPSIDE_DOWN_CAKE) return
+    val context = LocalContext.current
+    var show by rememberSaveable {
+        val prefs = context.getSharedPreferences(CALL_PREFS, Context.MODE_PRIVATE)
+        val allowed = context.getSystemService(NotificationManager::class.java).canUseFullScreenIntent()
+        mutableStateOf(!allowed && !prefs.getBoolean(KEY_FSI_ASKED, false))
+    }
+    if (!show) return
+    val close = {
+        show = false
+        context.getSharedPreferences(CALL_PREFS, Context.MODE_PRIVATE).edit { putBoolean(KEY_FSI_ASKED, true) }
+    }
+    IosAlert(
+        title = stringResource(R.string.call_fullscreen_title),
+        message = stringResource(R.string.call_fullscreen_text),
+        onDismiss = close,
+        buttons = listOf(
+            SheetAction(stringResource(R.string.call_fullscreen_later)) { close() },
+            SheetAction(stringResource(R.string.call_fullscreen_open), bold = true) {
+                close()
+                runCatching {
+                    context.startActivity(
+                        Intent(Settings.ACTION_MANAGE_APP_USE_FULL_SCREEN_INTENT, Uri.parse("package:${context.packageName}")),
+                    )
+                }
+            },
+        ),
+    )
+}
+
+private const val CALL_PREFS = "calls"
+private const val KEY_FSI_ASKED = "full_screen_intent_asked"
 
 /** Ключи пробрасываются из GitHub Secrets только при сборке в CI (ADR-0003). */
 private fun hasApiCredentials(): Boolean = BuildConfig.TD_API_ID != 0 && BuildConfig.TD_API_HASH.isNotEmpty()

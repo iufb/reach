@@ -29,6 +29,7 @@
     uv run scripts/peer.py history +77007654321 -n 5            # id сообщений для edit/react/...
     uv run scripts/peer.py react +77007654321 42 👍
     uv run scripts/peer.py group "Тест" +77007654321
+    uv run scripts/peer.py call +77007654321 --hold 15        # входящий звонок агенту (без звука)
 
 Собеседник-бот (если второго номера нет): создать бота у @BotFather в тестовом аккаунте и
 положить токен в peer.env как PEER_BOT_TOKEN=... Тогда команды идут от бота (или явно --bot):
@@ -132,6 +133,70 @@ async def peer(client: TelegramClient, ref: str):
     return await client.get_entity(ref)
 
 
+async def place_call(client: TelegramClient, user, hold: int, ring: int) -> None:
+    """
+    Звонок агенту только на уровне сигнализации (#410): Диффи — Хеллман, requestCall → ждём ответа →
+    confirmCall → держим `hold` секунд → discardCall. Звука нет: у Reach после ответа будут ключи, эмодзи
+    и запуск tgcalls, но соединение не установится. Не ответили за `ring` секунд — сбрасываем.
+    """
+    import hashlib
+    import secrets
+    from telethon import events
+
+    dh = await client(functions.messages.GetDhConfigRequest(version=0, random_length=256))
+    p, g = int.from_bytes(dh.p, "big"), dh.g
+    a = int.from_bytes(secrets.token_bytes(256), "big") % p
+    g_a = pow(g, a, p).to_bytes(256, "big")
+    protocol = types.PhoneCallProtocol(min_layer=65, max_layer=92, udp_p2p=True, udp_reflector=True,
+                                       library_versions=["11.0.0", "13.0.0"])
+    events_q: asyncio.Queue = asyncio.Queue()
+
+    async def on_update(update):
+        if isinstance(update, types.UpdatePhoneCall):
+            await events_q.put(update.phone_call)
+
+    client.add_event_handler(on_update, events.Raw(types.UpdatePhoneCall))
+    result = await client(functions.phone.RequestCallRequest(
+        user_id=user, random_id=secrets.randbits(31), g_a_hash=hashlib.sha256(g_a).digest(), protocol=protocol))
+    call = result.phone_call
+    ref = types.InputPhoneCall(id=call.id, access_hash=call.access_hash)
+    print(f"звоним: call id={call.id}")
+
+    async def next_state(timeout):
+        while True:
+            state = await asyncio.wait_for(events_q.get(), timeout)
+            if getattr(state, "id", call.id) == call.id:
+                return state
+
+    try:
+        state = await next_state(ring)
+        while isinstance(state, (types.PhoneCallWaiting, types.PhoneCallRequested)):
+            print(f"{type(state).__name__}: у агента звонит")
+            state = await next_state(ring)
+    except asyncio.TimeoutError:
+        await client(functions.phone.DiscardCallRequest(peer=ref, duration=0, reason=types.PhoneCallDiscardReasonMissed(), connection_id=0))
+        print("не ответили — сброшено (missed)")
+        return
+    if isinstance(state, types.PhoneCallDiscarded):
+        print(f"агент отклонил: {type(state.reason).__name__ if state.reason else '-'}")
+        return
+    if not isinstance(state, types.PhoneCallAccepted):
+        print(f"неожиданно: {type(state).__name__}")
+        return
+    key = pow(int.from_bytes(state.g_b, "big"), a, p).to_bytes(256, "big")
+    fingerprint = int.from_bytes(hashlib.sha1(key).digest()[-8:], "little", signed=True)
+    await client(functions.phone.ConfirmCallRequest(peer=ref, g_a=g_a, key_fingerprint=fingerprint, protocol=protocol))
+    print(f"агент ответил, ключ подтверждён; держим {hold} с")
+    try:
+        state = await next_state(hold)
+        while not isinstance(state, types.PhoneCallDiscarded):
+            state = await next_state(hold)
+        print(f"агент положил трубку: {type(state.reason).__name__ if state.reason else '-'}")
+    except asyncio.TimeoutError:
+        await client(functions.phone.DiscardCallRequest(peer=ref, duration=hold, reason=types.PhoneCallDiscardReasonHangup(), connection_id=0))
+        print("положили трубку")
+
+
 def describe(m) -> str:
     kind = type(m.media).__name__.removeprefix("MessageMedia") if m.media else ""
     text = (m.message or "").replace("\n", " ")[:60]
@@ -179,7 +244,7 @@ async def run_bot(args) -> None:
 
 
 # Методы, которые Telegram не даёт ботам
-BOT_UNSUPPORTED = {"contact", "group", "supergroup", "channel", "read", "chats", "history"}
+BOT_UNSUPPORTED = {"contact", "group", "supergroup", "channel", "read", "chats", "history", "call"}
 
 
 async def dispatch(client: TelegramClient, a) -> None:
@@ -234,6 +299,8 @@ async def dispatch(client: TelegramClient, a) -> None:
         await asyncio.sleep(a.seconds)
         await client(functions.account.UpdateStatusRequest(offline=True))
         print("не в сети")
+    elif c == "call":
+        await place_call(client, await peer(client, a.peer), a.hold, a.ring)
     elif c == "config":
         from telethon.tl.functions.help import GetConfigRequest
         cfg = await client(GetConfigRequest())
@@ -335,6 +402,9 @@ def main() -> None:
     s = sub.add_parser("admin"); s.add_argument("chat"); s.add_argument("user"); s.add_argument("--title")
     s = sub.add_parser("invite", help="новая ссылка-приглашение"); s.add_argument("chat"); s.add_argument("--title")
     s = sub.add_parser("topic", help="тема в форуме"); s.add_argument("chat"); s.add_argument("title")
+    s = sub.add_parser("call", help="позвонить агенту (только сигнализация, без звука)")
+    s.add_argument("peer"); s.add_argument("--hold", type=int, default=15, help="сколько держать после ответа, с")
+    s.add_argument("--ring", type=int, default=40, help="сколько ждать ответа, с")
 
     asyncio.run(run(p.parse_args()))
 

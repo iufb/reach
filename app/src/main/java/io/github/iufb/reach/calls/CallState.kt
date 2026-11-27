@@ -2,6 +2,9 @@ package io.github.iufb.reach.calls
 
 /** Этап звонка для экрана: из `updateCall` TDLib и состояния соединения tgcalls. */
 sealed interface CallPhase {
+    /** Входящий: звонит у нас, ждём «Ответить» / «Отклонить» (#410). */
+    data object Incoming : CallPhase
+
     /** `createCall` отправлен, сервер ещё не создал звонок. */
     data object Requesting : CallPhase
 

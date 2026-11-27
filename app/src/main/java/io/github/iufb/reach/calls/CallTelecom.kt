@@ -49,7 +49,14 @@ class CallTelecom @Inject constructor(@ApplicationContext private val context: C
 
     /** Регистрирует звонок; [onSystemDisconnect] — система завершила его сама (другой звонок, гарнитура). */
     @SuppressLint("MissingPermission") // MANAGE_OWN_CALLS — обычное разрешение из манифеста core-telecom
-    fun start(scope: CoroutineScope, name: String, userId: Long, outgoing: Boolean, onSystemDisconnect: () -> Unit) {
+    fun start(
+        scope: CoroutineScope,
+        name: String,
+        userId: Long,
+        outgoing: Boolean,
+        onSystemDisconnect: () -> Unit,
+        onSystemAnswer: () -> Unit = {},
+    ) {
         stop()
         job = scope.launch {
             try {
@@ -65,7 +72,7 @@ class CallTelecom @Inject constructor(@ApplicationContext private val context: C
                 )
                 calls.addCall(
                     attributes,
-                    onAnswer = {},
+                    onAnswer = { onSystemAnswer() }, // гарнитура, часы, авто
                     onDisconnect = { onSystemDisconnect() },
                     onSetActive = {},
                     onSetInactive = {},
@@ -93,6 +100,14 @@ class CallTelecom @Inject constructor(@ApplicationContext private val context: C
     fun setActive(scope: CoroutineScope) {
         val control = control ?: return
         scope.launch { runCatching { control.setActive() }.onFailure { Log.w(TAG, "setActive", it) } }
+    }
+
+    /** Ответили на входящий в приложении: сообщить системе. */
+    fun answer(scope: CoroutineScope) {
+        val control = control ?: return
+        scope.launch {
+            runCatching { control.answer(CallAttributesCompat.CALL_TYPE_AUDIO_CALL) }.onFailure { Log.w(TAG, "answer", it) }
+        }
     }
 
     /** Переключает динамик ↔ наушник (или Bluetooth / провод, если подключены). */

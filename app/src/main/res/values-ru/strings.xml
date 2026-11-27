@@ -873,4 +873,12 @@
     <string name="call_video_soon">Видеозвонки скоро появятся</string>
     <string name="notification_channel_calls_ongoing">Текущие звонки</string>
     <string name="profile_action_call">звонок</string>
+    <string name="call_status_incoming">Входящий звонок</string>
+    <string name="call_accept">принять</string>
+    <string name="call_decline">отклонить</string>
+    <string name="notification_channel_calls_incoming">Входящие звонки</string>
+    <string name="call_fullscreen_title">Показ входящих звонков</string>
+    <string name="call_fullscreen_text">Разрешите Reach показывать входящий звонок на весь экран, в том числе поверх блокировки.</string>
+    <string name="call_fullscreen_open">Настройки</string>
+    <string name="call_fullscreen_later">Не сейчас</string>
 </resources>

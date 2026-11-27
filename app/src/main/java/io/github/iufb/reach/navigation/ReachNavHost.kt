@@ -44,6 +44,7 @@ import io.github.iufb.reach.auth.PhoneScreen
 import io.github.iufb.reach.auth.RegistrationScreen
 import io.github.iufb.reach.auth.UnsupportedAuthScreen
 import io.github.iufb.reach.calls.CallBar
+import io.github.iufb.reach.calls.CallPhase
 import io.github.iufb.reach.calls.CallScreen
 import io.github.iufb.reach.calls.CallViewModel
 import io.github.iufb.reach.chat.ChatScreen
@@ -330,6 +331,11 @@ fun ReachNavHost(
         }
     }
     LaunchedEffect(authState) { navController.syncWith(authState) }
+    // Входящий, пока приложение на экране: сразу экран вызова (#410)
+    val incomingId = call?.takeIf { it.phase == CallPhase.Incoming }?.callId
+    LaunchedEffect(incomingId, authState) {
+        if (incomingId != null && authState == AuthState.Ready) navController.navigate(CallRoute) { launchSingleTop = true }
+    }
     // Тап по уведомлению звонка
     LaunchedEffect(openCall, authState, call != null) {
         if (openCall && authState == AuthState.Ready) {
