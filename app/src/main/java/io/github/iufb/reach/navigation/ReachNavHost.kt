@@ -253,6 +253,7 @@ fun ReachNavHost(
                         val forwardedTo by entry.savedStateHandle.getStateFlow<String?>(FORWARDED_TO_KEY, null).collectAsStateWithLifecycle()
                         ChatScreen(
                             forwardedTo = forwardedTo,
+                            onOpenCall = { navController.navigate(CallRoute) { launchSingleTop = true } },
                             onForwardedShown = { entry.savedStateHandle[FORWARDED_TO_KEY] = null },
                             onBack = { navController.popBackStack() },
                             onForward = { from, ids -> navController.navigate(ForwardRoute(from, ids)) },

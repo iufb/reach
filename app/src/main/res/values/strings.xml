@@ -836,4 +836,18 @@
     <string name="call_fullscreen_text">Allow Reach to show incoming calls on the full screen, including over the lock screen.</string>
     <string name="call_fullscreen_open">Settings</string>
     <string name="call_fullscreen_later">Not now</string>
+    <string name="call_message_outgoing">Outgoing Call</string>
+    <string name="call_message_incoming">Incoming Call</string>
+    <string name="call_message_missed">Missed Call</string>
+    <string name="call_message_cancelled">Cancelled Call</string>
+    <string name="call_message_declined">Declined Call</string>
+    <string name="call_message_video">Video Call</string>
+    <string name="call_message_outgoing_video">Outgoing Video Call</string>
+    <string name="call_message_incoming_video">Incoming Video Call</string>
+    <string name="call_message_missed_video">Missed Video Call</string>
+    <string name="call_message_cancelled_video">Cancelled Video Call</string>
+    <string name="call_message_declined_video">Declined Video Call</string>
+    <string name="call_back_action">Call back</string>
+    <string name="call_duration_min">%1$d min</string>
+    <string name="call_duration_sec">%1$d sec</string>
 </resources>

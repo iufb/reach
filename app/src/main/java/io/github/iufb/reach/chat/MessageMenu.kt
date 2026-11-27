@@ -56,6 +56,7 @@ internal fun MessageBody.copyableText(): String? = when (this) {
     is MessageBody.Audio -> caption.text.ifBlank { null }
     is MessageBody.Document -> caption.text.ifBlank { null }
     is MessageBody.Service -> null
+    is MessageBody.Call -> null
 }
 
 /** [properties] `null` — запрос не удался: показываем только то, что не требует прав сервера. */
@@ -94,6 +95,7 @@ internal fun MessageBody.editableText(): RichText? = when (this) {
     is MessageBody.Audio -> caption
     is MessageBody.Document -> caption
     is MessageBody.Service -> null
+    is MessageBody.Call -> null
 }
 
 /** Типы медиа, у которых есть подпись. */

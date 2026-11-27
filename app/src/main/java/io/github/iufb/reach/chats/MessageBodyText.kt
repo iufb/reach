@@ -124,5 +124,21 @@ inline fun summarize(body: MessageBody, string: (Int) -> String): String {
         )
         is MessageBody.Sticker -> joinParts(body.sticker.emoji, string(ContentKind.Sticker.labelRes()))
         is MessageBody.Service -> string(body.kind.labelRes())
+        is MessageBody.Call -> string(callTitleRes(body, isOutgoing = null))
     }
+}
+
+/**
+ * Заголовок звонка как в Telegram iOS (#412). [isOutgoing] `null` — направление неизвестно (превью без сообщения).
+ * Не дозвонились сами — «Отменённый», не ответили нам — «Пропущенный», отклонили — «Отклонённый».
+ */
+fun callTitleRes(call: MessageBody.Call, isOutgoing: Boolean?): Int = when {
+    call.outcome == CallOutcome.Ended || call.duration > 0 -> when (isOutgoing) {
+        true -> if (call.isVideo) R.string.call_message_outgoing_video else R.string.call_message_outgoing
+        false -> if (call.isVideo) R.string.call_message_incoming_video else R.string.call_message_incoming
+        null -> if (call.isVideo) R.string.call_message_video else R.string.content_call
+    }
+    isOutgoing == true -> if (call.isVideo) R.string.call_message_cancelled_video else R.string.call_message_cancelled
+    call.outcome == CallOutcome.Declined -> if (call.isVideo) R.string.call_message_declined_video else R.string.call_message_declined
+    else -> if (call.isVideo) R.string.call_message_missed_video else R.string.call_message_missed
 }

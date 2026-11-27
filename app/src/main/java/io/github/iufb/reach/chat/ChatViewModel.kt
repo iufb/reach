@@ -235,6 +235,25 @@ class ChatViewModel @Inject constructor(
 
     private val memberCount = MutableStateFlow(0)
 
+    private val _canCall = MutableStateFlow(false)
+
+    /** Личный чат с тем, кому можно позвонить (`userFullInfo.canBeCalled`): трубка в шапке (#412). */
+    val canCall: StateFlow<Boolean> = _canCall.asStateFlow()
+
+    /** Собеседник личного чата для звонка; `null` — не личный чат или «Избранное». */
+    val callUserId: Long? get() = chat.value?.takeUnless { it.isSavedMessages }?.userId
+
+    private fun watchCallability() {
+        viewModelScope.launch {
+            val opened = chat.first { it != null } ?: return@launch
+            val userId = opened.userId?.takeUnless { opened.isSavedMessages } ?: return@launch
+            _canCall.value = runCatching { td.send(TdApi.GetUserFullInfo(userId)).canBeCalled }.getOrDefault(false)
+            td.updates.collect { update ->
+                if (update is TdApi.UpdateUserFullInfo && update.userId == userId) _canCall.value = update.userFullInfo.canBeCalled
+            }
+        }
+    }
+
     /** Подпись под названием: действия, статус собеседника или участники группы. */
     val header: StateFlow<HeaderInfo> = combine(
         chat, users.users, presence.activities, presence.online, memberCount,
@@ -274,6 +293,7 @@ class ChatViewModel @Inject constructor(
     private val visibleMessageIds = MutableStateFlow<List<Long>>(emptyList())
 
     init {
+        watchCallability()
         // UNDISPATCHED: подписка на апдейты раньше, чем уйдёт первый getChatHistory
         viewModelScope.launch(start = CoroutineStart.UNDISPATCHED) { history.followUpdates() }
         viewModelScope.launch { reportViewedMessages() }

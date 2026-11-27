@@ -98,6 +98,7 @@ import androidx.hilt.lifecycle.viewmodel.compose.hiltViewModel
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import io.github.iufb.reach.R
+import io.github.iufb.reach.calls.rememberStartCall
 import io.github.iufb.reach.chats.Chat
 import io.github.iufb.reach.chats.ChatAvatar
 import io.github.iufb.reach.chats.chatTitle
@@ -159,8 +160,13 @@ fun ChatScreen(
     onForwardedShown: () -> Unit = {},
     /** Настройки → Шрифт: действие «Открыть» в тосте о добавленном шрифте; `null` — без действия. */
     onOpenFontSettings: (() -> Unit)? = null,
+    /** Начат звонок (трубка в шапке, «перезвонить» в истории) — открыть его экран (#412). */
+    onOpenCall: () -> Unit = {},
     viewModel: ChatViewModel = hiltViewModel(),
 ) {
+    val canCall by viewModel.canCall.collectAsStateWithLifecycle()
+    val startCall = rememberStartCall(onStarted = onOpenCall)
+    val callBack = { viewModel.callUserId?.let(startCall) ?: Unit }
     LaunchedEffect(forwardedTo) {
         if (forwardedTo != null) {
             delay(TOAST_MS)
@@ -314,6 +320,7 @@ fun ChatScreen(
             header = header,
             onOpenProfile = { chat?.let { onOpenProfile(it.id) } },
             onOpenScheduled = { chat?.let { onOpenScheduled(it.id) } },
+            onCall = if (canCall) callBack else null,
             scopeTitle = when (viewModel.scope) {
                 ChatScope.Whole -> null
                 is ChatScope.Thread -> stringResource(R.string.comments_title)
@@ -400,6 +407,7 @@ fun ChatScreen(
             },
             interactions = MessageInteractions(
                 menu = menu,
+                onCallBack = { callBack() },
                 onOpenMenu = viewModel::openMenu,
                 onDismissMenu = viewModel::closeMenu,
                 onReact = viewModel::toggleReaction,
@@ -463,6 +471,8 @@ private fun ChatContent(
     onOpenProfile: () -> Unit,
     /** Значок отложенных в шапке, пока они есть. */
     onOpenScheduled: () -> Unit = {},
+    /** Трубка в шапке личного чата; `null` — звонить нельзя. */
+    onCall: (() -> Unit)? = null,
     /** Тред или топик: заголовок вместо названия чата; `null` — открыт весь чат. */
     scopeTitle: String? = null,
     /** Пост, к которому комментарии: над самым старым комментарием. */
@@ -539,7 +549,7 @@ private fun ChatContent(
                     // Режим выбора — своя шапка поверх ленты
                     SelectionTopBar(selectionBar)
                 } else {
-                    ChatTopBar(chat, header, senders, scopeTitle, onBack, onOpenProfile, onOpenScheduled)
+                    ChatTopBar(chat, header, senders, scopeTitle, onBack, onOpenProfile, onOpenScheduled, onCall)
                 }
                 if (pinned != null) PinnedBar(pinned, onPinnedClick)
                 NowPlayingBar()
@@ -660,6 +670,7 @@ private fun ChatTopBar(
     onBack: () -> Unit,
     onOpenProfile: () -> Unit,
     onOpenScheduled: () -> Unit,
+    onCall: (() -> Unit)?,
 ) {
     val title = when {
         chat == null -> null
@@ -687,6 +698,15 @@ private fun ChatTopBar(
                     painterResource(R.drawable.ic_schedule),
                     stringResource(R.string.scheduled_title),
                     onOpenScheduled,
+                    tint = ReachTheme.colors.accent,
+                )
+                Spacer(Modifier.width(8.dp))
+            }
+            if (onCall != null && scopeTitle == null) {
+                PillIconButton(
+                    painterResource(R.drawable.ic_call),
+                    stringResource(R.string.profile_action_call),
+                    onCall,
                     tint = ReachTheme.colors.accent,
                 )
                 Spacer(Modifier.width(8.dp))
@@ -752,6 +772,8 @@ internal class MessageInteractions(
     val onScrolledToTarget: () -> Unit,
     /** Тап по стикеру: название пака. */
     val onStickerClick: (StickerInfo) -> Unit = {},
+    /** «Перезвонить» в пузыре звонка (#412). */
+    val onCallBack: () -> Unit = {},
     /** Что играет в аудиоплеере (только этот чат). */
     val audio: AudioState = AudioState(),
     val onAudioToggle: (Message) -> Unit = {},
@@ -1663,6 +1685,12 @@ private fun MessageContent(
             body.poll,
             onVote = { ids -> if (interactions.selection.isEmpty()) interactions.onVote(message, ids) },
             onShowVoters = { option -> interactions.onShowVoters(message, option) },
+            modifier = Modifier.messageLongPress(message, interactions),
+        )
+        is MessageBody.Call -> CallMessageView(
+            body,
+            isOutgoing = message.isOutgoing,
+            onCallBack = { if (interactions.selection.isEmpty()) interactions.onCallBack() },
             modifier = Modifier.messageLongPress(message, interactions),
         )
         is MessageBody.Unsupported -> {

@@ -1,11 +1,6 @@
 package io.github.iufb.reach.profile
 
-import android.Manifest
-import android.content.pm.PackageManager
-import android.widget.Toast
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.core.content.ContextCompat
+import io.github.iufb.reach.calls.rememberStartCall
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.animation.core.animateFloatAsState
@@ -134,20 +129,9 @@ fun ProfileScreen(
     LaunchedEffect(gallery) { gallery.openFile.collect { openFile(context, it) } }
 
     val profile by viewModel.profile.collectAsStateWithLifecycle()
-    // Звонок: сначала микрофон, без него tgcalls не запустить
-    val startCall = {
-        viewModel.call()
-        onOpenCall()
-    }
-    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
-        if (granted) startCall() else Toast.makeText(context, R.string.call_mic_permission, Toast.LENGTH_SHORT).show()
-    }
-    val onCall = {
-        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
-            startCall()
-        } else {
-            micPermission.launch(Manifest.permission.RECORD_AUDIO)
-        }
+    // Звонок: сначала микрофон, потом экран звонка (#409)
+    val startCall = rememberStartCall(onStarted = onOpenCall)
+    val onCall = { viewModel.userId?.let(startCall) ?: Unit }
     }
     val counts by gallery.counts.collectAsStateWithLifecycle()
     val pages by gallery.pages.collectAsStateWithLifecycle()
