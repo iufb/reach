@@ -132,7 +132,6 @@ fun ProfileScreen(
     // Звонок: сначала микрофон, потом экран звонка (#409)
     val startCall = rememberStartCall(onStarted = onOpenCall)
     val onCall = { viewModel.userId?.let(startCall) ?: Unit }
-    }
     val counts by gallery.counts.collectAsStateWithLifecycle()
     val pages by gallery.pages.collectAsStateWithLifecycle()
     val downloads by gallery.downloads.collectAsStateWithLifecycle()
