@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -246,7 +245,7 @@ private fun VideoPlayback(video: VideoInfo, gif: Boolean) {
         }
         when {
             failed -> Text(stringResource(R.string.video_play_error), color = Color.White)
-            buffering -> CircularProgressIndicator(color = Color.White)
+            buffering -> MediaProgress(progress = null)
         }
         if (controls && !gif) {
             Row(

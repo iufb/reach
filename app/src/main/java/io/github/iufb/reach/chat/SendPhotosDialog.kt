@@ -33,6 +33,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.SolidColor
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
@@ -84,8 +85,16 @@ internal fun SendPhotosDialog(
                     color = EDITOR_CONTENT,
                 )
             }
+            // Затемнение под панелью: с клавиатурой панель встаёт поверх фото, и на светлом снимке
+            // поле и текст иначе не читаются (#435)
             Column(
-                Modifier.align(Alignment.BottomCenter).fillMaxWidth().navigationBarsPadding().imePadding().padding(horizontal = 8.dp, vertical = 8.dp),
+                Modifier
+                    .align(Alignment.BottomCenter)
+                    .fillMaxWidth()
+                    .background(Brush.verticalGradient(listOf(Color.Transparent, EDITOR_SCRIM)))
+                    .navigationBarsPadding()
+                    .imePadding()
+                    .padding(start = 8.dp, end = 8.dp, top = 32.dp, bottom = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 BasicTextField(
@@ -96,6 +105,7 @@ internal fun SendPhotosDialog(
                         .heightIn(min = PillHeight)
                         .clip(RoundedCornerShape(PillHeight / 2))
                         .background(EDITOR_FIELD)
+                        .border(0.5.dp, EDITOR_FIELD_BORDER, RoundedCornerShape(PillHeight / 2))
                         .padding(horizontal = 16.dp, vertical = 11.dp),
                     textStyle = MaterialTheme.typography.bodyLarge.copy(color = EDITOR_CONTENT),
                     cursorBrush = SolidColor(colors.accent),
@@ -106,7 +116,7 @@ internal fun SendPhotosDialog(
                                 Text(
                                     stringResource(R.string.photo_caption_add),
                                     style = MaterialTheme.typography.bodyLarge,
-                                    color = EDITOR_CONTENT.copy(alpha = 0.5f),
+                                    color = EDITOR_PLACEHOLDER,
                                 )
                             }
                             Box(Modifier.fillMaxWidth()) { inner() }
@@ -170,4 +180,8 @@ private fun ToolButton(
 
 private val EDITOR_BACKGROUND = Color.Black
 private val EDITOR_CONTENT = Color.White
-private val EDITOR_FIELD = Color.White.copy(alpha = 0.14f)
+/** Поле подписи — тёмное и почти непрозрачное, как в Telegram iOS: читается на любом фото. */
+private val EDITOR_FIELD = Color(0xF21C1C1E)
+private val EDITOR_FIELD_BORDER = Color.White.copy(alpha = 0.12f)
+private val EDITOR_PLACEHOLDER = Color.White.copy(alpha = 0.55f)
+private val EDITOR_SCRIM = Color.Black.copy(alpha = 0.75f)
