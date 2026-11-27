@@ -92,8 +92,8 @@ class CallManager @Inject constructor(
                 return@launch
             }
             _call.value = CallUi(callId = 0, userId = userId, isOutgoing = true, phase = CallPhase.Requesting)
-            CallService.start(context)
             val name = users.users.value[userId]?.fullName.orEmpty()
+            showNotification(name)
             telecom.start(scope, name, userId, outgoing = true, onSystemDisconnect = { scope.launch { hangUp() } })
             runCatching { td.send(TdApi.CreateCall(userId, protocol, false)) }
                 .onSuccess { result ->
@@ -119,6 +119,28 @@ class CallManager @Inject constructor(
                 }
                 else -> discard()
             }
+        }
+    }
+
+    /** Ответить на входящий (#410). Разрешение `RECORD_AUDIO` проверяет вызывающий. */
+    fun accept() {
+        scope.launch {
+            val call = _call.value ?: return@launch
+            if (call.phase != CallPhase.Incoming) return@launch
+            val protocol = runCatching { protocol() }.getOrElse {
+                Log.e(TAG, "tgcalls не загрузился", it)
+                discard()
+                return@launch
+            }
+            _call.value = call.copy(phase = CallPhase.ExchangingKeys)
+            // Служба уже есть (уведомление входящего) — перезапуск переведёт её на тип с микрофоном
+            CallService.start(context)
+            telecom.answer(scope)
+            runCatching { td.send(TdApi.AcceptCall(call.callId, protocol)) }
+                .onFailure { error ->
+                    Log.w(TAG, "acceptCall", error)
+                    finish(EndReason.Failed, needRating = false, error = userErrors.message(error))
+                }
         }
     }
 
@@ -175,6 +197,21 @@ class CallManager @Inject constructor(
     }
 
     private suspend fun onCall(call: TdApi.Call) {
+        if (!call.isOutgoing && call.state is TdApi.CallStatePending) {
+            val active = _call.value
+            when {
+                active == null || active.isEnded -> {
+                    startIncoming(call)
+                    return
+                }
+                // Второй входящий во время звонка: «занято» (TDLib отклоняет ожидающий входящий как Declined)
+                active.callId != call.id -> {
+                    runCatching { td.send(TdApi.DiscardCall(call.id, false, "", 0, false, 0)) }
+                        .onFailure { Log.w(TAG, "busy discard", it) }
+                    return
+                }
+            }
+        }
         val current = _call.value ?: return
         if (current.isEnded) return
         // updateCall может обогнать ответ на createCall
@@ -190,6 +227,7 @@ class CallManager @Inject constructor(
         }
         when (val state = call.state) {
             is TdApi.CallStatePending -> {
+                if (!call.isOutgoing) return
                 val phase = when {
                     state.isReceived -> CallPhase.Ringing
                     state.isCreated -> CallPhase.Waiting
@@ -213,7 +251,7 @@ class CallManager @Inject constructor(
                 sendDebugLog = state.needDebugInformation
                 val reason = if (hungUpLocally) EndReason.HungUp else when (state.reason) {
                     is TdApi.CallDiscardReasonDeclined -> EndReason.Declined
-                    is TdApi.CallDiscardReasonMissed -> EndReason.Missed
+                    is TdApi.CallDiscardReasonMissed -> if (call.isOutgoing) EndReason.Missed else EndReason.HungUp
                     is TdApi.CallDiscardReasonDisconnected -> EndReason.Disconnected
                     else -> EndReason.HungUp
                 }
@@ -221,6 +259,29 @@ class CallManager @Inject constructor(
             }
             is TdApi.CallStateError -> finish(EndReason.Failed, needRating = false, error = state.error.message)
         }
+    }
+
+    private fun startIncoming(call: TdApi.Call) {
+        reset()
+        TgCalls.init(context)
+        if (TgCalls.loadError != null) {
+            Log.e(TAG, "tgcalls не загрузился — входящий отклонён", TgCalls.loadError)
+            scope.launch { runCatching { td.send(TdApi.DiscardCall(call.id, false, "", 0, false, 0)) } }
+            return
+        }
+        _call.value = CallUi(callId = call.id, userId = call.userId, isOutgoing = false, phase = CallPhase.Incoming)
+        val name = users.users.value[call.userId]?.fullName.orEmpty()
+        showNotification(name)
+        telecom.start(
+            scope, name, call.userId, outgoing = false,
+            onSystemDisconnect = { hangUp() },
+            onSystemAnswer = { accept() },
+        )
+    }
+
+    /** Уведомление звонка: через службу, а если Android не даёт поднять её из фона — само по себе. */
+    private fun showNotification(name: String) {
+        if (!CallService.start(context)) _call.value?.let { CallNotifications.show(context, it, name) }
     }
 
     private suspend fun startInstance(call: TdApi.Call, ready: TdApi.CallStateReady) {
@@ -330,7 +391,9 @@ class CallManager @Inject constructor(
         telecom.stop()
         if (reason == EndReason.Declined) playTone(ToneGenerator.TONE_SUP_BUSY, BUSY_TONE_MS)
         _call.update { it?.copy(phase = CallPhase.Ended(reason), needRating = needRating, error = error) }
-        // CallService останавливается сам, увидев Ended: stopService до startForeground уронил бы процесс
+        // CallService останавливается сам, увидев Ended: stopService до startForeground уронил бы процесс.
+        // Уведомление без службы (входящий из фона) убираем сами
+        CallNotifications.cancel(context)
         // Без оценки итог висит пару секунд и пропадает сам; с оценкой — пока её не дадут или не закроют
         clearJob?.cancel()
         clearJob = scope.launch {

@@ -8,6 +8,7 @@ import coil3.ImageLoader
 import coil3.PlatformContext
 import coil3.SingletonImageLoader
 import dagger.hilt.android.HiltAndroidApp
+import io.github.iufb.reach.calls.CallManager
 import io.github.iufb.reach.chat.ReactionsRepository
 import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.chats.GroupsRepository
@@ -49,6 +50,9 @@ class ReachApp : Application(), SingletonImageLoader.Factory {
     @Inject lateinit var autoDownload: AutoDownload
 
     @Inject lateinit var contactSync: ContactSync
+
+    // Звонки: входящий updateCall (в том числе разбуженный пушем) должен застать подписчика (#410)
+    @Inject lateinit var callManager: CallManager
 
     // Свои шрифты (#252) собираются синхронно при инъекции в super.onCreate(), до первого кадра;
     // время загрузки — в логе «Reach»

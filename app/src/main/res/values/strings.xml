@@ -828,4 +828,12 @@
     <string name="call_video_soon">Video calls are coming soon</string>
     <string name="notification_channel_calls_ongoing">Ongoing calls</string>
     <string name="profile_action_call">call</string>
+    <string name="call_status_incoming">Incoming call</string>
+    <string name="call_accept">accept</string>
+    <string name="call_decline">decline</string>
+    <string name="notification_channel_calls_incoming">Incoming calls</string>
+    <string name="call_fullscreen_title">Show incoming calls</string>
+    <string name="call_fullscreen_text">Allow Reach to show incoming calls on the full screen, including over the lock screen.</string>
+    <string name="call_fullscreen_open">Settings</string>
+    <string name="call_fullscreen_later">Not now</string>
 </resources>

@@ -1,6 +1,12 @@
 package io.github.iufb.reach.calls
 
+import android.Manifest
+import android.content.pm.PackageManager
 import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.draw.rotate
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.BackHandler
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
@@ -83,6 +89,17 @@ fun CallScreen(onBack: () -> Unit, viewModel: CallViewModel = hiltViewModel()) {
     val name = user?.fullName.orEmpty()
     var emojiInfo by rememberSaveable { mutableStateOf(false) }
     val context = LocalContext.current
+    // Ответ на входящий: без микрофона tgcalls не запустить — сначала разрешение (#410)
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) viewModel.accept() else Toast.makeText(context, R.string.call_mic_permission, Toast.LENGTH_SHORT).show()
+    }
+    val onAccept = {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            viewModel.accept()
+        } else {
+            micPermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
 
     Box(Modifier.fillMaxSize().background(backgroundBrush(current))) {
         Column(Modifier.fillMaxSize().statusBarsPadding().navigationBarsPadding()) {
@@ -110,13 +127,17 @@ fun CallScreen(onBack: () -> Unit, viewModel: CallViewModel = hiltViewModel()) {
                 }
             }
             Spacer(Modifier.weight(1.3f))
-            Buttons(
-                call = current,
-                onSpeaker = viewModel::toggleSpeaker,
-                onVideo = { Toast.makeText(context, R.string.call_video_soon, Toast.LENGTH_SHORT).show() },
-                onMute = viewModel::toggleMute,
-                onEnd = viewModel::hangUp,
-            )
+            if (current.phase == CallPhase.Incoming) {
+                IncomingButtons(onDecline = viewModel::hangUp, onAccept = onAccept)
+            } else {
+                Buttons(
+                    call = current,
+                    onSpeaker = viewModel::toggleSpeaker,
+                    onVideo = { Toast.makeText(context, R.string.call_video_soon, Toast.LENGTH_SHORT).show() },
+                    onMute = viewModel::toggleMute,
+                    onEnd = viewModel::hangUp,
+                )
+            }
         }
         if (emojiInfo && current.emojis.isNotEmpty()) {
             EmojiInfo(current.emojis, onDismiss = { emojiInfo = false })
@@ -253,6 +274,18 @@ private fun Buttons(call: CallUi, onSpeaker: () -> Unit, onVideo: () -> Unit, on
     }
 }
 
+/** Входящий: «отклонить» (красная, трубка вниз) и «принять» (зелёная). */
+@Composable
+private fun IncomingButtons(onDecline: () -> Unit, onAccept: () -> Unit) {
+    Row(
+        Modifier.fillMaxWidth().padding(start = 48.dp, end = 48.dp, bottom = 32.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+    ) {
+        CallButton(R.drawable.ic_call, R.string.call_decline, active = false, enabled = true, background = END_RED, iconRotation = 135f, onClick = onDecline)
+        CallButton(R.drawable.ic_call, R.string.call_accept, active = false, enabled = true, background = ACCEPT_GREEN, onClick = onAccept)
+    }
+}
+
 @Composable
 private fun CallButton(
     @DrawableRes icon: Int,
@@ -260,6 +293,7 @@ private fun CallButton(
     active: Boolean,
     enabled: Boolean,
     background: Color? = null,
+    iconRotation: Float = 0f,
     onClick: () -> Unit,
 ) {
     Column(
@@ -276,7 +310,7 @@ private fun CallButton(
                 .clickable(enabled = enabled, interactionSource = remember { MutableInteractionSource() }, indication = null, onClick = onClick),
             contentAlignment = Alignment.Center,
         ) {
-            Icon(painterResource(icon), null, tint = tint, modifier = Modifier.size(28.dp))
+            Icon(painterResource(icon), null, tint = tint, modifier = Modifier.size(28.dp).rotate(iconRotation))
         }
         Text(
             stringResource(label),
@@ -406,6 +440,7 @@ private fun backgroundBrush(call: CallUi): Brush {
 
 @StringRes
 fun callStatusRes(phase: CallPhase): Int = when (phase) {
+    CallPhase.Incoming -> R.string.call_status_incoming
     CallPhase.Requesting -> R.string.call_status_requesting
     CallPhase.Waiting -> R.string.call_status_waiting
     CallPhase.Ringing -> R.string.call_status_ringing
@@ -424,6 +459,7 @@ fun callStatusRes(phase: CallPhase): Int = when (phase) {
 
 private val AVATAR = 112.dp
 private val END_RED = Color(0xFFFF3B30)
+private val ACCEPT_GREEN = Color(0xFF34C759)
 private val ACTIVE_ICON = Color(0xFF5B6FD6)
 private val STAR_GOLD = Color(0xFFFFCC00)
 

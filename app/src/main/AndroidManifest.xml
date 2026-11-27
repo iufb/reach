@@ -23,6 +23,8 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
     <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <!-- Экран входящего звонка поверх блокировки (#410); с Android 14 вне Play пользователь может выключить -->
+    <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <application
@@ -86,6 +88,11 @@
             android:name=".calls.CallService"
             android:exported="false"
             android:foregroundServiceType="phoneCall|microphone" />
+
+        <!-- «Отклонить» во входящем звонке (#410) -->
+        <receiver
+            android:name=".calls.CallActionReceiver"
+            android:exported="false" />
 
         <!-- «Прочитано» и «Ответить» из уведомлений -->
         <receiver

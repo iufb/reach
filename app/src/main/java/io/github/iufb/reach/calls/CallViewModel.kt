@@ -22,6 +22,8 @@ class CallViewModel @Inject constructor(private val calls: CallManager, users: U
 
     fun hangUp() = calls.hangUp()
 
+    fun accept() = calls.accept()
+
     fun toggleMute() = calls.toggleMute()
 
     fun toggleSpeaker() = calls.toggleSpeaker()

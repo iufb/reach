@@ -1,22 +1,17 @@
 package io.github.iufb.reach.calls
 
 import android.app.Notification
-import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.app.PendingIntent
-import android.app.Person
 import android.app.Service
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.IBinder
 import android.os.PowerManager
-import android.os.SystemClock
+import android.util.Log
 import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import dagger.hilt.android.AndroidEntryPoint
-import io.github.iufb.reach.MainActivity
-import io.github.iufb.reach.R
 import io.github.iufb.reach.users.UsersRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -28,8 +23,9 @@ import kotlinx.coroutines.launch
 import javax.inject.Inject
 
 /**
- * Foreground service на время звонка (`phoneCall|microphone`, ADR-0015): звонок не обрывается,
- * когда приложение свёрнуто, а в шторке — уведомление CallStyle с «Завершить».
+ * Foreground service на время звонка (ADR-0015): звонок не обрывается, когда приложение свёрнуто,
+ * а в шторке — уведомление [CallNotifications]. Пока входящий звонит, тип только `phoneCall`
+ * (микрофон из фона брать нельзя); после ответа — `phoneCall|microphone`.
  * Пока звук идёт в наушник, датчик приближения гасит экран у уха.
  */
 @AndroidEntryPoint
@@ -42,33 +38,42 @@ class CallService : Service() {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Main.immediate)
     private var proximity: PowerManager.WakeLock? = null
     private var started = false
+    private var withMicrophone = false
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (intent?.action == ACTION_HANG_UP) calls.hangUp()
+        if (intent?.action == CallNotifications.ACTION_HANG_UP) calls.hangUp()
+        val call = calls.call.value
+        val name = call?.let { users.users.value[it.userId]?.fullName }.orEmpty()
         if (!started) {
             started = true
-            val call = calls.call.value
             if (call == null || call.isEnded) {
                 // Звонок закончился раньше, чем служба поднялась: startForeground обязателен и тогда
-                startInForeground(notification(null, ""))
+                startInForeground(CallNotifications.build(this, null, ""), microphone = false)
                 stopSelf()
                 return START_NOT_STICKY
             }
-            startInForeground(notification(call, users.users.value[call.userId]?.fullName.orEmpty()))
+            startInForeground(CallNotifications.build(this, call, name), microphone = call.phase != CallPhase.Incoming)
             observe()
+        } else if (call != null && !call.isEnded && call.phase != CallPhase.Incoming && !withMicrophone) {
+            // Ответили на входящий: теперь нужен микрофон
+            startInForeground(CallNotifications.build(this, call, name), microphone = true)
         }
         return START_NOT_STICKY
     }
 
-    private fun startInForeground(notification: Notification) {
-        ServiceCompat.startForeground(
-            this,
-            NOTIFICATION_ID,
-            notification,
-            ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
-        )
+    private fun startInForeground(notification: Notification, microphone: Boolean) {
+        val types = ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL or
+            (if (microphone) ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE else 0)
+        try {
+            ServiceCompat.startForeground(this, CallNotifications.ID, notification, types)
+            withMicrophone = microphone
+        } catch (e: Exception) {
+            // Микрофон из фона не дают — остаёмся phoneCall, звук всё равно идёт, пока приложение на экране
+            Log.w(TAG, "startForeground microphone=$microphone", e)
+            if (microphone) ServiceCompat.startForeground(this, CallNotifications.ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL)
+        }
     }
 
     private fun observe() {
@@ -81,14 +86,18 @@ class CallService : Service() {
                         stopSelf()
                         return@collect
                     }
-                    manager.notify(NOTIFICATION_ID, notification(call, name))
+                    if (call.phase != CallPhase.Incoming && !withMicrophone) {
+                        startInForeground(CallNotifications.build(this@CallService, call, name), microphone = true)
+                    } else {
+                        manager.notify(CallNotifications.ID, CallNotifications.build(this@CallService, call, name))
+                    }
                     updateProximity(call)
                 }
         }
     }
 
     private fun updateProximity(call: CallUi) {
-        val earpiece = call.route == null || call.route.kind == AudioRoute.Kind.Earpiece
+        val earpiece = call.phase != CallPhase.Incoming && (call.route == null || call.route.kind == AudioRoute.Kind.Earpiece)
         if (earpiece && proximity == null) {
             val power = getSystemService(PowerManager::class.java)
             if (power.isWakeLockLevelSupported(PowerManager.PROXIMITY_SCREEN_OFF_WAKE_LOCK)) {
@@ -104,36 +113,6 @@ class CallService : Service() {
         proximity = null
     }
 
-    private fun notification(call: CallUi?, name: String): Notification {
-        ensureChannel(this)
-        val open = PendingIntent.getActivity(
-            this, 0,
-            Intent(this, MainActivity::class.java).setAction(MainActivity.ACTION_OPEN_CALL).addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-        val hangUp = PendingIntent.getService(
-            this, 1,
-            Intent(this, CallService::class.java).setAction(ACTION_HANG_UP),
-            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
-        )
-        val person = Person.Builder().setName(name.ifEmpty { getString(R.string.call_title) }).setImportant(true).build()
-        val builder = Notification.Builder(this, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_stat_reach)
-            .setContentIntent(open)
-            .setOngoing(true)
-            .setCategory(Notification.CATEGORY_CALL)
-            .setStyle(Notification.CallStyle.forOngoingCall(person, hangUp))
-        if (call != null) {
-            builder.setContentText(getString(callStatusRes(call.phase)))
-            call.connectedAt?.let { connected ->
-                builder.setUsesChronometer(true)
-                    .setWhen(System.currentTimeMillis() - (SystemClock.elapsedRealtime() - connected))
-                    .setShowWhen(true)
-            }
-        }
-        return builder.build()
-    }
-
     override fun onDestroy() {
         releaseProximity()
         scope.cancel()
@@ -141,21 +120,16 @@ class CallService : Service() {
     }
 
     companion object {
-        private const val CHANNEL_ID = "calls_ongoing"
-        private const val NOTIFICATION_ID = 0x7ca11
-        private const val ACTION_HANG_UP = "io.github.iufb.reach.action.HANG_UP"
+        private const val TAG = "CallService"
 
-        fun start(context: Context) {
+        /** Поднять службу. Из фона Android может не дать — тогда `false`, и уведомление показывают без неё. */
+        fun start(context: Context): Boolean = try {
             ContextCompat.startForegroundService(context, Intent(context, CallService::class.java))
-        }
-
-        private fun ensureChannel(context: Context) {
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                context.getString(R.string.notification_channel_calls_ongoing),
-                NotificationManager.IMPORTANCE_DEFAULT,
-            ).apply { setSound(null, null) }
-            context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
+            true
+        } catch (e: IllegalStateException) {
+            // ForegroundServiceStartNotAllowedException
+            Log.w(TAG, "foreground service not allowed", e)
+            false
         }
     }
 }
