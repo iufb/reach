@@ -56,6 +56,6 @@ TDLib даёт для звонков только сигнализацию: `cre
 ## Последствия
 
 - Обновление tgcalls / WebRTC: поменять `TELEGRAM_COMMIT`, дождаться релиза `voip-…`, поднять `voip.release`. Поменяли `native/voip` — поднять `JNI_VERSION`. Если Telegram поменяет состав `voip/CMakeLists.txt` или prebuilt-библиотек, придётся поправить наш `CMakeLists.txt`.
-- Сборка одной ABI — TODO мин на `ubuntu-latest`, ABI собираются параллельно. Повторный запуск с тем же тегом пропускается (`check`).
-- APK: `libtgcallsjni.so` — TODO МБ на arm64-v8a и TODO МБ на x86_64 (после strip).
+- Сборка одной ABI — 6–8 мин на `ubuntu-latest` (~1750 целей Ninja), ABI собираются параллельно, весь workflow — ~8 мин. Кэш не нужен: релиз собирается один раз на коммит. Повторный запуск с тем же тегом пропускается (`check`).
+- APK: `libtgcallsjni.so` после strip весит 20,9 МБ (arm64-v8a) и 22,1 МБ (x86_64). `.so` лежат в APK без сжатия (`useLegacyPackaging = false`, как и `libtdjni.so`), поэтому `releaseTestdc` вырос с 63,7 до 106,8 МБ, а в zip-артефакте CI — на ~18 МБ. На телефоне занято +21 МБ: ставится одна ABI и не распаковывается. Чтобы урезать скачивание, нужны ABI-splits для release-APK — отдельная задача.
 - Зависим от того, что Telegram публикует `TMessagesProj/jni` с prebuilt-`.a`. Если они пропадут, придётся собирать их скриптами `prebuild/build_*.sh` того же коммита.
