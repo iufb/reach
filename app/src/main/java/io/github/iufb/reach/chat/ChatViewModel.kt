@@ -1104,6 +1104,11 @@ class ChatViewModel @Inject constructor(
         }
     }
 
+    /** Кнопка «вниз», когда загружено окно в глубине истории: открыть историю с конца (#434). */
+    fun jumpToLatest() {
+        viewModelScope.launch { history.open(lastReadInboxId = null) }
+    }
+
     fun onScrolledToTarget() {
         _scrollTarget.value = null
     }

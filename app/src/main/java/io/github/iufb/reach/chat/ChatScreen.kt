@@ -1,7 +1,10 @@
 package io.github.iufb.reach.chat
 
+import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import kotlinx.coroutines.launch
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -331,6 +334,7 @@ fun ChatScreen(
             },
             onLoadOlder = viewModel::loadOlder,
             onLoadNewer = viewModel::loadNewer,
+            onJumpToLatest = viewModel::jumpToLatest,
             onVisibleMessagesChange = viewModel::onVisibleMessagesChange,
             pinned = pinned,
             onPinnedClick = viewModel::onPinnedClick,
@@ -483,6 +487,8 @@ private fun ChatContent(
     onSendSticker: ((StickerInfo) -> Unit)? = null,
     /** Слой записи кружка: над лентой и шапкой, под полем ввода; [Dp] — высота поля. */
     recordingOverlay: @Composable (composerHeight: Dp) -> Unit = {},
+    /** Кнопка «вниз», когда последние сообщения ещё не загружены: открыть историю с конца (#434). */
+    onJumpToLatest: () -> Unit = {},
 ) {
     val colors = ReachTheme.colors
     val density = LocalDensity.current
@@ -523,6 +529,9 @@ private fun ChatContent(
                     MessageList(
                         chat, state, senders, interactions, onLoadOlder, onLoadNewer, onVisibleMessagesChange,
                         Modifier.fillMaxSize().glassSource(), padding, threadRoot,
+                        // Счётчик чата — не треда и не топика: в них бейдж врал бы
+                        unread = if (scopeTitle == null) chat.unreadCount else 0,
+                        onJumpToLatest = onJumpToLatest,
                     )
                 }
             }
@@ -870,6 +879,8 @@ private fun MessageList(
     modifier: Modifier,
     contentPadding: PaddingValues,
     threadRoot: List<Message> = emptyList(),
+    unread: Int = 0,
+    onJumpToLatest: () -> Unit = {},
 ) {
     val isChannel = chat.kind == ChatKind.Channel
     val items = buildItems(state, isGroup = chat.kind == ChatKind.Group)
@@ -901,6 +912,18 @@ private fun MessageList(
     PagingEffects(listState, state, onLoadOlder, onLoadNewer)
     // С задержкой: в коротком чате история догружается сразу, и заглушки сверху не мигают
     val loadingOlder = rememberSkeletonVisible(!state.reachedOldest)
+    // Кнопка «вниз» (#434): видна, пока лента отлистана от новых или их конец ещё не загружен
+    val awayPx = with(LocalDensity.current) { SCROLL_BUTTON_AWAY.toPx() }
+    val away by remember(listState) { derivedStateOf { listState.isAwayFromNewest(awayPx) } }
+    val scope = rememberCoroutineScope()
+    // Нажали, когда конец истории не загружен: крутим вниз, как только он придёт
+    var awaitingLatest by remember { mutableStateOf(false) }
+    LaunchedEffect(awaitingLatest, state.reachedNewest) {
+        if (!awaitingLatest || !state.reachedNewest) return@LaunchedEffect
+        awaitingLatest = false
+        listState.scrollToNewest()
+    }
+    Box(Modifier.fillMaxSize()) {
     // reverseLayout: индекс 0 — самое новое сообщение, внизу экрана
     LazyColumn(
         state = listState,
@@ -959,6 +982,22 @@ private fun MessageList(
                 SkeletonBubbleRow(index + 1, isChannel)
             }
         }
+    }
+    ScrollToBottomButton(
+        visible = state.opened && (away || !state.reachedNewest),
+        unread = unread,
+        onClick = {
+            if (state.reachedNewest) {
+                scope.launch { listState.scrollToNewest() }
+            } else {
+                awaitingLatest = true
+                onJumpToLatest()
+            }
+        },
+        modifier = Modifier
+            .align(Alignment.BottomEnd)
+            .padding(end = 8.dp, bottom = contentPadding.calculateBottomPadding() + 4.dp),
+    )
     }
 }
 
