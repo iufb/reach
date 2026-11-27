@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!-- Java-часть WebRTC перенесена из Telegram Android как есть (scripts/vendor-webrtc-java.sh) — не наш код, lint его не проверяет -->
+<lint>
+    <issue id="all">
+        <ignore regexp="org/webrtc/" />
+    </issue>
+</lint>

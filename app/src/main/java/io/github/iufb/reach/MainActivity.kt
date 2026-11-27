@@ -66,6 +66,9 @@ class MainActivity : ComponentActivity() {
     /** Ссылка `t.me/…` / `tg://…`, с которой открыли приложение. */
     private val openLinkRequest = MutableStateFlow<String?>(null)
 
+    /** Тап по уведомлению звонка: открыть экран звонка (#409). */
+    private val openCallRequest = MutableStateFlow(false)
+
     @Inject lateinit var interfaceFonts: InterfaceFonts
 
     override fun attachBaseContext(newBase: Context) {
@@ -86,6 +89,7 @@ class MainActivity : ComponentActivity() {
         if (savedInstanceState == null) {
             openChatRequest.value = intent.chatIdExtra()
             openLinkRequest.value = intent.linkData()
+            openCallRequest.value = intent.action == ACTION_OPEN_CALL
         }
         enableEdgeToEdge()
         setContent {
@@ -94,11 +98,14 @@ class MainActivity : ComponentActivity() {
                     if (hasApiCredentials()) {
                         val openChatId by openChatRequest.collectAsStateWithLifecycle()
                         val openLink by openLinkRequest.collectAsStateWithLifecycle()
+                        val openCall by openCallRequest.collectAsStateWithLifecycle()
                         ReachRoot(
                             openChatId,
                             onOpenChatHandled = { openChatRequest.value = null },
                             openLink = openLink,
                             onOpenLinkHandled = { openLinkRequest.value = null },
+                            openCall = openCall,
+                            onOpenCallHandled = { openCallRequest.value = false },
                         )
                     } else {
                         MissingCredentialsScreen()
@@ -179,6 +186,7 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         intent.chatIdExtra()?.let { openChatRequest.value = it }
         intent.linkData()?.let { openLinkRequest.value = it }
+        if (intent.action == ACTION_OPEN_CALL) openCallRequest.value = true
     }
 
     private fun Intent.linkData(): String? = data?.takeIf { action == Intent.ACTION_VIEW }?.toString()
@@ -188,6 +196,9 @@ class MainActivity : ComponentActivity() {
     companion object {
         /** Открыть этот чат: тап по уведомлению. */
         const val EXTRA_CHAT_ID = "io.github.iufb.reach.extra.CHAT_ID"
+
+        /** Открыть экран текущего звонка: тап по уведомлению звонка. */
+        const val ACTION_OPEN_CALL = "io.github.iufb.reach.action.OPEN_CALL"
 
         private const val SPLASH_MAX_HOLD_MS = 2_000L
         private const val SPLASH_ICON_MS = 800L
@@ -203,11 +214,13 @@ private fun ReachRoot(
     onOpenChatHandled: () -> Unit,
     openLink: String?,
     onOpenLinkHandled: () -> Unit,
+    openCall: Boolean,
+    onOpenCallHandled: () -> Unit,
     viewModel: AppViewModel = hiltViewModel(),
 ) {
     val authState by viewModel.authState.collectAsStateWithLifecycle()
     if (authState == AuthState.Ready) NotificationPermissionRequest()
-    ReachNavHost(authState, openChatId, onOpenChatHandled, openLink, onOpenLinkHandled)
+    ReachNavHost(authState, openChatId, onOpenChatHandled, openLink, onOpenLinkHandled, openCall, onOpenCallHandled)
 }
 
 /** Один раз за запуск просим разрешение на уведомления, если его нет (Android 13+). */
