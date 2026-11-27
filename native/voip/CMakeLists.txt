@@ -44,6 +44,20 @@ foreach(lib vpx dav1d opus)
     set_target_properties(lib${lib} PROPERTIES IMPORTED_LOCATION ${CMAKE_HOME_DIRECTORY}/prebuild/lib/${ANDROID_ABI}/lib${lib}.a)
 endforeach()
 
+# Платформенный код tgcalls ищет класс захвата видео Telegram по имени — у нас он в core:voip
+set(VIDEO_CAPTURER_FROM "org/telegram/messenger/voip/VideoCapturerDevice")
+set(VIDEO_CAPTURER_TO "io/github/iufb/reach/core/voip/VideoCapturerDevice")
+foreach(file AndroidInterface.cpp AndroidContext.cpp VideoCameraCapturer.cpp)
+    set(path ${CMAKE_HOME_DIRECTORY}/tgcalls/tgcalls/platform/android/${file})
+    file(READ ${path} source)
+    string(REPLACE "${VIDEO_CAPTURER_FROM}" "${VIDEO_CAPTURER_TO}" patched "${source}")
+    string(REPLACE "Java_org_telegram_messenger_voip_VideoCapturerDevice_" "Java_io_github_iufb_reach_core_voip_VideoCapturerDevice_" patched "${patched}")
+    if(patched STREQUAL source)
+        message(FATAL_ERROR "${file}: не нашёл VideoCapturerDevice Telegram — обновите патч")
+    endif()
+    file(WRITE ${path} "${patched}")
+endforeach()
+
 # rnnoise, tgcalls_tp, tgcalls (+ WebRTC), voipandroid; ещё объявляет imported openh264 и wasm
 include(${CMAKE_HOME_DIRECTORY}/voip/CMakeLists.txt)
 
