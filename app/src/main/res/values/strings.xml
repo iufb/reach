@@ -792,4 +792,5 @@
     <string name="error_network">No connection. Check your internet</string>
     <string name="date_today">Today</string>
     <string name="date_yesterday">Yesterday</string>
+    <string name="chat_scroll_to_bottom">Scroll to latest messages</string>
 </resources>
