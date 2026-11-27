@@ -1,0 +1,141 @@
+name: VoIP
+
+# Собирает libtgcallsjni.so (tgcalls + WebRTC из Telegram Android и JNI-мост из native/voip) и
+# публикует voip.zip как GitHub Release. Приложение скачивает его модулем core:voip (ADR-0015).
+# Обновить tgcalls / WebRTC: поменять TELEGRAM_COMMIT (коммит DrKLO/Telegram — вместе с ним едут
+# подмодуль tgcalls, вендоренный WebRTC и их prebuild/*.a). Поменяли native/voip — поднять
+# JNI_VERSION. Затем voip.release в gradle.properties — тег печатается в сводке.
+
+on:
+  workflow_dispatch:
+  push:
+    paths:
+      - .github/workflows/voip.yml
+      - native/voip/**
+
+env:
+  TELEGRAM_COMMIT: 21f7d109da6ab3506c9e9577f98c6a38771ab335 # Telegram Android 13.2.2 (7303)
+  JNI_VERSION: 1
+  # Как у Telegram (TMessagesProj/build.gradle): их prebuild/*.a собраны этим NDK
+  ANDROID_NDK_VERSION: 27.2.12479018
+  ABIS: arm64-v8a x86_64
+  # Подмодули Telegram, нужные звонкам: исходники (tgcalls, absl, libyuv) и заголовки к prebuild/*.a
+  SUBMODULES: >-
+    TMessagesProj/jni/tgcalls
+    TMessagesProj/jni/td
+    TMessagesProj/jni/third_party/absl
+    TMessagesProj/jni/third_party/boringssl
+    TMessagesProj/jni/third_party/dav1d
+    TMessagesProj/jni/third_party/ffmpeg
+    TMessagesProj/jni/third_party/libvpx
+    TMessagesProj/jni/third_party/libyuv
+    TMessagesProj/jni/third_party/openh264
+    TMessagesProj/jni/third_party/wamr
+    TMessagesProj/jni/third_party/xiph/opus
+
+concurrency:
+  group: voip-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.tag.outputs.tag }}
+      exists: ${{ steps.tag.outputs.exists }}
+    steps:
+      - id: tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="voip-tg${TELEGRAM_COMMIT:0:7}-jni$JNI_VERSION"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          if gh release view "$tag" -R "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Релиз $tag уже есть — сборка пропущена" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  build:
+    needs: check
+    if: needs.check.outputs.exists != 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 240
+    strategy:
+      matrix:
+        abi: [arm64-v8a, x86_64]
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Install NDK and Ninja
+        run: |
+          sudo apt-get install -yq ninja-build >/dev/null
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;$ANDROID_NDK_VERSION" >/dev/null
+          echo "NDK=$ANDROID_HOME/ndk/$ANDROID_NDK_VERSION" >> "$GITHUB_ENV"
+
+      - name: Fetch Telegram Android
+        run: |
+          git init -q tg
+          cd tg
+          git remote add origin https://github.com/DrKLO/Telegram.git
+          git config core.sparseCheckout true
+          printf '%s\n' /.gitmodules /TMessagesProj/jni/ > .git/info/sparse-checkout
+          git fetch -q --depth 1 --filter=blob:none origin "$TELEGRAM_COMMIT"
+          git checkout -q FETCH_HEAD
+          git -c protocol.version=2 submodule update -q --init --depth 1 --jobs 8 -- $SUBMODULES
+          git submodule status -- $SUBMODULES | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "TGCALLS_COMMIT=$(git -C TMessagesProj/jni/tgcalls rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Overlay native/voip
+        run: |
+          jni=tg/TMessagesProj/jni
+          cp native/voip/CMakeLists.txt "$jni/CMakeLists.txt"
+          mkdir -p "$jni/reach"
+          cp native/voip/*.cpp "$jni/reach/"
+
+      - name: Build
+        env:
+          ABI: ${{ matrix.abi }}
+        run: |
+          cmake -S tg/TMessagesProj/jni -B build -G Ninja \
+            -DCMAKE_TOOLCHAIN_FILE="$NDK/build/cmake/android.toolchain.cmake" \
+            -DANDROID_ABI="$ABI" -DANDROID_PLATFORM=android-31 -DANDROID_STL=c++_static \
+            -DCMAKE_BUILD_TYPE=Release
+          start=$(date +%s)
+          cmake --build build --target tgcallsjni -j "$(nproc)"
+          echo "$ABI: сборка $(( ($(date +%s) - start) / 60 )) мин" >> "$GITHUB_STEP_SUMMARY"
+          mkdir -p "out/voip/libs/$ABI"
+          "$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin/llvm-strip" --strip-unneeded \
+            -o "out/voip/libs/$ABI/libtgcallsjni.so" build/libtgcallsjni.so
+          ls -l "out/voip/libs/$ABI" | tee -a "$GITHUB_STEP_SUMMARY"
+          echo "$TGCALLS_COMMIT" > out/voip/tgcalls-commit.txt
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: voip-${{ matrix.abi }}
+          path: out
+          if-no-files-found: error
+
+  release:
+    needs: [check, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          pattern: voip-*
+          merge-multiple: true
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.check.outputs.tag }}
+        run: |
+          tgcalls=$(cat voip/tgcalls-commit.txt)
+          zip -qr voip.zip voip
+          gh release create "$TAG" voip.zip -R "$GITHUB_REPOSITORY" \
+            --target "$GITHUB_SHA" \
+            --latest=false \
+            --title "$TAG" \
+            --notes "Telegram Android [\`$TELEGRAM_COMMIT\`](https://github.com/DrKLO/Telegram/commit/$TELEGRAM_COMMIT), tgcalls [\`$tgcalls\`](https://github.com/TelegramMessenger/tgcalls/commit/$tgcalls) (LGPL-3.0), JNI $JNI_VERSION, ABI: $ABIS, NDK $ANDROID_NDK_VERSION."
+          echo "voip.release=$TAG" >> "$GITHUB_STEP_SUMMARY"
