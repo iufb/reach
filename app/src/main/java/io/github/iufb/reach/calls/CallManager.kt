@@ -349,7 +349,9 @@ class CallManager @Inject constructor(
                     CallInstance.ConnectionState.Established -> _call.update {
                         it?.copy(phase = CallPhase.Active, connectedAt = it.connectedAt ?: SystemClock.elapsedRealtime())
                     }
-                    CallInstance.ConnectionState.Reconnecting -> setPhase(CallPhase.Reconnecting)
+                    // До первого соединения tgcalls тоже говорит «переподключение» — для экрана это ещё «соединение»
+                    CallInstance.ConnectionState.Reconnecting ->
+                        setPhase(if (_call.value?.connectedAt == null) CallPhase.Connecting else CallPhase.Reconnecting)
                     CallInstance.ConnectionState.Failed -> {
                         Log.w(TAG, "tgcalls failed")
                         discard()
