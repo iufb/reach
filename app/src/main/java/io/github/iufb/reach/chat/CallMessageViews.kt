@@ -23,7 +23,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import io.github.iufb.reach.R
-import io.github.iufb.reach.chats.CallOutcome
 import io.github.iufb.reach.chats.MessageBody
 import io.github.iufb.reach.chats.callTitleRes
 import io.github.iufb.reach.ui.theme.ReachTheme
@@ -37,7 +36,7 @@ import io.github.iufb.reach.ui.theme.ReachTheme
 internal fun CallMessageView(call: MessageBody.Call, isOutgoing: Boolean, onCallBack: () -> Unit, modifier: Modifier = Modifier) {
     val colors = ReachTheme.colors
     val style = bubbleStyle()
-    val happened = call.outcome == CallOutcome.Ended || call.duration > 0
+    val happened = call.duration > 0
     Row(modifier.widthIn(min = 200.dp).padding(vertical = 2.dp), verticalAlignment = Alignment.CenterVertically) {
         Column(Modifier.weight(1f, fill = false)) {
             Text(

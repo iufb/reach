@@ -130,10 +130,11 @@ inline fun summarize(body: MessageBody, string: (Int) -> String): String {
 
 /**
  * Заголовок звонка как в Telegram iOS (#412). [isOutgoing] `null` — направление неизвестно (превью без сообщения).
- * Не дозвонились сами — «Отменённый», не ответили нам — «Пропущенный», отклонили — «Отклонённый».
+ * Состоялся (длительность > 0) — «Исходящий» / «Входящий». Иначе: свой — «Отменённый», нам отклонили сами —
+ * «Отклонённый», остальное — «Пропущенный».
  */
 fun callTitleRes(call: MessageBody.Call, isOutgoing: Boolean?): Int = when {
-    call.outcome == CallOutcome.Ended || call.duration > 0 -> when (isOutgoing) {
+    call.duration > 0 -> when (isOutgoing) {
         true -> if (call.isVideo) R.string.call_message_outgoing_video else R.string.call_message_outgoing
         false -> if (call.isVideo) R.string.call_message_incoming_video else R.string.call_message_incoming
         null -> if (call.isVideo) R.string.call_message_video else R.string.content_call
