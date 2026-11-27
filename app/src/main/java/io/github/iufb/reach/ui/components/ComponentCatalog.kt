@@ -35,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import io.github.iufb.reach.R
 import io.github.iufb.reach.auth.AuthPreviewDialog
 import io.github.iufb.reach.auth.AuthPreviewStep
+import io.github.iufb.reach.core.voip.TgCalls
 import io.github.iufb.reach.ui.theme.CellIconColors
 import io.github.iufb.reach.ui.theme.ReachTheme
 
@@ -86,7 +87,21 @@ fun ComponentCatalogScreen(onBack: () -> Unit) {
                     }
                 }
                 item {
-                    GroupedSection(header = "Экраны входа", footer = "Шаги входа с локальным состоянием — без выхода из аккаунта.") {
+                    // VoIP-стек (ADR-0015, #407): libtgcallsjni.so собралась в CI и грузится на устройстве
+                    val voip = remember { runCatching { TgCalls.versions() to TgCalls.maxLayer() } }
+                    GroupedSection(
+                        header = "Звонки (tgcalls)",
+                        footer = voip.fold(
+                            { (versions, _) -> "library_versions: ${versions.joinToString(", ")}" },
+                            { "Не загрузилась: $it" },
+                        ),
+                    ) {
+                        GroupedCell("libtgcallsjni.so", value = if (voip.isSuccess) "загружена" else "ошибка")
+                        GroupedCell("Слои", value = voip.getOrNull()?.let { "${TgCalls.MIN_LAYER}–${it.second}" } ?: "—", divider = false)
+                    }
+                }
+                item {
+                    GroupedSection(header = "Экраны входа",footer = "Шаги входа с локальным состоянием — без выхода из аккаунта.") {
                         GroupedCell("Номер телефона", onClick = { authStep = AuthPreviewStep.Phone })
                         GroupedCell("Код подтверждения", onClick = { authStep = AuthPreviewStep.Code })
                         GroupedCell("Облачный пароль", onClick = { authStep = AuthPreviewStep.Password })
