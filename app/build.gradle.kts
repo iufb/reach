@@ -136,6 +136,7 @@ android {
 
 dependencies {
     implementation(project(":core:td"))
+    implementation(project(":core:voip"))
 
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.activity.compose)

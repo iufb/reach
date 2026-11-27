@@ -18,4 +18,5 @@ rootProject.name = "reach"
 
 include(":app")
 include(":core:td")
+include(":core:voip")
 include(":baselineprofile")
