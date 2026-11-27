@@ -15,7 +15,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -55,12 +54,7 @@ internal fun DocumentRow(document: DocumentInfo, state: FileState?, modifier: Mo
             }
             if (downloading && state != null) {
                 val progress = if (state.size > 0) state.downloadedSize.toFloat() / state.size else 0f
-                CircularProgressIndicator(
-                    progress = { progress },
-                    modifier = Modifier.size(40.dp),
-                    color = bubbleStyle().onAccent,
-                    strokeWidth = 2.dp,
-                )
+                ProgressRing(progress, bubbleStyle().onAccent, Modifier.size(40.dp))
             }
             Icon(painterResource(icon), stringResource(description), tint = bubbleStyle().onAccent)
         }

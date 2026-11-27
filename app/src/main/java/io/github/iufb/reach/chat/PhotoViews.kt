@@ -39,7 +39,6 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.pager.HorizontalPager
 import androidx.compose.foundation.pager.rememberPagerState
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -113,7 +112,7 @@ internal fun PhotoThumbnail(photo: PhotoInfo, modifier: Modifier = Modifier, squ
             DownloadBadge(photo.size, onClick = { requested = true })
         } else if (photo.preview != null) {
             when (state) {
-                is AsyncImagePainter.State.Loading -> CircularProgressIndicator(Modifier.size(32.dp), strokeWidth = 2.dp)
+                is AsyncImagePainter.State.Loading -> MediaProgress(progress = null)
                 is AsyncImagePainter.State.Error -> Text(stringResource(R.string.photo_load_error), style = MaterialTheme.typography.labelMedium)
                 else -> Unit
             }
@@ -337,7 +336,7 @@ private fun ZoomableImage(photo: PhotoInfo, onDismiss: () -> Unit, onTap: () -> 
             AsyncImage(photo.preview ?: photo.minithumbnail, null, Modifier.fillMaxSize().then(transform), contentScale = ContentScale.Fit)
         }
         Image(painter, null, Modifier.fillMaxSize().then(transform), contentScale = ContentScale.Fit)
-        if (state is AsyncImagePainter.State.Loading) CircularProgressIndicator(color = VIEWER_CONTENT)
+        if (state is AsyncImagePainter.State.Loading) MediaProgress(progress = null)
         if (state is AsyncImagePainter.State.Error) Text(stringResource(R.string.photo_load_error), color = VIEWER_CONTENT)
     }
 }

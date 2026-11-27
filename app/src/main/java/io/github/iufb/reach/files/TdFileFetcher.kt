@@ -28,8 +28,13 @@ class TdFileFetcher(
             TdFileFetcher(data, FilesRepository.PRIORITY_AVATAR, files)
     }
 
-    /** Ключ кэша памяти — стабильный `uniqueId`, а не id сессии. */
+    /**
+     * Ключ кэша памяти — стабильный `uniqueId`, а не id сессии. У файла, который ещё выгружается,
+     * `uniqueId` пустой: тогда ключ — id сессии, иначе все отправляемые фото делили бы один ключ
+     * и новое показывалось бы картинкой прошлого (#435).
+     */
     object Keyer : coil3.key.Keyer<TdFile> {
-        override fun key(data: TdFile, options: Options): String = "td:${data.uniqueId}"
+        override fun key(data: TdFile, options: Options): String =
+            if (data.uniqueId.isEmpty()) "td-local:${data.id}" else "td:${data.uniqueId}"
     }
 }

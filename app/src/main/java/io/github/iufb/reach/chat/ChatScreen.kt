@@ -57,7 +57,6 @@ import androidx.compose.foundation.lazy.LazyListState
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -1723,15 +1722,7 @@ private fun AlbumContent(album: List<Message>, interactions: MessageInteractions
 private fun UploadOverlay(message: Message, file: TdFile?, interactions: MessageInteractions) {
     if (message.sendingState != SendingState.Pending || file == null) return
     val progress by remember(file) { interactions.uploadProgress(file) }.collectAsState(initial = 0f)
-    Box(
-        Modifier.size(48.dp).background(Color.Black.copy(alpha = 0.5f), CircleShape),
-        contentAlignment = Alignment.Center,
-    ) {
-        CircularProgressIndicator(progress = { progress }, modifier = Modifier.size(44.dp), color = Color.White, strokeWidth = 2.dp)
-        IconButton(onClick = { interactions.onCancelSending(message) }) {
-            Icon(painterResource(R.drawable.ic_close), contentDescription = stringResource(R.string.upload_cancel), tint = Color.White)
-        }
-    }
+    MediaProgress(progress, onCancel = { interactions.onCancelSending(message) })
 }
 
 /** Заглушка для того, что клиент пока не показывает: тип и пометка, а не пустой пузырь. */
