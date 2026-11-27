@@ -60,6 +60,8 @@ class CallManager @Inject constructor(
     /** Сигнализация, пришедшая до запуска tgcalls. */
     private val pendingSignaling = mutableListOf<ByteArray>()
     private var hangUpRequested = false
+    /** Трубку положили мы: TDLib всё равно пришлёт «missed», если собеседник не успел ответить. */
+    private var hungUpLocally = false
     private var sendDebugLog = false
     private var tones: ToneGenerator? = null
     private var clearJob: Job? = null
@@ -157,6 +159,7 @@ class CallManager @Inject constructor(
 
     private suspend fun discard() {
         hangUpRequested = false
+        hungUpLocally = true
         val call = _call.value ?: return
         if (call.callId == 0 || call.isEnded) return
         _call.value = call.copy(phase = CallPhase.HangingUp)
@@ -208,7 +211,7 @@ class CallManager @Inject constructor(
             is TdApi.CallStateHangingUp -> setPhase(CallPhase.HangingUp)
             is TdApi.CallStateDiscarded -> {
                 sendDebugLog = state.needDebugInformation
-                val reason = when (state.reason) {
+                val reason = if (hungUpLocally) EndReason.HungUp else when (state.reason) {
                     is TdApi.CallDiscardReasonDeclined -> EndReason.Declined
                     is TdApi.CallDiscardReasonMissed -> EndReason.Missed
                     is TdApi.CallDiscardReasonDisconnected -> EndReason.Disconnected
@@ -341,6 +344,7 @@ class CallManager @Inject constructor(
         instance = null
         pendingSignaling.clear()
         hangUpRequested = false
+        hungUpLocally = false
         sendDebugLog = false
         clearJob?.cancel()
     }

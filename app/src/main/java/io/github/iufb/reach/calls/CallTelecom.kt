@@ -14,6 +14,7 @@ import androidx.core.telecom.CallControlScope
 import androidx.core.telecom.CallEndpointCompat
 import androidx.core.telecom.CallsManager
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,6 +79,8 @@ class CallTelecom @Inject constructor(@ApplicationContext private val context: C
                     }
                     launch { currentCallEndpoint.collect { _route.value = it.toRoute() } }
                 }
+            } catch (e: CancellationException) {
+                throw e // звонок завершён (stop) — это не отказ Telecom
             } catch (e: Exception) {
                 Log.w(TAG, "core-telecom недоступен, звук без Telecom", e)
                 control = null
