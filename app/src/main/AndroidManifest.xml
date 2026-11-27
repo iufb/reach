@@ -18,6 +18,12 @@
     <uses-permission android:name="android.permission.READ_CONTACTS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MEDIA_PLAYBACK" />
+    <!-- Звонки (#409, ADR-0015): служба на время звонка, датчик приближения; MANAGE_OWN_CALLS и
+         BLUETOOTH_CONNECT приносит core-telecom -->
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_PHONE_CALL" />
+    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_MICROPHONE" />
+    <uses-permission android:name="android.permission.WAKE_LOCK" />
+    <uses-permission android:name="android.permission.MODIFY_AUDIO_SETTINGS" />
 
     <application
         android:name=".ReachApp"
@@ -74,6 +80,12 @@
                 <action android:name="androidx.media3.session.MediaSessionService" />
             </intent-filter>
         </service>
+
+        <!-- Звонок идёт, пока приложение свёрнуто: уведомление CallStyle (#409) -->
+        <service
+            android:name=".calls.CallService"
+            android:exported="false"
+            android:foregroundServiceType="phoneCall|microphone" />
 
         <!-- «Прочитано» и «Ответить» из уведомлений -->
         <receiver

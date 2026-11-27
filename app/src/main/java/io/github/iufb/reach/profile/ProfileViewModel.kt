@@ -6,6 +6,7 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
+import io.github.iufb.reach.calls.CallManager
 import io.github.iufb.reach.chats.ChatKind
 import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.chats.GroupRef
@@ -70,6 +71,8 @@ data class Profile(
     val lastName: String = "",
     /** Пользователь в чёрном списке; `null` — не пользователь или это ты сам. */
     val isBlocked: Boolean? = null,
+    /** Можно позвонить (`userFullInfo.canBeCalled`, не ты сам) — #409. */
+    val canCall: Boolean = false,
     /** Группа или канал: есть экран участников. */
     val canOpenMembers: Boolean = false,
     /** Состоишь в группе / канале: можно выйти. */
@@ -93,6 +96,7 @@ private data class FullInfo(
     val memberCount: Int = 0,
     val username: String = "",
     val isBlocked: Boolean = false,
+    val canBeCalled: Boolean = false,
     val canGetMembers: Boolean = false,
     val canGetStatistics: Boolean = false,
 )
@@ -111,6 +115,7 @@ class ProfileViewModel @Inject constructor(
     users: UsersRepository,
     groups: GroupsRepository,
     private val contacts: ContactsRepository,
+    private val calls: CallManager,
 ) : ViewModel() {
 
     private val myId = MutableStateFlow(0L)
@@ -157,6 +162,7 @@ class ProfileViewModel @Inject constructor(
                 firstName = user.firstName,
                 lastName = user.lastName,
                 isBlocked = info.isBlocked.takeIf { me != 0L && user.id != me },
+                canCall = info.canBeCalled && me != 0L && user.id != me,
             )
             chat != null -> Profile(
                 title = chat.title,
@@ -243,6 +249,11 @@ class ProfileViewModel @Inject constructor(
         }
     }
 
+    /** Аудиозвонок пользователю (#409). Разрешение на микрофон проверяет экран. */
+    fun call() {
+        userId?.let(calls::startCall)
+    }
+
     fun removeContact() {
         val id = userId ?: return
         viewModelScope.launch {
@@ -259,6 +270,7 @@ class ProfileViewModel @Inject constructor(
                         photo = (info.photo ?: info.publicPhoto)?.toInfo(),
                         about = info.bio.toRichText(),
                         isBlocked = info.blockList is TdApi.BlockListMain,
+                        canBeCalled = info.canBeCalled,
                     )
                 }
                 group is GroupRef.Super -> {

@@ -1,5 +1,11 @@
 package io.github.iufb.reach.profile
 
+import android.Manifest
+import android.content.pm.PackageManager
+import android.widget.Toast
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.annotation.DrawableRes
 import androidx.annotation.StringRes
 import androidx.compose.animation.core.animateFloatAsState
@@ -111,6 +117,8 @@ fun ProfileScreen(
     onOpenStatistics: (chatId: Long) -> Unit = {},
     /** «Изменить» группы или канала (#222). */
     onEditChat: (chatId: Long) -> Unit = {},
+    /** Начат звонок — открыть его экран (#409). */
+    onOpenCall: () -> Unit = {},
     /** Вышли из группы или удалили её. */
     onLeft: () -> Unit = onBack,
     viewModel: ProfileViewModel = hiltViewModel(),
@@ -126,6 +134,21 @@ fun ProfileScreen(
     LaunchedEffect(gallery) { gallery.openFile.collect { openFile(context, it) } }
 
     val profile by viewModel.profile.collectAsStateWithLifecycle()
+    // Звонок: сначала микрофон, без него tgcalls не запустить
+    val startCall = {
+        viewModel.call()
+        onOpenCall()
+    }
+    val micPermission = rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        if (granted) startCall() else Toast.makeText(context, R.string.call_mic_permission, Toast.LENGTH_SHORT).show()
+    }
+    val onCall = {
+        if (ContextCompat.checkSelfPermission(context, Manifest.permission.RECORD_AUDIO) == PackageManager.PERMISSION_GRANTED) {
+            startCall()
+        } else {
+            micPermission.launch(Manifest.permission.RECORD_AUDIO)
+        }
+    }
     val counts by gallery.counts.collectAsStateWithLifecycle()
     val pages by gallery.pages.collectAsStateWithLifecycle()
     val downloads by gallery.downloads.collectAsStateWithLifecycle()
@@ -194,6 +217,7 @@ fun ProfileScreen(
                         Actions(
                             current,
                             onWrite = viewModel::write,
+                            onCall = onCall,
                             onToggleMute = { current.isMuted?.let { viewModel.setNotificationsEnabled(it) } },
                             onMore = if (more.isNotEmpty()) ({ moreSheet = true }) else null,
                         )
@@ -321,11 +345,12 @@ private fun Header(profile: Profile, title: String, onPhoto: () -> Unit, modifie
     }
 }
 
-/** Ряд кнопок под шапкой: «сообщение», звук, «ещё». Нет ни одной — ряда нет. */
+/** Ряд кнопок под шапкой: «сообщение», «звонок», звук, «ещё». Нет ни одной — ряда нет. */
 @Composable
-private fun Actions(profile: Profile, onWrite: () -> Unit, onToggleMute: () -> Unit, onMore: (() -> Unit)?) {
+private fun Actions(profile: Profile, onWrite: () -> Unit, onCall: () -> Unit, onToggleMute: () -> Unit, onMore: (() -> Unit)?) {
     val buttons = buildList {
         if (profile.canWrite) add(ActionButton(R.drawable.ic_tab_chats, R.string.profile_action_message, onWrite))
+        if (profile.canCall) add(ActionButton(R.drawable.ic_call, R.string.profile_action_call, onCall))
         profile.isMuted?.let { muted ->
             add(
                 ActionButton(

@@ -11,7 +11,13 @@ android {
 
     defaultConfig {
         minSdk = 31
+        consumerProguardFiles("consumer-rules.pro")
     }
+}
+
+dependencies {
+    // Java-часть WebRTC (org.webrtc.*, scripts/vendor-webrtc-java.sh) использует @Nullable / @Keep
+    implementation(libs.androidx.annotation)
 }
 
 /**
