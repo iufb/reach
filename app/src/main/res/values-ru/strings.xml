@@ -881,4 +881,18 @@
     <string name="call_fullscreen_text">Разрешите Reach показывать входящий звонок на весь экран, в том числе поверх блокировки.</string>
     <string name="call_fullscreen_open">Настройки</string>
     <string name="call_fullscreen_later">Не сейчас</string>
+    <string name="call_message_outgoing">Исходящий звонок</string>
+    <string name="call_message_incoming">Входящий звонок</string>
+    <string name="call_message_missed">Пропущенный звонок</string>
+    <string name="call_message_cancelled">Отменённый звонок</string>
+    <string name="call_message_declined">Отклонённый звонок</string>
+    <string name="call_message_video">Видеозвонок</string>
+    <string name="call_message_outgoing_video">Исходящий видеозвонок</string>
+    <string name="call_message_incoming_video">Входящий видеозвонок</string>
+    <string name="call_message_missed_video">Пропущенный видеозвонок</string>
+    <string name="call_message_cancelled_video">Отменённый видеозвонок</string>
+    <string name="call_message_declined_video">Отклонённый видеозвонок</string>
+    <string name="call_back_action">Перезвонить</string>
+    <string name="call_duration_min">%1$d мин</string>
+    <string name="call_duration_sec">%1$d с</string>
 </resources>

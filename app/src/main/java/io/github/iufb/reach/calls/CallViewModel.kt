@@ -20,6 +20,8 @@ class CallViewModel @Inject constructor(private val calls: CallManager, users: U
     val user: StateFlow<User?> = combine(calls.call, users.users) { call, all -> call?.let { all[it.userId] } }
         .stateIn(viewModelScope, SharingStarted.Eagerly, calls.call.value?.let { users.users.value[it.userId] })
 
+    fun startCall(userId: Long) = calls.startCall(userId)
+
     fun hangUp() = calls.hangUp()
 
     fun accept() = calls.accept()

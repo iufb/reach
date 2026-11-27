@@ -6,7 +6,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import androidx.navigation.toRoute
 import dagger.hilt.android.lifecycle.HiltViewModel
-import io.github.iufb.reach.calls.CallManager
 import io.github.iufb.reach.chats.ChatKind
 import io.github.iufb.reach.chats.ChatsRepository
 import io.github.iufb.reach.chats.GroupRef
@@ -115,7 +114,6 @@ class ProfileViewModel @Inject constructor(
     users: UsersRepository,
     groups: GroupsRepository,
     private val contacts: ContactsRepository,
-    private val calls: CallManager,
 ) : ViewModel() {
 
     private val myId = MutableStateFlow(0L)
@@ -126,7 +124,8 @@ class ProfileViewModel @Inject constructor(
     val chatId: Long = route.chatId.takeIf { it != 0L } ?: route.userId
     private val routeChat = chats.chats.value[route.chatId]
     /** Пользователь: из маршрута или собеседник личного чата. */
-    private val userId: Long? = route.userId.takeIf { it != 0L } ?: routeChat?.userId
+    /** Пользователь профиля (или собеседник личного чата); `null` — группа или канал. */
+    val userId: Long? = route.userId.takeIf { it != 0L } ?: routeChat?.userId
     private val group: GroupRef? = routeChat?.group
 
     private val full = MutableStateFlow(FullInfo())
@@ -247,11 +246,6 @@ class ProfileViewModel @Inject constructor(
                 .onSuccess { _left.emit(Unit) }
                 .onFailure { _error.emit(userErrors.message(it)) }
         }
-    }
-
-    /** Аудиозвонок пользователю (#409). Разрешение на микрофон проверяет экран. */
-    fun call() {
-        userId?.let(calls::startCall)
     }
 
     fun removeContact() {

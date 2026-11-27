@@ -43,6 +43,9 @@ sealed interface MessageBody {
     data class Document(val document: DocumentInfo, val caption: RichText) : MessageBody
 
     /** Сообщение, которое клиент ещё не умеет показать. [caption] — подпись или эмодзи, если есть. */
+    /** Звонок в истории (#412): итог и длительность, секунды; направление — `Message.isOutgoing`. */
+    data class Call(val isVideo: Boolean, val outcome: CallOutcome, val duration: Int) : MessageBody
+
     data class Unsupported(val kind: ContentKind, val caption: RichText = RichText.Empty) : MessageBody
 
     /** Служебное событие чата: вступление, смена названия, закреп… */
@@ -51,6 +54,9 @@ sealed interface MessageBody {
     /** [value] — число для части видов (секунды автоудаления), [text] — строка (название топика). */
     data class Service(val kind: ServiceKind, val value: Int = 0, val text: String = "") : MessageBody
 }
+
+/** Чем кончился звонок: из `messageCall.discardReason`. */
+enum class CallOutcome { Ended, Missed, Declined }
 
 enum class ContentKind {
     Photo, Video, Document, Audio, VoiceNote, VideoNote, Animation, Sticker, Poll, Checklist,
@@ -95,7 +101,15 @@ internal fun TdApi.MessageContent.toBody(): MessageBody = when (this) {
     is TdApi.MessageLocation, is TdApi.MessageVenue -> MessageBody.Unsupported(ContentKind.Location)
     is TdApi.MessageLiveLocation -> MessageBody.Unsupported(ContentKind.LiveLocation)
     is TdApi.MessageContact -> unsupported(ContentKind.Contact, "${contact.firstName} ${contact.lastName}".trim())
-    is TdApi.MessageCall -> MessageBody.Unsupported(ContentKind.Call)
+    is TdApi.MessageCall -> MessageBody.Call(
+        isVideo,
+        when (discardReason) {
+            is TdApi.CallDiscardReasonMissed -> CallOutcome.Missed
+            is TdApi.CallDiscardReasonDeclined -> CallOutcome.Declined
+            else -> CallOutcome.Ended
+        },
+        duration,
+    )
     is TdApi.MessageGroupCall -> MessageBody.Unsupported(ContentKind.GroupCall)
     is TdApi.MessageDice -> unsupported(ContentKind.Dice, emoji)
     is TdApi.MessageGame -> unsupported(ContentKind.Game, game.title)
